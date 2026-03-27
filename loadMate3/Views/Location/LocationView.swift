@@ -11,7 +11,7 @@ struct LocationView: View {
             List {
                 if loadedItems.isEmpty {
                     Text("No loaded items yet. Use the Load tab first.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppColors.secondaryText)
                 } else {
                     ForEach(loadedItems) { loaded in
                         VStack(alignment: .leading, spacing: 8) {
@@ -19,7 +19,7 @@ struct LocationView: View {
                                 .font(.headline)
                             Text("Qty: \(loaded.quantity) - \(Formatters.kg((loaded.item?.weightKg ?? 0) * Double(loaded.quantity)))")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(AppColors.secondaryText)
 
                             Picker("Zone", selection: Binding(
                                 get: { loaded.zone },

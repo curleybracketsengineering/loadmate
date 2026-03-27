@@ -64,7 +64,7 @@ private struct StatusRow: View {
             Text(title)
             Spacer()
             Image(systemName: isWarning ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                .foregroundStyle(isWarning ? .red : .green)
+                .foregroundStyle(isWarning ? AppColors.statusWarning : AppColors.statusSafe)
         }
     }
 }

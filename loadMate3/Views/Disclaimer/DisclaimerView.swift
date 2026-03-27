@@ -17,7 +17,7 @@ struct DisclaimerView: View {
                     Text("Always physically measure nose weight and verify total caravan weight.")
                     Text("Do not exceed MTPLM, tow-ball limits, or vehicle limits.")
                     Text("By continuing, you accept that estimates may be incorrect.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppColors.secondaryText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()

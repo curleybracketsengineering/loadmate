@@ -14,36 +14,28 @@ struct SettingsView: View {
                 if let config = resolvedConfig {
                     Form {
                         Section("Setup") {
-                            TextField("Base Weight (kg)", value: binding(for: \.baseWeightKg, on: config), format: .number)
-                                .keyboardType(.decimalPad)
-                            TextField("MTPLM (kg)", value: binding(for: \.mtplmKg, on: config), format: .number)
-                                .keyboardType(.decimalPad)
-                            TextField("Car Max Tow Ball (kg)", value: binding(for: \.carMaxTowBallKg, on: config), format: .number)
-                                .keyboardType(.decimalPad)
+                            labeledNumberField("Base Weight (kg)", keyPath: \.baseWeightKg, on: config)
+                            labeledNumberField("MTPLM (kg)", keyPath: \.mtplmKg, on: config)
+                            labeledNumberField("Car Max Tow Ball (kg)", keyPath: \.carMaxTowBallKg, on: config)
                         }
 
                         Section("Zone Factors") {
-                            TextField("Front Locker", value: binding(for: \.factorFrontLocker, on: config), format: .number)
-                                .keyboardType(.decimalPad)
-                            TextField("Front", value: binding(for: \.factorFront, on: config), format: .number)
-                                .keyboardType(.decimalPad)
-                            TextField("Middle", value: binding(for: \.factorMiddle, on: config), format: .number)
-                                .keyboardType(.decimalPad)
-                            TextField("Rear", value: binding(for: \.factorRear, on: config), format: .number)
-                                .keyboardType(.decimalPad)
-                            TextField("Bike Rack", value: binding(for: \.factorBikeRack, on: config), format: .number)
-                                .keyboardType(.decimalPad)
+                            labeledNumberField("Front Locker", keyPath: \.factorFrontLocker, on: config)
+                            labeledNumberField("Front", keyPath: \.factorFront, on: config)
+                            labeledNumberField("Middle", keyPath: \.factorMiddle, on: config)
+                            labeledNumberField("Rear", keyPath: \.factorRear, on: config)
+                            labeledNumberField("Bike Rack", keyPath: \.factorBikeRack, on: config)
 
                             Button("Reset Defaults") {
                                 viewModel.resetFactors(config: config, in: modelContext)
                             }
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(AppColors.actionCaution)
                         }
 
                         Section("Disclaimer") {
                             Text("This app is an estimator only. Always physically measure caravan and nose weight.")
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(AppColors.secondaryText)
                         }
                     }
                 } else {
@@ -65,5 +57,14 @@ struct SettingsView: View {
                 viewModel.save(modelContext)
             }
         )
+    }
+
+    @ViewBuilder
+    private func labeledNumberField(_ title: String, keyPath: ReferenceWritableKeyPath<SetupConfig, Double>, on config: SetupConfig) -> some View {
+        LabeledContent(title) {
+            TextField("", value: binding(for: keyPath, on: config), format: .number)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+        }
     }
 }

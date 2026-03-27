@@ -30,7 +30,7 @@ struct LoadView: View {
                 Section("Library") {
                     if libraryItems.isEmpty {
                         Text("No items yet.")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppColors.secondaryText)
                     } else {
                         ForEach(libraryItems) { item in
                             HStack {
@@ -38,24 +38,24 @@ struct LoadView: View {
                                     Text(item.name)
                                     Text(Formatters.kg(item.weightKg))
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(AppColors.secondaryText)
                                 }
                                 Spacer()
                                 Text("x\(quantity(for: item))")
                                     .font(.headline)
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(AppColors.accentInfo)
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button("Load") {
                                     viewModel.load(item: item, loadedItems: loadedItems, in: modelContext)
                                 }
-                                .tint(.green)
+                                .tint(AppColors.actionPositive)
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                 Button("Unload") {
                                     viewModel.unload(item: item, loadedItems: loadedItems, in: modelContext)
                                 }
-                                .tint(.orange)
+                                .tint(AppColors.actionCaution)
                             }
                         }
                         .onDelete { offsets in
