@@ -8,6 +8,9 @@ enum AppColors {
     static let backgroundTertiary = Color.dynamic(light: 0xFFFFFF, dark: 0x2C2C2E)
     static let separator = Color.dynamic(light: 0xC6C6C8, dark: 0x3A3A3C)
 
+    /// Fill behind inline text fields (grouped / elevated surface).
+    static let inputFieldBackground = Color.dynamic(light: 0xF2F2F7, dark: 0x2C2C2E)
+
     // Text
     static let textPrimary = Color.dynamic(light: 0x000000, dark: 0xFFFFFF)
     static let textSecondary = Color.dynamicRGBA(

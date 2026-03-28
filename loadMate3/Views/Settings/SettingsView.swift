@@ -65,6 +65,10 @@ struct SettingsView: View {
             TextField("", value: binding(for: keyPath, on: config), format: .number)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(AppColors.inputFieldBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 }
