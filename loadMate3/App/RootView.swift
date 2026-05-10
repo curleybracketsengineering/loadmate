@@ -33,7 +33,14 @@ struct RootView: View {
 
 private enum RootPreviewData {
     static func makeContainer() -> ModelContainer {
-        let schema = Schema([SetupConfig.self, LibraryItem.self, LoadedItem.self, AppState.self])
+        let schema = Schema([
+            SetupConfig.self,
+            LibraryItem.self,
+            LoadedItem.self,
+            AppState.self,
+            ChecklistSection.self,
+            ChecklistItem.self,
+        ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
 
         do {
@@ -51,7 +58,8 @@ private enum RootPreviewData {
             context.insert(chair)
             context.insert(awning)
 
-            context.insert(LoadedItem(item: chair, quantity: 2, zone: .middle))
+            context.insert(LoadedItem(item: chair, quantity: 1, zone: .middle, loadedAt: .now.addingTimeInterval(-60)))
+            context.insert(LoadedItem(item: chair, quantity: 1, zone: .rear, loadedAt: .now))
             context.insert(LoadedItem(item: awning, quantity: 1, zone: .front))
 
             try context.save()

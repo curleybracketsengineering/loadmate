@@ -10,25 +10,47 @@ struct DisclaimerView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Safety Disclaimer")
-                        .font(.largeTitle.bold())
-                    Text("This app is an estimation tool only.")
-                    Text("Always physically measure nose weight and verify total caravan weight.")
-                    Text("Do not exceed MTPLM, tow-ball limits, or vehicle limits.")
-                    Text("By continuing, you accept that estimates may be incorrect.")
-                        .foregroundStyle(AppColors.secondaryText)
+                VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                    AppHeroSection(
+                        systemImage: "exclamationmark.shield.fill",
+                        title: "Safety disclaimer",
+                        subtitle: "Please read this carefully before using estimates from LoadMate."
+                    )
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        paragraph("This app is an estimation tool only.")
+                        paragraph("Always physically measure nose weight and verify total caravan weight.")
+                        paragraph("Do not exceed MTPLM, tow-ball limits, or vehicle limits.")
+                        paragraph("By continuing, you accept that estimates may be incorrect.")
+                    }
+
+                    Text("If you are unsure, consult your caravan and vehicle documentation or a qualified technician.")
+                        .font(.footnote)
+                        .foregroundStyle(AppColors.textSecondary)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
+                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                .padding(.bottom, 120)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .appScreenBackground()
             .safeAreaInset(edge: .bottom) {
-                Button("I Understand and Accept") {
-                    viewModel.acceptDisclaimer(appState: appState, in: modelContext)
+                VStack(spacing: 0) {
+                    AppSectionDivider()
+                    AppPrimaryButton("I understand and accept", systemImage: "checkmark.circle.fill") {
+                        viewModel.acceptDisclaimer(appState: appState, in: modelContext)
+                    }
+                    .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                    .padding(.vertical, 16)
+                    .background(AppColors.backgroundPrimary)
                 }
-                .buttonStyle(.borderedProminent)
-                .padding()
             }
         }
+    }
+
+    private func paragraph(_ text: String) -> some View {
+        Text(text)
+            .font(.body)
+            .foregroundStyle(AppColors.textPrimary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

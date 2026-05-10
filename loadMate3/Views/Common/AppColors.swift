@@ -11,6 +11,10 @@ enum AppColors {
     /// Fill behind inline text fields (grouped / elevated surface).
     static let inputFieldBackground = Color.dynamic(light: 0xF2F2F7, dark: 0x2C2C2E)
 
+    /// Bordered field surface (white / elevated card in light mode).
+    static let inputSurface = Color.dynamic(light: 0xFFFFFF, dark: 0x2C2C2E)
+    static let inputBorder = Color.dynamic(light: 0xD1D1D6, dark: 0x48484A)
+
     // Text
     static let textPrimary = Color.dynamic(light: 0x000000, dark: 0xFFFFFF)
     static let textSecondary = Color.dynamicRGBA(
@@ -31,6 +35,10 @@ enum AppColors {
     static let indigo = Color(hex: 0x5856D6)
     static let teal = Color(hex: 0x5AC8FA)
     static let pink = Color(hex: 0xFF2D55)
+
+    // Inline notice (e.g. configure settings)
+    static let warningBannerBackground = Color.dynamic(light: 0xFFF3CD, dark: 0x3D3500)
+    static let warningBannerText = Color.dynamic(light: 0x664D03, dark: 0xFFECB0)
 
     // Existing app tokens (kept for compatibility with current views)
     static let secondaryText = textSecondary

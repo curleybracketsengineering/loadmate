@@ -5,24 +5,20 @@ import SwiftData
 @MainActor
 final class LoadViewModel: ObservableObject {
     func load(item: LibraryItem, loadedItems: [LoadedItem], in context: ModelContext) {
-        if let existing = loadedItems.first(where: { $0.item?.id == item.id }) {
-            existing.quantity += 1
-            if existing.zone == .unassigned, let defaultZone = item.defaultZone {
-                existing.zone = defaultZone
-            }
-        } else {
-            let zone = item.defaultZone ?? .unassigned
-            context.insert(LoadedItem(item: item, quantity: 1, zone: zone))
-        }
+        let zone = item.defaultZone ?? .unassigned
+        context.insert(LoadedItem(item: item, quantity: 1, zone: zone))
         save(context)
     }
 
     func unload(item: LibraryItem, loadedItems: [LoadedItem], in context: ModelContext) {
-        guard let existing = loadedItems.first(where: { $0.item?.id == item.id }) else { return }
-        if existing.quantity <= 1 {
-            context.delete(existing)
+        let rows = loadedItems.filter { $0.item?.id == item.id }
+        guard !rows.isEmpty else { return }
+        let sorted = rows.sorted { $0.loadedAt > $1.loadedAt }
+        guard let target = sorted.first else { return }
+        if target.quantity > 1 {
+            target.quantity -= 1
         } else {
-            existing.quantity -= 1
+            context.delete(target)
         }
         save(context)
     }

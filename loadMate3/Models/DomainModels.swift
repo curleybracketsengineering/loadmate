@@ -56,6 +56,13 @@ final class SetupConfig {
     }
 }
 
+extension SetupConfig {
+    /// True once base weight, MTPLM, and car tow-ball limit are set (enables weight / nose estimates).
+    var isConfiguredForWeightCalculations: Bool {
+        baseWeightKg > 0 && mtplmKg > 0 && carMaxTowBallKg > 0
+    }
+}
+
 @Model
 final class LibraryItem {
     @Attribute(.unique) var id: UUID
@@ -81,13 +88,16 @@ final class LoadedItem {
     @Attribute(.unique) var id: UUID
     var quantity: Int
     var zoneRaw: String
+    /// When each unit was added (used for ordering and unload order).
+    var loadedAt: Date = Date()
     var item: LibraryItem?
 
-    init(id: UUID = UUID(), item: LibraryItem, quantity: Int = 1, zone: LoadZone = .unassigned) {
+    init(id: UUID = UUID(), item: LibraryItem, quantity: Int = 1, zone: LoadZone = .unassigned, loadedAt: Date = Date()) {
         self.id = id
         self.item = item
         self.quantity = quantity
         self.zoneRaw = zone.rawValue
+        self.loadedAt = loadedAt
     }
 
     var zone: LoadZone {
@@ -104,5 +114,45 @@ final class AppState {
     init(disclaimerAccepted: Bool = false, acceptedAt: Date? = nil) {
         self.disclaimerAccepted = disclaimerAccepted
         self.acceptedAt = acceptedAt
+    }
+}
+
+@Model
+final class ChecklistSection {
+    @Attribute(.unique) var id: UUID
+    var title: String
+    var sortOrder: Int
+
+    @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.section)
+    var items: [ChecklistItem] = []
+
+    init(id: UUID = UUID(), title: String, sortOrder: Int = 0) {
+        self.id = id
+        self.title = title
+        self.sortOrder = sortOrder
+    }
+}
+
+@Model
+final class ChecklistItem {
+    @Attribute(.unique) var id: UUID
+    var title: String
+    var isChecked: Bool
+    var sortOrder: Int
+
+    var section: ChecklistSection?
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        isChecked: Bool = false,
+        sortOrder: Int = 0,
+        section: ChecklistSection? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.isChecked = isChecked
+        self.sortOrder = sortOrder
+        self.section = section
     }
 }

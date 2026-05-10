@@ -7,7 +7,14 @@ struct LoadMateNativeApp: App {
         WindowGroup {
             RootView()
         }
-        .modelContainer(for: [SetupConfig.self, LibraryItem.self, LoadedItem.self, AppState.self])
+        .modelContainer(for: [
+            SetupConfig.self,
+            LibraryItem.self,
+            LoadedItem.self,
+            AppState.self,
+            ChecklistSection.self,
+            ChecklistItem.self,
+        ])
     }
 }
 

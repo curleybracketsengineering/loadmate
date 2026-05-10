@@ -12,37 +12,103 @@ struct SettingsView: View {
         NavigationStack {
             Group {
                 if let config = resolvedConfig {
-                    Form {
-                        Section("Setup") {
-                            labeledNumberField("Base Weight (kg)", keyPath: \.baseWeightKg, on: config)
-                            labeledNumberField("MTPLM (kg)", keyPath: \.mtplmKg, on: config)
-                            labeledNumberField("Car Max Tow Ball (kg)", keyPath: \.carMaxTowBallKg, on: config)
-                        }
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                            AppHeroSection(
+                                systemImage: "gearshape",
+                                title: "Caravan Configuration",
+                                subtitle: "Set your caravan's weight specifications"
+                            )
 
-                        Section("Zone Factors") {
-                            labeledNumberField("Front Locker", keyPath: \.factorFrontLocker, on: config)
-                            labeledNumberField("Front", keyPath: \.factorFront, on: config)
-                            labeledNumberField("Middle", keyPath: \.factorMiddle, on: config)
-                            labeledNumberField("Rear", keyPath: \.factorRear, on: config)
-                            labeledNumberField("Bike Rack", keyPath: \.factorBikeRack, on: config)
+                            AppLabeledNumberField(
+                                "Base Weight (kg)",
+                                caption: "The unladen weight of your caravan",
+                                value: binding(for: \.baseWeightKg, on: config),
+                                fractionDigitsUpperBound: 0
+                            )
 
-                            Button("Reset Defaults") {
-                                viewModel.resetFactors(config: config, in: modelContext)
-                            }
-                            .foregroundStyle(AppColors.actionCaution)
-                        }
+                            AppLabeledNumberField(
+                                "MTPLM (kg)",
+                                caption: "Maximum Technically Permissible Laden Mass",
+                                value: binding(for: \.mtplmKg, on: config),
+                                fractionDigitsUpperBound: 0
+                            )
 
-                        Section("Disclaimer") {
+                            AppSectionDivider()
+
+                            AppLabeledNumberField(
+                                "Car Max Tow Ball Weight (kg)",
+                                caption: "Maximum tow ball weight your car can handle",
+                                value: binding(for: \.carMaxTowBallKg, on: config),
+                                fractionDigitsUpperBound: 0
+                            )
+
+                            AppSectionDivider()
+
+                            AppSectionHeading(
+                                "Weight Factors",
+                                caption: "Adjust how each location affects nose weight. Positive values increase nose weight, negative values decrease it."
+                            )
+
+                            AppFactorField(
+                                accentTitle: "Front Boot (Locker)",
+                                caption: "Items at the very front of the caravan",
+                                value: binding(for: \.factorFrontLocker, on: config)
+                            )
+
+                            AppFactorField(
+                                accentTitle: "Front",
+                                caption: "Front seating and forward storage areas",
+                                value: binding(for: \.factorFront, on: config)
+                            )
+
+                            AppFactorField(
+                                accentTitle: "Middle",
+                                caption: "Over or near the axle",
+                                value: binding(for: \.factorMiddle, on: config)
+                            )
+
+                            AppFactorField(
+                                accentTitle: "Back",
+                                caption: "Rear cupboards and under bed area",
+                                value: binding(for: \.factorRear, on: config)
+                            )
+
+                            AppFactorField(
+                                accentTitle: "Bike Rack",
+                                caption: "Very rear — bumper or rack behind axle",
+                                value: binding(for: \.factorBikeRack, on: config)
+                            )
+
                             Text("This app is an estimator only. Always physically measure caravan and nose weight.")
                                 .font(.footnote)
-                                .foregroundStyle(AppColors.secondaryText)
+                                .foregroundStyle(AppColors.textSecondary)
+                                .padding(.top, 4)
+
+                            VStack(spacing: 12) {
+                                AppSecondaryButton("Reset zone factors to defaults") {
+                                    viewModel.resetFactors(config: config, in: modelContext)
+                                }
+
+                                AppPrimaryButton("Save Configuration", systemImage: "checkmark.circle.fill") {
+                                    viewModel.save(modelContext)
+                                }
+                            }
+                            .padding(.top, 8)
                         }
+                        .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                        .padding(.vertical, 16)
+                        .padding(.bottom, 24)
                     }
+                    .scrollDismissesKeyboard(.interactively)
                 } else {
                     ProgressView("Loading...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
+            .appScreenBackground()
             .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.large)
         }
         .task(id: configs.count) {
             resolvedConfig = viewModel.ensureConfig(in: modelContext, existing: configs.first)
@@ -57,18 +123,5 @@ struct SettingsView: View {
                 viewModel.save(modelContext)
             }
         )
-    }
-
-    @ViewBuilder
-    private func labeledNumberField(_ title: String, keyPath: ReferenceWritableKeyPath<SetupConfig, Double>, on config: SetupConfig) -> some View {
-        LabeledContent(title) {
-            TextField("", value: binding(for: keyPath, on: config), format: .number)
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(AppColors.inputFieldBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
     }
 }
