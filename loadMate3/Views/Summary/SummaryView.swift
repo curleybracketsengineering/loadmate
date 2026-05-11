@@ -56,12 +56,12 @@ struct SummaryView: View {
     private func statusBanner(summary: WeightSummary) -> some View {
         let (title, background): (String, Color) = {
             if summary.isOverMTPLM {
-                return ("OVER MTPLM", AppColors.red)
+                return ("OVER CARAVAN", AppColors.red)
             }
             if summary.isOverallSafe {
                 return ("SAFE", AppColors.green)
             }
-            return ("CHECK", AppColors.orange)
+            return ("OVER LOADED TOW BALL", AppColors.red)
         }()
 
         return Text(title)
@@ -85,7 +85,7 @@ struct SummaryView: View {
                     Spacer()
                     Text(Formatters.kg(summary.totalWeightKg))
                         .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppColors.green)
+                        .foregroundStyle(summary.isOverMTPLM ? AppColors.red : AppColors.green)
                         .minimumScaleFactor(0.75)
                         .lineLimit(1)
                 }
@@ -147,7 +147,7 @@ struct SummaryView: View {
                             .foregroundStyle(AppColors.textPrimary)
                         Text(Formatters.kg(summary.estimatedNoseWeightKg))
                             .font(.system(size: 30, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppColors.blue)
+                            .foregroundStyle(summary.isOverTowBallLimit ? AppColors.red : AppColors.blue)
                             .minimumScaleFactor(0.8)
                             .lineLimit(1)
                     }
@@ -158,14 +158,17 @@ struct SummaryView: View {
                 .background(AppColors.backgroundSecondary)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
+                let carLimitOverridesMin = config.carMaxTowBallKg > 0 && config.carMaxTowBallKg < summary.towBallMinKg
+                let carLimitOverridesMax = config.carMaxTowBallKg > 0 && config.carMaxTowBallKg < summary.towBallMaxKg
+
                 HStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Min (5%)")
+                        Text(carLimitOverridesMin ? "Car Limit" : "Min (5%)")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(AppColors.textSecondary)
-                        Text(Formatters.kg(summary.towBallMinKg))
+                        Text(Formatters.kg(carLimitOverridesMin ? config.carMaxTowBallKg : summary.towBallMinKg))
                             .font(.title3.weight(.bold))
-                            .foregroundStyle(AppColors.blue)
+                            .foregroundStyle(carLimitOverridesMin ? AppColors.red : AppColors.blue)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -175,12 +178,12 @@ struct SummaryView: View {
                         .padding(.vertical, 4)
 
                     VStack(alignment: .trailing, spacing: 6) {
-                        Text("Max (7%)")
+                        Text(carLimitOverridesMax ? "Car Limit" : "Max (7%)")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(AppColors.textSecondary)
-                        Text(Formatters.kg(summary.towBallMaxKg))
+                        Text(Formatters.kg(carLimitOverridesMax ? config.carMaxTowBallKg : summary.towBallMaxKg))
                             .font(.title3.weight(.bold))
-                            .foregroundStyle(AppColors.blue)
+                            .foregroundStyle(carLimitOverridesMax ? AppColors.red : AppColors.blue)
                     }
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 }

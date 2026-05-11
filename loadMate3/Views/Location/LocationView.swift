@@ -30,8 +30,6 @@ struct LocationView: View {
 
                             towBarEstimateBlock
 
-                            AppSectionDivider()
-
                             zoneLegend
 
                             ForEach(loadedItems) { loaded in
@@ -53,28 +51,16 @@ struct LocationView: View {
                 }
             }
             .background(AppColors.backgroundPrimary)
-            .navigationTitle("Locations")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 
     private var assignHeader: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Assign Locations")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppColors.textPrimary)
-
-            Text(itemsLoadedSubtitle)
-                .font(.subheadline)
-                .foregroundStyle(AppColors.textSecondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var itemsLoadedSubtitle: String {
-        let n = loadedItems.count
-        let noun = n == 1 ? "item" : "items"
-        return "\(n) \(noun) loaded"
+        Text("Assign Locations")
+            .font(.title3.weight(.bold))
+            .foregroundStyle(AppColors.textPrimary)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var towBarEstimateBlock: some View {
@@ -170,13 +156,15 @@ private struct LocationItemZoneCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(AppColors.textPrimary)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(AppColors.textPrimary)
 
-            Text(weightLine)
-                .font(.footnote)
-                .foregroundStyle(AppColors.textSecondary)
+                Text(weightLine)
+                    .font(.footnote)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
 
             HStack(spacing: 10) {
                 ForEach(LoadZone.pickerZones) { zone in
