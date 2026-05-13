@@ -4,14 +4,12 @@ import SwiftData
 
 @MainActor
 final class ChecklistViewModel: ObservableObject {
-    private static let defaultsSeedKey = "loadMate3.checklist.defaultsSeeded"
-
     func ensureSeedData(in context: ModelContext, existingSections: [ChecklistSection]) {
-        if !existingSections.isEmpty {
-            UserDefaults.standard.set(true, forKey: Self.defaultsSeedKey)
-            return
-        }
-        guard !UserDefaults.standard.bool(forKey: Self.defaultsSeedKey) else { return }
+        // Insert built-in sections only when the store has none (no UserDefaults gate — it could block
+        // forever after a manual section was added before the first seed, or after deleting all sections).
+        guard existingSections.isEmpty else { return }
+        let descriptor = FetchDescriptor<ChecklistSection>()
+        guard let stored = try? context.fetch(descriptor), stored.isEmpty else { return }
 
         let templates: [(String, Int, [String])] = [
             ("Towing Setup", 0, [
@@ -41,7 +39,6 @@ final class ChecklistViewModel: ObservableObject {
             }
         }
 
-        UserDefaults.standard.set(true, forKey: Self.defaultsSeedKey)
         save(context)
     }
 
