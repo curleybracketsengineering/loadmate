@@ -23,7 +23,7 @@ struct SummaryView: View {
             Group {
                 if let summary = viewModel.summary, let config = configs.first {
                     ScrollView {
-                        VStack(spacing: 16) {
+                        VStack(spacing: AppScreenMetrics.sectionSpacing) {
                             statusBanner(summary: summary)
 
                             currentWeightCard(summary: summary, config: config)
@@ -31,18 +31,19 @@ struct SummaryView: View {
                             noseWeightCard(summary: summary, config: config)
                         }
                         .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                        .padding(.vertical, 16)
-                        .padding(.bottom, 24)
+                        .padding(.top, AppScreenMetrics.verticalScreenPadding)
+                        .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
                     }
                     .scrollDismissesKeyboard(.interactively)
-                    .background(AppColors.backgroundSecondary)
+                    .background(Color(.systemGroupedBackground))
                 } else {
                     ContentUnavailableView(
                         "Setup required",
                         systemImage: "exclamationmark.triangle",
                         description: Text("Open Settings and enter base weight, MTPLM, and tow-ball limit.")
                     )
-                    .background(AppColors.backgroundSecondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(.systemGroupedBackground))
                 }
             }
             .navigationTitle("Weight")
@@ -69,22 +70,23 @@ struct SummaryView: View {
             .foregroundStyle(Color.white)
             .tracking(1.2)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
+            .padding(.vertical, AppScreenMetrics.fieldSpacing)
             .background(background)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
             .accessibilityLabel("Status: \(title)")
     }
 
     private func currentWeightCard(summary: WeightSummary, config: SetupConfig) -> some View {
         SummaryCard {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Current Weight")
                         .font(.subheadline)
-                        .foregroundStyle(AppColors.textSecondary)
+                        .foregroundStyle(AppColors.textSupporting)
                     Spacer()
                     Text(Formatters.kg(summary.totalWeightKg))
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.largeTitle.weight(.bold))
+                        .fontDesign(.rounded)
                         .foregroundStyle(summary.isOverMTPLM ? AppColors.red : AppColors.green)
                         .minimumScaleFactor(0.75)
                         .lineLimit(1)
@@ -94,11 +96,11 @@ struct SummaryView: View {
 
                 HStack {
                     Text("MTPLM: \(stripKgSuffix(Formatters.kg(config.mtplmKg))) kg")
-                        .font(.footnote)
-                        .foregroundStyle(AppColors.textSecondary)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
                     Spacer()
                     Text("Available: \(stripKgSuffix(Formatters.kg(summary.availableWeightKg))) kg")
-                        .font(.footnote.weight(.medium))
+                        .font(.caption.weight(.medium))
                         .foregroundStyle(summary.availableWeightKg >= 0 ? AppColors.green : AppColors.red)
                 }
             }
@@ -107,97 +109,96 @@ struct SummaryView: View {
 
     private func noseWeightCard(summary: WeightSummary, config: SetupConfig) -> some View {
         SummaryCard {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 Text("Nose Weight")
                     .font(.headline)
-                    .foregroundStyle(AppColors.textPrimary)
+                    .foregroundStyle(Color.primary)
 
-                VStack(spacing: 12) {
+                VStack(spacing: AppScreenMetrics.controlSpacing) {
                     HStack {
                         Text("Base (6%)")
                             .font(.subheadline)
-                            .foregroundStyle(AppColors.textSecondary)
+                            .foregroundStyle(AppColors.textSupporting)
                         Spacer()
                         Text(Formatters.kg(summary.baseNoseSixPercentKg))
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(AppColors.textPrimary)
+                            .foregroundStyle(Color.primary)
                     }
 
                     HStack {
                         Text("Location Impact")
                             .font(.subheadline)
-                            .foregroundStyle(AppColors.textSecondary)
+                            .foregroundStyle(AppColors.textSupporting)
                         Spacer()
                         Text(signedKg(summary.locationImpactKg))
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(
                                 summary.locationImpactKg < 0
                                     ? AppColors.red
-                                    : (summary.locationImpactKg > 0 ? AppColors.green : AppColors.textPrimary)
+                                    : (summary.locationImpactKg > 0 ? AppColors.green : Color.primary)
                             )
                     }
 
-                    Rectangle()
-                        .fill(AppColors.separator.opacity(0.5))
-                        .frame(height: 1)
+                    AppSectionDivider()
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
                         Text("Calculated Nose Weight")
                             .font(.headline)
-                            .foregroundStyle(AppColors.textPrimary)
+                            .foregroundStyle(Color.primary)
                         Text(Formatters.kg(summary.estimatedNoseWeightKg))
-                            .font(.system(size: 30, weight: .bold, design: .rounded))
-                            .foregroundStyle(summary.isOverTowBallLimit ? AppColors.red : AppColors.blue)
+                            .font(.largeTitle.weight(.bold))
+                            .fontDesign(.rounded)
+                            .foregroundStyle(summary.isOverTowBallLimit ? AppColors.red : Color.accentColor)
                             .minimumScaleFactor(0.8)
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(14)
+                .padding(AppScreenMetrics.cardInteriorPadding)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(AppColors.backgroundSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(Color(.tertiarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
 
                 let carLimitOverridesMin = config.carMaxTowBallKg > 0 && config.carMaxTowBallKg < summary.towBallMinKg
                 let carLimitOverridesMax = config.carMaxTowBallKg > 0 && config.carMaxTowBallKg < summary.towBallMaxKg
 
                 HStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
                         Text(carLimitOverridesMin ? "Car Limit" : "Min (5%)")
                             .font(.caption.weight(.medium))
-                            .foregroundStyle(AppColors.textSecondary)
+                            .foregroundStyle(AppColors.textSupporting)
                         Text(Formatters.kg(carLimitOverridesMin ? config.carMaxTowBallKg : summary.towBallMinKg))
                             .font(.title3.weight(.bold))
-                            .foregroundStyle(carLimitOverridesMin ? AppColors.red : AppColors.blue)
+                            .foregroundStyle(carLimitOverridesMin ? AppColors.red : Color.accentColor)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     Rectangle()
-                        .fill(AppColors.separator.opacity(0.45))
+                        .fill(Color(.separator).opacity(0.45))
                         .frame(width: 1)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, AppScreenMetrics.tinySpacing)
 
-                    VStack(alignment: .trailing, spacing: 6) {
+                    VStack(alignment: .trailing, spacing: AppScreenMetrics.tinySpacing) {
                         Text(carLimitOverridesMax ? "Car Limit" : "Max (7%)")
                             .font(.caption.weight(.medium))
-                            .foregroundStyle(AppColors.textSecondary)
+                            .foregroundStyle(AppColors.textSupporting)
                         Text(Formatters.kg(carLimitOverridesMax ? config.carMaxTowBallKg : summary.towBallMaxKg))
                             .font(.title3.weight(.bold))
-                            .foregroundStyle(carLimitOverridesMax ? AppColors.red : AppColors.blue)
+                            .foregroundStyle(carLimitOverridesMax ? AppColors.red : Color.accentColor)
                     }
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, AppScreenMetrics.tinySpacing)
 
                 Text("Car Max Tow Ball: \(stripKgSuffix(Formatters.kg(config.carMaxTowBallKg))) kg")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppColors.blue)
+                    .foregroundStyle(Color.accentColor)
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 12)
-                    .background(AppColors.blue.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(.vertical, AppScreenMetrics.fieldSpacing)
+                    .padding(.horizontal, AppScreenMetrics.controlSpacing)
+                    .background(Color.accentColor.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
             }
         }
     }
@@ -206,13 +207,13 @@ struct SummaryView: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(AppColors.backgroundSecondary)
+                    .fill(Color(.tertiarySystemFill))
                 Capsule()
                     .fill(AppColors.green)
                     .frame(width: max(geo.size.width * fill, fill > 0 ? 4 : 0))
             }
         }
-        .frame(height: 10)
+        .frame(height: 8)
         .accessibilityLabel("Progress toward MTPLM")
         .accessibilityValue("\(Int(fill * 100)) percent")
     }
@@ -245,10 +246,12 @@ private struct SummaryCard<Content: View>: View {
 
     var body: some View {
         content
-            .padding(18)
+            .padding(AppScreenMetrics.cardInteriorPadding + 4)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AppColors.backgroundPrimary)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .shadow(color: Color.black.opacity(0.08), radius: 14, x: 0, y: 6)
+            .background(
+                RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
+            .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
     }
 }

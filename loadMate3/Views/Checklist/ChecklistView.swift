@@ -29,29 +29,16 @@ struct ChecklistView: View {
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    List {
-                        ForEach(sections) { section in
-                            Section {
-                                ForEach(sortedItems(for: section)) { item in
-                                    checklistRow(item: item)
-                                }
-                                .onDelete { indexSet in
-                                    deleteItems(at: indexSet, section: section)
-                                }
-
-                                Button {
-                                    sectionPendingItem = section
-                                    newItemTitle = ""
-                                } label: {
-                                    Label("Add item", systemImage: "plus.circle.fill")
-                                        .foregroundStyle(AppColors.blue)
-                                }
-                            } header: {
-                                sectionHeader(section)
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                            ForEach(sections) { section in
+                                checklistSectionCard(section)
                             }
                         }
+                        .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                        .padding(.top, AppScreenMetrics.verticalScreenPadding)
+                        .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
                     }
-                    .listStyle(.insetGrouped)
                 }
             }
             .appScreenBackground()
@@ -77,7 +64,7 @@ struct ChecklistView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .font(.body.weight(.medium))
-                            .foregroundStyle(AppColors.blue)
+                            .foregroundStyle(Color.accentColor)
                     }
                     .accessibilityLabel("Checklist actions")
                 }
@@ -137,18 +124,50 @@ struct ChecklistView: View {
         }
     }
 
+    private func checklistSectionCard(_ section: ChecklistSection) -> some View {
+        let items = sortedItems(for: section)
+        return VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            sectionHeader(section)
+
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                if index > 0 {
+                    AppSectionDivider()
+                }
+                checklistRow(item: item)
+            }
+
+            Button {
+                sectionPendingItem = section
+                newItemTitle = ""
+            } label: {
+                Label("Add item", systemImage: "plus.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.borderless)
+            .tint(Color.accentColor)
+            .padding(.top, AppScreenMetrics.tinySpacing)
+        }
+        .padding(AppScreenMetrics.cardInteriorPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+
     private func sortedItems(for section: ChecklistSection) -> [ChecklistItem] {
         section.items.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     @ViewBuilder
     private func sectionHeader(_ section: ChecklistSection) -> some View {
-        HStack {
+        HStack(alignment: .center, spacing: AppScreenMetrics.controlSpacing) {
             Text(section.title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppColors.textSecondary)
+                .font(.headline)
+                .foregroundStyle(Color.primary)
                 .textCase(nil)
-            Spacer()
+            Spacer(minLength: AppScreenMetrics.smallSpacing)
             Menu {
                 Button {
                     sectionPendingRename = section
@@ -169,8 +188,8 @@ struct ChecklistView: View {
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.body.weight(.medium))
-                    .foregroundStyle(AppColors.blue)
-                    .frame(minWidth: 44, minHeight: 36)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Section options for \(section.title)")
@@ -181,37 +200,31 @@ struct ChecklistView: View {
         Button {
             viewModel.setChecked(item, !item.isChecked, in: modelContext)
         } label: {
-            HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .center, spacing: AppScreenMetrics.controlSpacing) {
                 Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(item.isChecked ? AppColors.green : AppColors.textTertiary)
+                    .foregroundStyle(item.isChecked ? Color.green : Color.secondary.opacity(0.55))
                     .accessibilityHidden(true)
 
                 Text(item.title)
                     .font(.body)
-                    .foregroundStyle(AppColors.textPrimary)
+                    .foregroundStyle(Color.primary)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 Spacer(minLength: 0)
             }
+            .padding(.vertical, AppScreenMetrics.tinySpacing)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(item.title), \(item.isChecked ? "checked" : "unchecked")")
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+        .contextMenu {
             Button(role: .destructive) {
                 viewModel.deleteItem(item, in: modelContext)
             } label: {
                 Label("Delete", systemImage: "trash")
             }
-        }
-    }
-
-    private func deleteItems(at offsets: IndexSet, section: ChecklistSection) {
-        let ordered = sortedItems(for: section)
-        for index in offsets {
-            viewModel.deleteItem(ordered[index], in: modelContext)
         }
     }
 }

@@ -26,6 +26,9 @@ enum AppColors {
         dark: (235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.30)
     )
 
+    /// Captions and hints on grouped surfaces and list headers (higher contrast than `textSecondary` / SwiftUI `.secondary`).
+    static let textSupporting = Color.dynamic(light: 0x3C3C43, dark: 0xAEAEB2)
+
     // Accents
     static let blue = Color(hex: 0x007AFF)
     static let green = Color(hex: 0x34C759)

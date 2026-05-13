@@ -17,7 +17,7 @@ struct DisclaimerView: View {
                         subtitle: "Please read this carefully before using estimates from LoadMate."
                     )
 
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                         paragraph("This app is an estimation tool only.")
                         paragraph("Always physically measure nose weight and verify total caravan weight.")
                         paragraph("Do not exceed MTPLM, tow-ball limits, or vehicle limits.")
@@ -25,8 +25,8 @@ struct DisclaimerView: View {
                     }
 
                     Text("If you are unsure, consult your caravan and vehicle documentation or a qualified technician.")
-                        .font(.footnote)
-                        .foregroundStyle(AppColors.textSecondary)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
                 }
                 .padding(.horizontal, AppScreenMetrics.horizontalPadding)
                 .padding(.bottom, 120)
@@ -40,8 +40,8 @@ struct DisclaimerView: View {
                         viewModel.acceptDisclaimer(appState: appState, in: modelContext)
                     }
                     .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                    .padding(.vertical, 16)
-                    .background(AppColors.backgroundPrimary)
+                    .padding(.vertical, AppScreenMetrics.fieldSpacing)
+                    .background(.ultraThinMaterial)
                 }
             }
         }

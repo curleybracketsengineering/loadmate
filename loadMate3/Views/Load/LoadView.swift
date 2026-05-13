@@ -48,31 +48,32 @@ struct LoadView: View {
                         List {
                             Section {
                                 ForEach(libraryItems) { item in
-                                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                        VStack(alignment: .leading, spacing: 4) {
+                                    HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.controlSpacing) {
+                                        VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
                                             Text(item.name)
                                                 .font(.headline)
-                                                .foregroundStyle(AppColors.textPrimary)
+                                                .foregroundStyle(Color.primary)
                                             Text(Formatters.kg(item.weightKg))
-                                                .font(.footnote)
-                                                .foregroundStyle(AppColors.textSecondary)
+                                                .font(.caption)
+                                                .foregroundStyle(AppColors.textSupporting)
                                         }
-                                        Spacer(minLength: 8)
+                                        Spacer(minLength: AppScreenMetrics.smallSpacing)
                                         Text("×\(quantity(for: item))")
                                             .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(AppColors.blue)
+                                            .foregroundStyle(Color.accentColor)
                                             .monospacedDigit()
                                     }
-                                    .padding(.vertical, 8)
-                                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                                    .padding(.vertical, AppScreenMetrics.smallSpacing)
+                                    .listRowInsets(EdgeInsets(
+                                        top: 6,
+                                        leading: AppScreenMetrics.cardInteriorPadding,
+                                        bottom: 6,
+                                        trailing: AppScreenMetrics.cardInteriorPadding
+                                    ))
                                     .listRowSeparator(.hidden)
                                     .listRowBackground(
                                         RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                                            .fill(AppColors.inputSurface)
-                                            .overlay {
-                                                RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                                                    .strokeBorder(AppColors.inputBorder, lineWidth: 1)
-                                            }
+                                            .fill(Color(.secondarySystemGroupedBackground))
                                             .padding(.vertical, 4)
                                     )
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -100,19 +101,20 @@ struct LoadView: View {
                                 )
                                 .textCase(nil)
                             }
+                            .headerProminence(.increased)
                         }
                         .listStyle(.insetGrouped)
                         .scrollContentBackground(.hidden)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(AppColors.backgroundSecondary)
+                .background(Color(.systemGroupedBackground))
 
                 AppFloatingAddButton(accessibilityLabel: "Add item") {
                     showAddItem = true
                 }
                 .padding(.trailing, AppScreenMetrics.horizontalPadding)
-                .padding(.bottom, 12)
+                .padding(.bottom, AppScreenMetrics.fieldSpacing)
             }
             .navigationTitle("Load")
             .navigationBarTitleDisplayMode(.large)
@@ -152,22 +154,22 @@ struct LoadView: View {
 
 private struct LoadEmptyStateView: View {
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: AppScreenMetrics.fieldSpacing) {
             Image(systemName: "shippingbox")
                 .font(.system(size: 64, weight: .light))
-                .foregroundStyle(AppColors.blue.opacity(0.5))
+                .foregroundStyle(Color.accentColor.opacity(0.45))
                 .symbolRenderingMode(.hierarchical)
                 .accessibilityHidden(true)
 
             Text("No Items")
                 .font(.title2.weight(.semibold))
-                .foregroundStyle(AppColors.textPrimary)
+                .foregroundStyle(Color.primary)
 
             Text("Tap + to add items to your load list.")
-                .font(.subheadline)
-                .foregroundStyle(AppColors.textSecondary)
+                .font(.caption)
+                .foregroundStyle(AppColors.textSupporting)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+                .padding(.horizontal, AppScreenMetrics.sectionSpacingLoose)
         }
         .frame(maxWidth: .infinity)
     }
@@ -202,11 +204,11 @@ private struct AddLibraryItemSheet: View {
                     AppPrimaryButton("Add Item") {
                         onAdd()
                     }
-                    .padding(.top, 4)
+                    .padding(.top, AppScreenMetrics.tinySpacing)
                 }
                 .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                .padding(.vertical, 8)
-                .padding(.bottom, 24)
+                .padding(.top, AppScreenMetrics.verticalScreenPadding)
+                .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
             }
             .scrollDismissesKeyboard(.interactively)
             .appScreenBackground()
@@ -220,7 +222,7 @@ private struct AddLibraryItemSheet: View {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title3)
                             .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(AppColors.textSecondary)
+                            .foregroundStyle(.secondary)
                     }
                     .accessibilityLabel("Close")
                 }

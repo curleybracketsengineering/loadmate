@@ -23,12 +23,13 @@ struct LocationView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 20) {
-                            assignHeader
+                        VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                            AppSectionHeading(
+                                "Assign locations",
+                                caption: "Choose where each loaded item sits on the caravan. This affects nose weight estimates."
+                            )
 
-                            AppSectionDivider()
-
-                            towBarEstimateBlock
+                            towBarEstimateCard
 
                             zoneLegend
 
@@ -44,51 +45,51 @@ struct LocationView: View {
                             }
                         }
                         .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                        .padding(.vertical, 16)
-                        .padding(.bottom, 24)
+                        .padding(.top, AppScreenMetrics.verticalScreenPadding)
+                        .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
                     }
                     .scrollDismissesKeyboard(.interactively)
                 }
             }
-            .background(AppColors.backgroundPrimary)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .navigationBar)
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("Locations")
+            .navigationBarTitleDisplayMode(.large)
         }
     }
 
-    private var assignHeader: some View {
-        Text("Assign Locations")
-            .font(.title3.weight(.bold))
-            .foregroundStyle(AppColors.textPrimary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var towBarEstimateBlock: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var towBarEstimateCard: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
             Text("Estimated tow bar weight")
                 .font(.subheadline)
-                .foregroundStyle(AppColors.textSecondary)
+                .foregroundStyle(AppColors.textSupporting)
 
             if let kg = estimatedTowBarKg {
                 Text(Formatters.kg(kg))
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppColors.textPrimary)
+                    .font(.largeTitle.weight(.bold))
+                    .fontDesign(.rounded)
+                    .foregroundStyle(Color.primary)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
             } else {
                 Text("—")
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppColors.textTertiary)
+                    .font(.largeTitle.weight(.bold))
+                    .fontDesign(.rounded)
+                    .foregroundStyle(.tertiary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AppScreenMetrics.cardInteriorPadding)
+        .background(
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
         .accessibilityElement(children: .combine)
     }
 
     private var zoneLegend: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: AppScreenMetrics.smallSpacing) {
             ForEach(LoadZone.pickerZones) { zone in
-                HStack(spacing: 6) {
+                HStack(spacing: AppScreenMetrics.tinySpacing) {
                     Circle()
                         .fill(zone.chipAccentColor)
                         .frame(width: 12, height: 12)
@@ -96,7 +97,7 @@ struct LocationView: View {
 
                     Text(zone.shortLabel)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppColors.textPrimary)
+                        .foregroundStyle(Color.primary)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -125,24 +126,24 @@ struct LocationView: View {
 
 private struct LocationEmptyStateView: View {
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: AppScreenMetrics.fieldSpacing) {
             Image(systemName: "mappin.and.ellipse")
-                .font(.system(size: 56, weight: .light))
-                .foregroundStyle(AppColors.blue.opacity(0.45))
+                .font(.system(size: AppScreenMetrics.heroIconSize, weight: .light))
+                .foregroundStyle(Color.accentColor.opacity(0.45))
                 .symbolRenderingMode(.hierarchical)
                 .accessibilityHidden(true)
 
             Text("Nothing loaded yet")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(AppColors.textPrimary)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(Color.primary)
 
             Text("Use the Load tab to add items, then assign each one to a zone here.")
-                .font(.subheadline)
-                .foregroundStyle(AppColors.textSecondary)
+                .font(.caption)
+                .foregroundStyle(AppColors.textSupporting)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 28)
+                .padding(.horizontal, AppScreenMetrics.sectionSpacingLoose)
         }
-        .padding(.vertical, 40)
+        .padding(.vertical, AppScreenMetrics.sectionSpacingLoose)
     }
 }
 
@@ -155,32 +156,33 @@ private struct LocationItemZoneCard: View {
     let onSelectZone: (LoadZone) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+            HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.smallSpacing) {
                 Text(title)
                     .font(.headline)
-                    .foregroundStyle(AppColors.textPrimary)
+                    .foregroundStyle(Color.primary)
 
                 Text(weightLine)
-                    .font(.footnote)
-                    .foregroundStyle(AppColors.textSecondary)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: AppScreenMetrics.controlSpacing) {
                 ForEach(LoadZone.pickerZones) { zone in
                     zoneChip(for: zone)
                 }
             }
         }
-        .padding(16)
+        .padding(AppScreenMetrics.cardInteriorPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColors.inputSurface)
-        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
         .overlay {
             RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                .strokeBorder(AppColors.inputBorder, lineWidth: 1)
+                .strokeBorder(Color(.separator).opacity(0.5), lineWidth: 1)
         }
-        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
 
     private func zoneChip(for zone: LoadZone) -> some View {
@@ -192,15 +194,15 @@ private struct LocationItemZoneCard: View {
             Text(zone.shortLabel)
                 .font(.caption.weight(.bold))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .foregroundStyle(selected ? Color.white : AppColors.textPrimary)
+                .frame(minHeight: 44)
+                .foregroundStyle(selected ? Color.white : Color.primary)
                 .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(selected ? zone.chipAccentColor : zone.chipAccentColor.opacity(0.28))
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(selected ? Color.primary : Color.clear, lineWidth: selected ? 3 : 0)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(selected ? Color.primary : Color.clear, lineWidth: selected ? 2 : 0)
                 }
         }
         .buttonStyle(.plain)
@@ -236,7 +238,7 @@ extension LoadZone {
         case .middle: Color(red: 1.0, green: 0.27, blue: 0.45)
         case .rear: AppColors.orange
         case .bikeRack: AppColors.green
-        case .unassigned: AppColors.textTertiary
+        case .unassigned: Color.secondary
         }
     }
 }

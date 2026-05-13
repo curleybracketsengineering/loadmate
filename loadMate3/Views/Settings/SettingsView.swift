@@ -81,11 +81,11 @@ struct SettingsView: View {
                             )
 
                             Text("This app is an estimator only. Always physically measure caravan and nose weight.")
-                                .font(.footnote)
-                                .foregroundStyle(AppColors.textSecondary)
-                                .padding(.top, 4)
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSupporting)
+                                .padding(.top, AppScreenMetrics.tinySpacing)
 
-                            VStack(spacing: 12) {
+                            VStack(spacing: AppScreenMetrics.controlSpacing) {
                                 AppSecondaryButton("Reset zone factors to defaults") {
                                     viewModel.resetFactors(config: config, in: modelContext)
                                 }
@@ -94,11 +94,11 @@ struct SettingsView: View {
                                     viewModel.save(modelContext)
                                 }
                             }
-                            .padding(.top, 8)
+                            .padding(.top, AppScreenMetrics.smallSpacing)
                         }
                         .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                        .padding(.vertical, 16)
-                        .padding(.bottom, 24)
+                        .padding(.top, AppScreenMetrics.verticalScreenPadding)
+                        .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
                     }
                     .scrollDismissesKeyboard(.interactively)
                 } else {
