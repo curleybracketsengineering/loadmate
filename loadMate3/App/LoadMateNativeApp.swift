@@ -13,6 +13,7 @@ struct LoadMateNativeApp: App {
             LoadedItem.self,
             AppState.self,
             ChecklistSection.self,
+            ChecklistGroup.self,
             ChecklistItem.self,
         ])
     }

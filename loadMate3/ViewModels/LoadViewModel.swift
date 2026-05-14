@@ -34,6 +34,12 @@ final class LoadViewModel: ObservableObject {
         save(context)
     }
 
+    func updateLibraryItem(_ item: LibraryItem, name: String, weightKg: Double, in context: ModelContext) {
+        item.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        item.weightKg = weightKg
+        save(context)
+    }
+
     private func save(_ context: ModelContext) {
         do {
             try context.save()

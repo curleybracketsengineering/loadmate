@@ -46,8 +46,7 @@ struct SummaryView: View {
                     .background(Color(.systemGroupedBackground))
                 }
             }
-            .navigationTitle("Weight")
-            .navigationBarTitleDisplayMode(.large)
+            .appPrincipalTabTitle("Weight")
             .task(id: refreshToken) {
                 viewModel.refresh(config: configs.first, loadedItems: loadedItems)
             }

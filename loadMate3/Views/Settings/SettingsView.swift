@@ -107,8 +107,7 @@ struct SettingsView: View {
                 }
             }
             .appScreenBackground()
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.large)
+            .appPrincipalTabTitle("Settings")
         }
         .task(id: configs.count) {
             resolvedConfig = viewModel.ensureConfig(in: modelContext, existing: configs.first)

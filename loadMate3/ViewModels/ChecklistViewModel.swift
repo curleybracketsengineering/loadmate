@@ -4,6 +4,46 @@ import SwiftData
 
 @MainActor
 final class ChecklistViewModel: ObservableObject {
+    private static let legacyMigrationKey = "checklistThreeLevelMigrationV1"
+
+    /// Moves old flat `section.items` into a `ChecklistGroup` so every row lives under section → group → item.
+    func migrateLegacyChecklistIfNeeded(in context: ModelContext) {
+        guard !UserDefaults.standard.bool(forKey: Self.legacyMigrationKey) else { return }
+        let descriptor = FetchDescriptor<ChecklistSection>()
+        guard let allSections = try? context.fetch(descriptor) else { return }
+
+        var didChange = false
+        for section in allSections {
+            let legacy = section.items.filter { $0.group == nil }
+            guard !legacy.isEmpty else { continue }
+            didChange = true
+
+            if section.groups.isEmpty {
+                let group = ChecklistGroup(title: "Checklist", sortOrder: 0, section: section)
+                context.insert(group)
+                for (idx, item) in legacy.enumerated() {
+                    item.section = nil
+                    item.group = group
+                    item.sortOrder = idx
+                }
+            } else {
+                let nextOrder = (section.groups.map(\.sortOrder).max() ?? -1) + 1
+                let group = ChecklistGroup(title: "Imported", sortOrder: nextOrder, section: section)
+                context.insert(group)
+                for (idx, item) in legacy.enumerated() {
+                    item.section = nil
+                    item.group = group
+                    item.sortOrder = idx
+                }
+            }
+        }
+
+        if didChange {
+            save(context)
+        }
+        UserDefaults.standard.set(true, forKey: Self.legacyMigrationKey)
+    }
+
     func ensureSeedData(in context: ModelContext, existingSections: [ChecklistSection]) {
         // Insert built-in sections only when the store has none (no UserDefaults gate — it could block
         // forever after a manual section was added before the first seed, or after deleting all sections).
@@ -11,31 +51,198 @@ final class ChecklistViewModel: ObservableObject {
         let descriptor = FetchDescriptor<ChecklistSection>()
         guard let stored = try? context.fetch(descriptor), stored.isEmpty else { return }
 
-        let templates: [(String, Int, [String])] = [
-            ("Towing Setup", 0, [
-                "Hitch locked",
-                "Breakaway cable attached",
-                "Lights checked",
-                "Mirrors fitted",
-            ]),
-            ("Pitching", 1, [
-                "Levelling completed",
-                "Handbrake applied",
-                "Electric hookup connected",
-            ]),
-            ("Departure", 2, [
-                "Roof vents closed",
-                "Windows secured",
-                "Steps stored",
-            ]),
+        typealias SeedGroup = (title: String, items: [String])
+        let templates: [(section: String, order: Int, groups: [SeedGroup])] = [
+            (
+                "Before leaving home",
+                0,
+                [
+                    (
+                        "Water & waste",
+                        [
+                            "Fresh water filler cap closed",
+                            "Grey waste valve closed",
+                            "Toilet cassette emptied if needed",
+                        ],
+                    ),
+                    (
+                        "Interior",
+                        [
+                            "Cupboards and lockers latched",
+                            "Loose items stowed or secured",
+                            "Fridge door locked",
+                            "TV and shelves secured",
+                        ],
+                    ),
+                    (
+                        "Gas & electric",
+                        [
+                            "Gas isolated at cylinder(s)",
+                            "Mains hookup cable stowed",
+                            "12V systems set for travel",
+                        ],
+                    ),
+                    (
+                        "Exterior & chassis",
+                        [
+                            "Corner steadies fully raised",
+                            "Steps folded and secured",
+                            "Windows and roof vents set for travel",
+                            "Jockey wheel raised and clamped",
+                        ],
+                    ),
+                ],
+            ),
+            (
+                "Towing setup",
+                1,
+                [
+                    (
+                        "Hitch & safety",
+                        [
+                            "Engage motor mover",
+                            "Coupling locked on tow ball",
+                            "Breakaway cable attached",
+                            "Secondary coupling / chains attached",
+                            "Check connection, by winding up",
+                        ],
+                    ),
+                    (
+                        "Moving off checks",
+                        [
+                            "Lights plug connected and latched",
+                            "Lights tested (brake, indicators, fog)",
+                            "Tow mirrors fitted and adjusted",
+                            "Disconnect motor mover",
+                        ],
+                    ),
+                ],
+            ),
+            (
+                "Pitching",
+                2,
+                [
+                    (
+                        "On site",
+                        [
+                            "Engage motor mover",
+                            "Wheels chocked",
+                            "Handbrake applied",
+                            "Unit levelled side-to-side and fore-aft",
+                        ],
+                    ),
+                    (
+                        "Services",
+                        [
+                            "Electric hookup connected",
+                            "Fresh water connected",
+                            "Waste outlet positioned",
+                        ],
+                    ),
+                    (
+                        "Stability",
+                        [
+                            "Corner steadies lowered",
+                            "Steps deployed safely",
+                            "Disconnect motor mover",
+                        ],
+                    ),
+                ],
+            ),
+            (
+                "Departure",
+                3,
+                [
+                    (
+                        "Interior",
+                        [
+                            "Cupboards latched",
+                            "Loose items packed",
+                            "Roof vents positioned for travel",
+                        ],
+                    ),
+                    (
+                        "Exterior & hitch",
+                        [
+                            "Engage motor mover",
+                            "Corner steadies raised",
+                            "Steps stored",
+                            "All services disconnected and stowed",
+                            "Hitch security checks complete",
+                        ],
+                    ),
+                    (
+                        "Final checks",
+                        [
+                            "Disconnect motor mover",
+                            "Wheel nuts visual check",
+                            "Lights check",
+                            "Last walk-around",
+                        ],
+                    ),
+                ],
+            ),
+            (
+                "EU / Overseas travel checklist",
+                4,
+                [
+                    (
+                        "Legal requirements",
+                        [
+                            "Passport validity checked",
+                            "Travel insurance",
+                            "GHIC / EHIC card",
+                            "UK sticker / identifier",
+                            "Reflective jackets",
+                            "Warning triangle",
+                            "Breathalyser kit (France optional; some still carry)",
+                            "Headlight beam deflectors",
+                            "Spare bulbs",
+                            "Fire extinguisher",
+                            "First aid kit",
+                        ],
+                    ),
+                    (
+                        "Vehicle compliance",
+                        [
+                            "European breakdown cover",
+                            "Green card insurance if needed",
+                            "Crit'Air sticker (France if required)",
+                            "Emission zone registration",
+                            "Toll tags / apps configured",
+                        ],
+                    ),
+                    (
+                        "Navigation & payments",
+                        [
+                            "Offline maps downloaded",
+                            "Mobile roaming enabled",
+                            "EU charging apps installed",
+                            "Currency / cards prepared",
+                        ],
+                    ),
+                    (
+                        "Ferry / tunnel",
+                        [
+                            "Gas turned off before boarding",
+                            "Height / length details available",
+                            "Passport ready at border",
+                        ],
+                    ),
+                ],
+            ),
         ]
 
-        for (title, order, itemTitles) in templates {
-            let section = ChecklistSection(title: title, sortOrder: order)
+        for template in templates {
+            let section = ChecklistSection(title: template.section, sortOrder: template.order)
             context.insert(section)
-            for (idx, itemTitle) in itemTitles.enumerated() {
-                let item = ChecklistItem(title: itemTitle, isChecked: false, sortOrder: idx, section: section)
-                context.insert(item)
+            for (gIdx, groupSeed) in template.groups.enumerated() {
+                let group = ChecklistGroup(title: groupSeed.title, sortOrder: gIdx, section: section)
+                context.insert(group)
+                for (iIdx, itemTitle) in groupSeed.items.enumerated() {
+                    let item = ChecklistItem(title: itemTitle, isChecked: false, sortOrder: iIdx, group: group)
+                    context.insert(item)
+                }
             }
         }
 
@@ -63,12 +270,40 @@ final class ChecklistViewModel: ObservableObject {
         save(context)
     }
 
-    func addItem(to section: ChecklistSection, title: String, in context: ModelContext) {
+    func addGroup(to section: ChecklistSection, title: String, in context: ModelContext) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let next = (section.items.map(\.sortOrder).max() ?? -1) + 1
-        let item = ChecklistItem(title: trimmed, isChecked: false, sortOrder: next, section: section)
+        let next = (section.groups.map(\.sortOrder).max() ?? -1) + 1
+        let group = ChecklistGroup(title: trimmed, sortOrder: next, section: section)
+        context.insert(group)
+        save(context)
+    }
+
+    func renameGroup(_ group: ChecklistGroup, to newTitle: String, in context: ModelContext) {
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        group.title = trimmed
+        save(context)
+    }
+
+    func deleteGroup(_ group: ChecklistGroup, in context: ModelContext) {
+        context.delete(group)
+        save(context)
+    }
+
+    func addItem(to group: ChecklistGroup, title: String, in context: ModelContext) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let next = (group.items.map(\.sortOrder).max() ?? -1) + 1
+        let item = ChecklistItem(title: trimmed, isChecked: false, sortOrder: next, group: group)
         context.insert(item)
+        save(context)
+    }
+
+    func renameItem(_ item: ChecklistItem, to newTitle: String, in context: ModelContext) {
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        item.title = trimmed
         save(context)
     }
 
@@ -83,6 +318,11 @@ final class ChecklistViewModel: ObservableObject {
     }
 
     func resetSection(_ section: ChecklistSection, in context: ModelContext) {
+        for group in section.groups {
+            for item in group.items {
+                item.isChecked = false
+            }
+        }
         for item in section.items {
             item.isChecked = false
         }
@@ -91,6 +331,11 @@ final class ChecklistViewModel: ObservableObject {
 
     func resetAll(sections: [ChecklistSection], in context: ModelContext) {
         for section in sections {
+            for group in section.groups {
+                for item in group.items {
+                    item.isChecked = false
+                }
+            }
             for item in section.items {
                 item.isChecked = false
             }

@@ -46,6 +46,33 @@ extension View {
     }
 }
 
+/// Inline navigation bar title centered in the bar, bold title text (matches Checklist tab styling).
+private struct AppPrincipalTabTitleModifier: ViewModifier {
+    let title: String
+
+    func body(content: Content) -> some View {
+        content
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(title)
+                        .font(.title.weight(.bold))
+                        .foregroundStyle(Color.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+            }
+    }
+}
+
+extension View {
+    /// Tab root title: same position and typography as the Checklist screen.
+    func appPrincipalTabTitle(_ title: String) -> some View {
+        modifier(AppPrincipalTabTitleModifier(title: title))
+    }
+}
+
 // MARK: - Hero
 
 struct AppHeroSection: View {
@@ -235,33 +262,110 @@ struct AppLabeledTextField: View {
 }
 
 /// Bordered numeric input (shared by labeled fields and accent-style factor rows).
+///
+/// Uses a string draft while editing so the field can be fully cleared; `TextField(value:format:)`
+/// with `Double` snaps back because an empty string is not a stable `Double` state.
 struct AppBoundedNumberField: View {
     @Binding var value: Double
     var fractionDigitsUpperBound: Int
+    /// Zone factors can be negative; caravan weights are unsigned.
+    var allowsSigned: Bool = false
 
     @FocusState private var focused: Bool
+    @State private var text: String = ""
+
+    private var integerWeightsOnly: Bool { fractionDigitsUpperBound == 0 }
+
+    private var keyboard: UIKeyboardType {
+        if allowsSigned { return .numbersAndPunctuation }
+        return integerWeightsOnly ? .numberPad : .decimalPad
+    }
+
+    private func formatForDisplay(_ v: Double) -> String {
+        v.formatted(.number.precision(.fractionLength(0...fractionDigitsUpperBound)))
+    }
+
+    private func compactNumericString(_ raw: String) -> String {
+        raw
+            .replacingOccurrences(of: ",", with: "")
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "\u{00a0}", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Sync bound value while the user is editing (allows empty text → 0 for unset weights).
+    private func applyTextToValue() {
+        let compact = compactNumericString(text)
+        if compact.isEmpty {
+            value = 0
+            return
+        }
+        if compact == "-" || compact == "." || compact == "-." {
+            return
+        }
+        guard let parsed = Double(compact) else { return }
+        if integerWeightsOnly {
+            value = parsed.rounded(.toNearestOrAwayFromZero)
+        } else {
+            value = parsed
+        }
+    }
+
+    /// Normalize display when focus ends.
+    private func commitEditing() {
+        let compact = compactNumericString(text)
+        if compact.isEmpty || compact == "-" || compact == "." || compact == "-." {
+            value = 0
+            text = formatForDisplay(0)
+            return
+        }
+        guard let parsed = Double(compact) else {
+            text = formatForDisplay(value)
+            return
+        }
+        let finalValue: Double
+        if integerWeightsOnly {
+            finalValue = parsed.rounded(.toNearestOrAwayFromZero)
+        } else {
+            finalValue = parsed
+        }
+        value = finalValue
+        text = formatForDisplay(finalValue)
+    }
 
     var body: some View {
-        TextField(
-            "",
-            value: $value,
-            format: .number.precision(.fractionLength(0...fractionDigitsUpperBound))
-        )
-        .keyboardType(.decimalPad)
-        .font(.body.weight(.semibold))
-        .foregroundStyle(Color.primary)
-        .multilineTextAlignment(.leading)
-        .focused($focused)
-        .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
-        .padding(.vertical, AppScreenMetrics.fieldSpacing)
-        .frame(minHeight: AppScreenMetrics.inputMinHeight, alignment: .center)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                .strokeBorder(focused ? Color.accentColor.opacity(0.55) : Color(.separator), lineWidth: focused ? 2 : 1)
-        }
-        .animation(.spring(response: 0.35), value: focused)
+        TextField("", text: $text)
+            .keyboardType(keyboard)
+            .font(.body.weight(.semibold))
+            .foregroundStyle(Color.primary)
+            .multilineTextAlignment(.leading)
+            .focused($focused)
+            .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
+            .padding(.vertical, AppScreenMetrics.fieldSpacing)
+            .frame(minHeight: AppScreenMetrics.inputMinHeight, alignment: .center)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
+                    .strokeBorder(focused ? Color.accentColor.opacity(0.55) : Color(.separator), lineWidth: focused ? 2 : 1)
+            }
+            .animation(.spring(response: 0.35), value: focused)
+            .onAppear {
+                text = formatForDisplay(value)
+            }
+            .onChange(of: value) { _, newValue in
+                guard !focused else { return }
+                text = formatForDisplay(newValue)
+            }
+            .onChange(of: text) { _, _ in
+                guard focused else { return }
+                applyTextToValue()
+            }
+            .onChange(of: focused) { wasFocused, isFocused in
+                if wasFocused && !isFocused {
+                    commitEditing()
+                }
+            }
     }
 }
 
@@ -315,7 +419,7 @@ struct AppFactorField: View {
                 .font(.caption)
                 .foregroundStyle(AppColors.textSupporting)
                 .fixedSize(horizontal: false, vertical: true)
-            AppBoundedNumberField(value: $value, fractionDigitsUpperBound: 2)
+            AppBoundedNumberField(value: $value, fractionDigitsUpperBound: 2, allowsSigned: true)
         }
     }
 }

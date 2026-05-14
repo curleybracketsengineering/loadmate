@@ -39,6 +39,7 @@ private enum RootPreviewData {
             LoadedItem.self,
             AppState.self,
             ChecklistSection.self,
+            ChecklistGroup.self,
             ChecklistItem.self,
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)

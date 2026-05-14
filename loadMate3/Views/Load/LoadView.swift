@@ -11,6 +11,7 @@ struct LoadView: View {
     @State private var showAddItem = false
     @State private var newName = ""
     @State private var newWeight = ""
+    @State private var libraryItemEditSession: LibraryItemEditSession?
 
     private var setupConfig: SetupConfig? { configs.first }
 
@@ -88,16 +89,23 @@ struct LoadView: View {
                                         }
                                         .tint(AppColors.orange)
                                     }
-                                }
-                                .onDelete { offsets in
-                                    for index in offsets {
-                                        viewModel.delete(item: libraryItems[index], loadedItems: loadedItems, in: modelContext)
+                                    .contextMenu {
+                                        Button {
+                                            libraryItemEditSession = LibraryItemEditSession(item: item)
+                                        } label: {
+                                            Label("Edit Item", systemImage: "pencil")
+                                        }
+                                        Button(role: .destructive) {
+                                            viewModel.delete(item: item, loadedItems: loadedItems, in: modelContext)
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
                                     }
                                 }
                             } header: {
                                 AppSectionHeading(
                                     itemsSectionTitle,
-                                    caption: "Swipe left on a row for Load • Swipe right for Unload"
+                                    caption: "Swipe left for Load • Swipe right for Unload • Long-press a row to edit or delete"
                                 )
                                 .textCase(nil)
                             }
@@ -116,8 +124,7 @@ struct LoadView: View {
                 .padding(.trailing, AppScreenMetrics.horizontalPadding)
                 .padding(.bottom, AppScreenMetrics.fieldSpacing)
             }
-            .navigationTitle("Load")
-            .navigationBarTitleDisplayMode(.large)
+            .appPrincipalTabTitle("Load")
             .sheet(isPresented: $showAddItem, onDismiss: {
                 newName = ""
                 newWeight = ""
@@ -126,6 +133,23 @@ struct LoadView: View {
                     name: $newName,
                     weightText: $newWeight,
                     onAdd: commitAdd
+                )
+            }
+            .sheet(item: $libraryItemEditSession, onDismiss: {
+                libraryItemEditSession = nil
+            }) { session in
+                EditLibraryItemSheet(
+                    initialName: session.name,
+                    initialWeightText: session.weightText,
+                    onSave: { name, weightKg in
+                        if let item = libraryItems.first(where: { $0.id == session.id }) {
+                            viewModel.updateLibraryItem(item, name: name, weightKg: weightKg, in: modelContext)
+                        }
+                        libraryItemEditSession = nil
+                    },
+                    onCancel: {
+                        libraryItemEditSession = nil
+                    }
                 )
             }
         }
@@ -172,6 +196,89 @@ private struct LoadEmptyStateView: View {
                 .padding(.horizontal, AppScreenMetrics.sectionSpacingLoose)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Edit item session (sheet identity)
+
+private struct LibraryItemEditSession: Identifiable, Hashable {
+    let id: UUID
+    let name: String
+    let weightText: String
+
+    init(item: LibraryItem) {
+        id = item.id
+        name = item.name
+        weightText = Formatters.oneDecimal.string(from: NSNumber(value: item.weightKg)) ?? "\(item.weightKg)"
+    }
+}
+
+// MARK: - Edit item sheet
+
+private struct EditLibraryItemSheet: View {
+    let initialName: String
+    let initialWeightText: String
+    let onSave: (String, Double) -> Void
+    let onCancel: () -> Void
+
+    @State private var name = ""
+    @State private var weightText = ""
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                    AppLabeledTextField(
+                        "Item Name",
+                        placeholder: "e.g., Camping Chair",
+                        text: $name
+                    )
+
+                    AppLabeledTextField(
+                        "Weight (kg)",
+                        placeholder: "e.g., 5.5",
+                        text: $weightText,
+                        keyboard: .decimalPad
+                    )
+
+                    AppPrimaryButton("Save Changes") {
+                        guard let weight = Double(weightText.replacingOccurrences(of: ",", with: ".")),
+                              weight > 0,
+                              !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                            return
+                        }
+                        onSave(name, weight)
+                    }
+                    .padding(.top, AppScreenMetrics.tinySpacing)
+                }
+                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                .padding(.top, AppScreenMetrics.verticalScreenPadding)
+                .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .appScreenBackground()
+            .navigationTitle("Edit Item")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        onCancel()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityLabel("Close")
+                }
+            }
+            .onAppear {
+                name = initialName
+                weightText = initialWeightText
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 

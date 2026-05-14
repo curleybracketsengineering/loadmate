@@ -33,15 +33,17 @@ struct LocationView: View {
 
                             zoneLegend
 
-                            ForEach(loadedItems) { loaded in
-                                LocationItemZoneCard(
-                                    title: title(for: loaded),
-                                    weightLine: weightLine(for: loaded),
-                                    selectedZone: loaded.zone,
-                                    onSelectZone: { zone in
-                                        viewModel.updateZone(for: loaded, to: zone, in: modelContext)
-                                    }
-                                )
+                            VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
+                                ForEach(loadedItems) { loaded in
+                                    LocationItemZoneCard(
+                                        title: title(for: loaded),
+                                        weightLine: weightLine(for: loaded),
+                                        selectedZone: loaded.zone,
+                                        onSelectZone: { zone in
+                                            viewModel.updateZone(for: loaded, to: zone, in: modelContext)
+                                        }
+                                    )
+                                }
                             }
                         }
                         .padding(.horizontal, AppScreenMetrics.horizontalPadding)
@@ -52,8 +54,7 @@ struct LocationView: View {
                 }
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("Locations")
-            .navigationBarTitleDisplayMode(.large)
+            .appPrincipalTabTitle("Locations")
         }
     }
 
@@ -156,7 +157,7 @@ private struct LocationItemZoneCard: View {
     let onSelectZone: (LoadZone) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
             HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.smallSpacing) {
                 Text(title)
                     .font(.headline)
@@ -173,16 +174,13 @@ private struct LocationItemZoneCard: View {
                 }
             }
         }
-        .padding(AppScreenMetrics.cardInteriorPadding)
+        .padding(.vertical, AppScreenMetrics.smallSpacing)
+        .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
                 .fill(Color(.secondarySystemGroupedBackground))
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                .strokeBorder(Color(.separator).opacity(0.5), lineWidth: 1)
-        }
     }
 
     private func zoneChip(for zone: LoadZone) -> some View {

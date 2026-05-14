@@ -123,13 +123,36 @@ final class ChecklistSection {
     var title: String
     var sortOrder: Int
 
+    /// Legacy flat items from older app versions (section → item). Prefer `groups` + `ChecklistItem.group`.
     @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.section)
     var items: [ChecklistItem] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \ChecklistGroup.section)
+    var groups: [ChecklistGroup] = []
 
     init(id: UUID = UUID(), title: String, sortOrder: Int = 0) {
         self.id = id
         self.title = title
         self.sortOrder = sortOrder
+    }
+}
+
+@Model
+final class ChecklistGroup {
+    @Attribute(.unique) var id: UUID
+    var title: String
+    var sortOrder: Int
+
+    var section: ChecklistSection?
+
+    @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.group)
+    var items: [ChecklistItem] = []
+
+    init(id: UUID = UUID(), title: String, sortOrder: Int = 0, section: ChecklistSection? = nil) {
+        self.id = id
+        self.title = title
+        self.sortOrder = sortOrder
+        self.section = section
     }
 }
 
@@ -141,18 +164,21 @@ final class ChecklistItem {
     var sortOrder: Int
 
     var section: ChecklistSection?
+    var group: ChecklistGroup?
 
     init(
         id: UUID = UUID(),
         title: String,
         isChecked: Bool = false,
         sortOrder: Int = 0,
-        section: ChecklistSection? = nil
+        section: ChecklistSection? = nil,
+        group: ChecklistGroup? = nil
     ) {
         self.id = id
         self.title = title
         self.isChecked = isChecked
         self.sortOrder = sortOrder
         self.section = section
+        self.group = group
     }
 }
