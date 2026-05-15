@@ -8,7 +8,7 @@ struct SummaryView: View {
 
     private var refreshToken: String {
         let configSignature = configs.first.map {
-            "\($0.baseWeightKg)-\($0.mtplmKg)-\($0.carMaxTowBallKg)-\($0.factorFrontLocker)-\($0.factorFront)-\($0.factorMiddle)-\($0.factorRear)-\($0.factorBikeRack)"
+            "\($0.baseWeightKg)-\($0.weighbridgeWeightKg)-\($0.mtplmKg)-\($0.caravanMaxNoseKg)-\($0.carMaxTowBallKg)-\($0.noseWeightBasePercent)-\($0.factorFrontLocker)-\($0.factorFront)-\($0.factorMiddle)-\($0.factorRear)-\($0.factorBikeRack)"
         } ?? "no-config"
 
         let itemSignature = loadedItems.map {
@@ -68,7 +68,7 @@ struct SummaryView: View {
             return .overMTPLM(reduceLoadByKg: overBy)
         }
         if summary.isOverTowBallLimit {
-            let reduce = max(0, summary.estimatedNoseWeightKg - config.carMaxTowBallKg)
+            let reduce = max(0, summary.estimatedNoseWeightKg - config.effectiveMaxTowBallKg)
             return .towBallLimitExceeded(reduceNoseByKg: reduce)
         }
         if summary.isNoseBelowRecommended {
@@ -231,17 +231,17 @@ struct SummaryView: View {
                 NoseWeightSafeZoneGauge(
                     zoneLowKg: zoneBounds.low,
                     zoneHighKg: zoneBounds.high,
-                    carMaxTowBallKg: config.carMaxTowBallKg,
+                    carMaxTowBallKg: config.effectiveMaxTowBallKg,
                     estimatedNoseKg: summary.estimatedNoseWeightKg
                 )
 
                 VStack(spacing: AppScreenMetrics.controlSpacing) {
                     HStack {
-                        Text("Base (6%)")
+                        Text(baseNosePercentLabel(config: config))
                             .font(.subheadline)
                             .foregroundStyle(Color.secondary)
                         Spacer()
-                        Text(Formatters.kg(summary.baseNoseSixPercentKg))
+                        Text(Formatters.kg(summary.baseNosePercentKg))
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(Color.primary)
                     }
@@ -277,14 +277,15 @@ struct SummaryView: View {
                 .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
 
                 HStack(spacing: 0) {
-                    let carLimitOverridesMin = config.carMaxTowBallKg > 0 && config.carMaxTowBallKg < summary.towBallMinKg
-                    let carLimitOverridesMax = config.carMaxTowBallKg > 0 && config.carMaxTowBallKg < summary.towBallMaxKg
+                    let effectiveLimit = config.effectiveMaxTowBallKg
+                    let carLimitOverridesMin = effectiveLimit > 0 && effectiveLimit < summary.towBallMinKg
+                    let carLimitOverridesMax = effectiveLimit > 0 && effectiveLimit < summary.towBallMaxKg
 
                     VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
                         Text(carLimitOverridesMin ? "Car Limit" : "Min (5%)")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(Color.secondary)
-                        Text(Formatters.kg(carLimitOverridesMin ? config.carMaxTowBallKg : summary.towBallMinKg))
+                        Text(Formatters.kg(carLimitOverridesMin ? effectiveLimit : summary.towBallMinKg))
                             .font(.title3.weight(.bold))
                             .foregroundStyle(carLimitOverridesMin ? Color.accentColor : Color.primary)
                     }
@@ -299,7 +300,7 @@ struct SummaryView: View {
                         Text(carLimitOverridesMax ? "Car Limit" : "Max (7%)")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(Color.secondary)
-                        Text(Formatters.kg(carLimitOverridesMax ? config.carMaxTowBallKg : summary.towBallMaxKg))
+                        Text(Formatters.kg(carLimitOverridesMax ? effectiveLimit : summary.towBallMaxKg))
                             .font(.title3.weight(.bold))
                             .foregroundStyle(carLimitOverridesMax ? Color.accentColor : Color.primary)
                     }
@@ -323,6 +324,14 @@ struct SummaryView: View {
         .frame(height: 8)
         .accessibilityLabel("Progress toward MTPLM")
         .accessibilityValue("\(Int(fill * 100)) percent")
+    }
+
+    private func baseNosePercentLabel(config: SetupConfig) -> String {
+        let percent = config.noseWeightBasePercent > 0 ? config.noseWeightBasePercent : 6.0
+        if percent.truncatingRemainder(dividingBy: 1) == 0 {
+            return "Base (\(Int(percent))%)"
+        }
+        return String(format: "Base (%.1f%%)", percent)
     }
 
     /// Shows kg with sign for near-zero impact values.

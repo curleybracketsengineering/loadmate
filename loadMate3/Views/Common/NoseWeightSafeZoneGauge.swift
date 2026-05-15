@@ -270,7 +270,7 @@ struct TowBarWeightStatusBadge: View {
 
   private var badgeStyle: BadgeStyle? {
     if summary.isOverTowBallLimit {
-      let over = max(0, summary.estimatedNoseWeightKg - config.carMaxTowBallKg)
+      let over = max(0, summary.estimatedNoseWeightKg - config.effectiveMaxTowBallKg)
       return BadgeStyle(
         title: "Over limit",
         delta: Formatters.signedKg(over),
@@ -330,10 +330,11 @@ struct TowBarWeightStatusBadge: View {
 
 extension WeightSummary {
   func noseGaugeZoneBounds(config: SetupConfig) -> (low: Double, high: Double) {
-    let carLimitOverridesMin = config.carMaxTowBallKg > 0 && config.carMaxTowBallKg < towBallMinKg
-    let carLimitOverridesMax = config.carMaxTowBallKg > 0 && config.carMaxTowBallKg < towBallMaxKg
-    let low = carLimitOverridesMin ? config.carMaxTowBallKg : towBallMinKg
-    let high = carLimitOverridesMax ? config.carMaxTowBallKg : towBallMaxKg
+    let effectiveLimit = config.effectiveMaxTowBallKg
+    let carLimitOverridesMin = effectiveLimit > 0 && effectiveLimit < towBallMinKg
+    let carLimitOverridesMax = effectiveLimit > 0 && effectiveLimit < towBallMaxKg
+    let low = carLimitOverridesMin ? effectiveLimit : towBallMinKg
+    let high = carLimitOverridesMax ? effectiveLimit : towBallMaxKg
     return (low, high)
   }
 }

@@ -51,7 +51,7 @@ private enum RootPreviewData {
             let appState = AppState(disclaimerAccepted: true, acceptedAt: .now)
             context.insert(appState)
 
-            let config = SetupConfig(baseWeightKg: 1250, mtplmKg: 1500, carMaxTowBallKg: 75)
+            let config = SetupConfig(baseWeightKg: 1250, weighbridgeWeightKg: 1285, mtplmKg: 1500, carMaxTowBallKg: 75)
             context.insert(config)
 
             let chair = LibraryItem(name: "Camping Chair", weightKg: 4.5, defaultZoneRaw: LoadZone.middle.rawValue)

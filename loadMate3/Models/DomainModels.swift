@@ -25,9 +25,16 @@ enum LoadZone: String, Codable, CaseIterable, Identifiable {
 
 @Model
 final class SetupConfig {
+    /// Manufacturer MIRO — used when no weighbridge reading is entered.
     var baseWeightKg: Double
+    /// Measured caravan weight before trip items are loaded; preferred over MIRO when set.
+    var weighbridgeWeightKg: Double
     var mtplmKg: Double
+    /// Maximum nose weight stamped on the caravan hitch (kg).
+    var caravanMaxNoseKg: Double
     var carMaxTowBallKg: Double
+    /// Baseline nose weight as % of total laden weight (default 6).
+    var noseWeightBasePercent: Double
 
     var factorFrontLocker: Double
     var factorFront: Double
@@ -37,8 +44,11 @@ final class SetupConfig {
 
     init(
         baseWeightKg: Double = 0,
+        weighbridgeWeightKg: Double = 0,
         mtplmKg: Double = 0,
+        caravanMaxNoseKg: Double = 0,
         carMaxTowBallKg: Double = 0,
+        noseWeightBasePercent: Double = 6.0,
         factorFrontLocker: Double = 0.25,
         factorFront: Double = 0.15,
         factorMiddle: Double = 0.0,
@@ -46,8 +56,11 @@ final class SetupConfig {
         factorBikeRack: Double = -0.35
     ) {
         self.baseWeightKg = baseWeightKg
+        self.weighbridgeWeightKg = weighbridgeWeightKg
         self.mtplmKg = mtplmKg
+        self.caravanMaxNoseKg = caravanMaxNoseKg
         self.carMaxTowBallKg = carMaxTowBallKg
+        self.noseWeightBasePercent = noseWeightBasePercent
         self.factorFrontLocker = factorFrontLocker
         self.factorFront = factorFront
         self.factorMiddle = factorMiddle
@@ -57,9 +70,20 @@ final class SetupConfig {
 }
 
 extension SetupConfig {
-    /// True once base weight, MTPLM, and car tow-ball limit are set (enables weight / nose estimates).
+    /// Stricter of car tow ball and caravan nose limits when either is set.
+    var effectiveMaxTowBallKg: Double {
+        let limits = [carMaxTowBallKg, caravanMaxNoseKg].filter { $0 > 0 }
+        return limits.min() ?? 0
+    }
+
+    /// Base weight for laden total: weighbridge when measured, otherwise MIRO.
+    var calculationBaseWeightKg: Double {
+        weighbridgeWeightKg > 0 ? weighbridgeWeightKg : baseWeightKg
+    }
+
+    /// True once a base weight (weighbridge or MIRO), MTPLM, and car tow-ball limit are set.
     var isConfiguredForWeightCalculations: Bool {
-        baseWeightKg > 0 && mtplmKg > 0 && carMaxTowBallKg > 0
+        calculationBaseWeightKg > 0 && mtplmKg > 0 && carMaxTowBallKg > 0
     }
 }
 

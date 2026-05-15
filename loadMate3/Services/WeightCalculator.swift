@@ -5,8 +5,8 @@ struct WeightSummary {
     let totalWeightKg: Double
     let availableWeightKg: Double
     let mtplmPercent: Double
-    /// Nose estimate baseline: 6% of current laden weight (`totalWeightKg`).
-    let baseNoseSixPercentKg: Double
+    /// Nose estimate baseline: configured % of current laden weight (`totalWeightKg`).
+    let baseNosePercentKg: Double
     /// Sum of (item mass × zone factor); adjustment from loading locations.
     let locationImpactKg: Double
     let estimatedNoseWeightKg: Double
@@ -53,7 +53,7 @@ enum WeightCalculator {
             return sum + (weight * Double(max(loaded.quantity, 0)))
         }
 
-        let totalWeight = config.baseWeightKg + loadedWeight
+        let totalWeight = config.calculationBaseWeightKg + loadedWeight
         let availableWeight = config.mtplmKg - totalWeight
         let mtplmPercent = config.mtplmKg > 0 ? (totalWeight / config.mtplmKg) * 100 : 0
 
@@ -63,8 +63,9 @@ enum WeightCalculator {
             return sum + (weight * Double(max(loaded.quantity, 0)) * factor)
         }
 
-        let baseNoseSixPercent = totalWeight * 0.06
-        let estimatedNoseWeight = baseNoseOffsetKg + baseNoseSixPercent + locationImpact
+        let basePercent = config.noseWeightBasePercent > 0 ? config.noseWeightBasePercent : 6.0
+        let baseNosePercent = totalWeight * (basePercent / 100.0)
+        let estimatedNoseWeight = baseNoseOffsetKg + baseNosePercent + locationImpact
 
         let towBallReferenceWeight = config.mtplmKg > 0 ? min(totalWeight, config.mtplmKg) : totalWeight
         let towBallMin = towBallReferenceWeight * 0.05
@@ -75,13 +76,13 @@ enum WeightCalculator {
             totalWeightKg: totalWeight,
             availableWeightKg: availableWeight,
             mtplmPercent: mtplmPercent,
-            baseNoseSixPercentKg: baseNoseSixPercent,
+            baseNosePercentKg: baseNosePercent,
             locationImpactKg: locationImpact,
             estimatedNoseWeightKg: estimatedNoseWeight,
             towBallMinKg: towBallMin,
             towBallMaxKg: towBallMax,
             isOverMTPLM: config.mtplmKg > 0 && totalWeight > config.mtplmKg,
-            isOverTowBallLimit: config.carMaxTowBallKg > 0 && estimatedNoseWeight > config.carMaxTowBallKg,
+            isOverTowBallLimit: config.effectiveMaxTowBallKg > 0 && estimatedNoseWeight > config.effectiveMaxTowBallKg,
             isNoseBelowRecommended: estimatedNoseWeight < towBallMin,
             isNoseAboveRecommended: estimatedNoseWeight > towBallMax
         )

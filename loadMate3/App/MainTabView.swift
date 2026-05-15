@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 enum AppTab: Hashable {
     case weight
@@ -9,7 +10,16 @@ enum AppTab: Hashable {
 }
 
 struct MainTabView: View {
+    @Query private var configs: [SetupConfig]
+
     @State private var selectedTab: AppTab = .weight
+    @State private var showCaravanSetupAlert = false
+    @State private var didPresentCaravanSetupPrompt = false
+
+    private var needsCaravanSetup: Bool {
+        guard let config = configs.first else { return true }
+        return !config.isConfiguredForWeightCalculations
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -33,5 +43,26 @@ struct MainTabView: View {
                 .tag(AppTab.settings)
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
+        .onAppear {
+            presentCaravanSetupPromptIfNeeded()
+        }
+        .onChange(of: needsCaravanSetup) { _, _ in
+            presentCaravanSetupPromptIfNeeded()
+        }
+        .alert("Caravan setup", isPresented: $showCaravanSetupAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(
+                "Your caravan and tow vehicle details are needed for accurate weight calculations. " +
+                "You can still use Load, Locations, and Checklist before completing Settings."
+            )
+        }
+    }
+
+    private func presentCaravanSetupPromptIfNeeded() {
+        guard needsCaravanSetup, !didPresentCaravanSetupPrompt else { return }
+        didPresentCaravanSetupPrompt = true
+        selectedTab = .settings
+        showCaravanSetupAlert = true
     }
 }

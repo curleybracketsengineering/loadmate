@@ -543,5 +543,113 @@ struct AppGroupedCard<Content: View>: View {
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
                     .fill(Color(.secondarySystemGroupedBackground))
             )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                    .strokeBorder(Color(.separator).opacity(0.45), lineWidth: 1)
+            }
+    }
+}
+
+/// Settings-style section: heading above a bordered grouped card.
+struct AppSettingsSection<Content: View>: View {
+    let title: String
+    let caption: String?
+    @ViewBuilder let content: Content
+
+    init(
+        _ title: String,
+        caption: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.caption = caption
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            AppSectionHeading(title, caption: caption)
+            AppGroupedCard {
+                content
+            }
+        }
+    }
+}
+
+/// Collapsible advanced settings block — collapsed by default.
+struct AppCollapsibleSettingsSection<Content: View>: View {
+    let title: String
+    let caption: String?
+    @Binding var isExpanded: Bool
+    @ViewBuilder let content: Content
+
+    init(
+        _ title: String,
+        caption: String? = nil,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.caption = caption
+        _isExpanded = isExpanded
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .center, spacing: AppScreenMetrics.controlSpacing) {
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                        HStack(spacing: AppScreenMetrics.smallSpacing) {
+                            Text(title)
+                                .font(.headline)
+                                .foregroundStyle(Color.primary)
+                            Text("Advanced")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Color.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Color(.tertiarySystemFill)))
+                        }
+                        if let caption, !caption.isEmpty, !isExpanded {
+                            Text(caption)
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSupporting)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    Spacer(minLength: AppScreenMetrics.smallSpacing)
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+            .accessibilityHint("Double tap to show or hide \(title)")
+
+            if isExpanded {
+                AppGroupedCard {
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                        if let caption, !caption.isEmpty {
+                            Text(caption)
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSupporting)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        content
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
     }
 }

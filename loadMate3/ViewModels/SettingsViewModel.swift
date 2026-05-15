@@ -13,6 +13,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func resetFactors(config: SetupConfig, in context: ModelContext) {
+        config.noseWeightBasePercent = 6.0
         config.factorFrontLocker = 0.25
         config.factorFront = 0.15
         config.factorMiddle = 0.0
