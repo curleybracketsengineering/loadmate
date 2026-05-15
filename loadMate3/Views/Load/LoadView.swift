@@ -12,8 +12,15 @@ struct LoadView: View {
     @State private var newName = ""
     @State private var newWeight = ""
     @State private var libraryItemEditSession: LibraryItemEditSession?
+    @State private var searchText = ""
 
     private var setupConfig: SetupConfig? { configs.first }
+
+    private var filteredLibraryItems: [LibraryItem] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return libraryItems }
+        return libraryItems.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
 
     private var showCaravanSetupBanner: Bool {
         guard let config = setupConfig else { return true }
@@ -46,9 +53,29 @@ struct LoadView: View {
                         LoadEmptyStateView()
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        List {
+                        VStack(spacing: 0) {
+                            AppSearchField(text: $searchText)
+                                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                                .padding(.top, AppScreenMetrics.smallSpacing)
+                                .padding(.bottom, AppScreenMetrics.controlSpacing)
+
+                            List {
                             Section {
-                                ForEach(libraryItems) { item in
+                                if filteredLibraryItems.isEmpty {
+                                    Text("No items match your search.")
+                                        .font(.subheadline)
+                                        .foregroundStyle(AppColors.textSupporting)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .listRowInsets(EdgeInsets(
+                                            top: 6,
+                                            leading: AppScreenMetrics.cardInteriorPadding,
+                                            bottom: 6,
+                                            trailing: AppScreenMetrics.cardInteriorPadding
+                                        ))
+                                        .listRowSeparator(.hidden)
+                                        .listRowBackground(Color.clear)
+                                } else {
+                                ForEach(filteredLibraryItems) { item in
                                     HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.controlSpacing) {
                                         VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
                                             Text(item.name)
@@ -102,6 +129,7 @@ struct LoadView: View {
                                         }
                                     }
                                 }
+                                }
                             } header: {
                                 AppSectionHeading(
                                     itemsSectionTitle,
@@ -110,9 +138,11 @@ struct LoadView: View {
                                 .textCase(nil)
                             }
                             .headerProminence(.increased)
+                            }
+                            .listStyle(.insetGrouped)
+                            .scrollContentBackground(.hidden)
+                            .scrollDismissesKeyboard(.interactively)
                         }
-                        .listStyle(.insetGrouped)
-                        .scrollContentBackground(.hidden)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

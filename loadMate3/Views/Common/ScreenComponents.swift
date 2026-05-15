@@ -190,6 +190,55 @@ struct AppAccentLabel: View {
     }
 }
 
+// MARK: - Search
+
+/// Compact iOS-style search field (magnifying glass, tertiary fill, clear button).
+struct AppSearchField: View {
+    let placeholder: String
+    @Binding var text: String
+
+    init(_ placeholder: String = "Search", text: Binding<String>) {
+        self.placeholder = placeholder
+        self._text = text
+    }
+
+    var body: some View {
+        HStack(spacing: AppScreenMetrics.smallSpacing) {
+            Image(systemName: "magnifyingglass")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(AppColors.textSupporting)
+                .accessibilityHidden(true)
+
+            TextField(placeholder, text: $text)
+                .font(.body)
+                .foregroundStyle(Color.primary)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.body)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(AppColors.textSupporting)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, AppScreenMetrics.controlSpacing)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(.tertiarySystemFill))
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Search")
+    }
+}
+
 // MARK: - Numeric fields
 
 /// Single-line text input matching bordered numeric fields (Load tab, etc.).
