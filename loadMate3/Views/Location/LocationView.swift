@@ -2,81 +2,148 @@ import SwiftUI
 import SwiftData
 
 struct LocationView: View {
+    var onNavigateToLoad: (() -> Void)?
+
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\LoadedItem.loadedAt)]) private var loadedItems: [LoadedItem]
     @Query private var configs: [SetupConfig]
 
     @StateObject private var viewModel = LocationViewModel()
+    @State private var zonePickerItem: LoadedItem?
+    @State private var showLocationsHelp = false
 
     private var setupConfig: SetupConfig? { configs.first }
 
-    private var estimatedTowBarKg: Double? {
+    private var weightSummary: WeightSummary? {
         guard let config = setupConfig else { return nil }
-        return WeightCalculator.summary(config: config, loadedItems: loadedItems).estimatedNoseWeightKg
+        return WeightCalculator.summary(config: config, loadedItems: loadedItems)
+    }
+
+    private var zoneWeightsKg: [LoadZone: Double] {
+        LocationZoneWeights.totals(for: loadedItems)
     }
 
     var body: some View {
         NavigationStack {
             Group {
                 if loadedItems.isEmpty {
-                    LocationEmptyStateView()
+                    LocationEmptyStateView(onAddItems: onNavigateToLoad)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                            AppSectionHeading(
-                                "Assign locations",
-                                caption: "Choose where each loaded item sits on the caravan. This affects nose weight estimates."
-                            )
+                    ZStack(alignment: .bottomTrailing) {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                                assignLocationsHeader
 
-                            towBarEstimateCard
-
-                            zoneLegend
-
-                            VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
-                                ForEach(loadedItems) { loaded in
-                                    LocationItemZoneCard(
-                                        title: title(for: loaded),
-                                        weightLine: weightLine(for: loaded),
-                                        selectedZone: loaded.zone,
-                                        onSelectZone: { zone in
-                                            viewModel.updateZone(for: loaded, to: zone, in: modelContext)
-                                        }
-                                    )
+                                if let summary = weightSummary, let config = setupConfig {
+                                    towBarEstimateCard(summary: summary, config: config)
                                 }
+
+                                CaravanPositionMapView(zoneWeightsKg: zoneWeightsKg)
+
+                                assignItemsSection
                             }
+                            .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                            .padding(.top, AppScreenMetrics.verticalScreenPadding)
+                            .padding(.bottom, 88)
                         }
-                        .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                        .padding(.top, AppScreenMetrics.verticalScreenPadding)
-                        .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+                        .scrollDismissesKeyboard(.interactively)
+
+                        AppFloatingAddButton(accessibilityLabel: "Add items on Load tab") {
+                            onNavigateToLoad?()
+                        }
+                        .padding(.trailing, AppScreenMetrics.horizontalPadding)
+                        .padding(.bottom, AppScreenMetrics.smallSpacing)
                     }
-                    .scrollDismissesKeyboard(.interactively)
                 }
             }
             .background(Color(.systemGroupedBackground))
             .appPrincipalTabTitle("Locations")
+            .sheet(item: $zonePickerItem) { loaded in
+                LocationZonePickerSheet(
+                    itemTitle: title(for: loaded),
+                    selectedZone: loaded.zone,
+                    onSelect: { zone in
+                        viewModel.updateZone(for: loaded, to: zone, in: modelContext)
+                    }
+                )
+            }
+            .alert("About locations", isPresented: $showLocationsHelp) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Where you place each item shifts estimated tow bar (nose) weight. Front zones tend to increase it; rear zones tend to decrease it. Stay within your car’s tow ball limit.")
+            }
         }
     }
 
-    private var towBarEstimateCard: some View {
-        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-            Text("Estimated tow bar weight")
-                .font(.subheadline)
-                .foregroundStyle(AppColors.textSupporting)
+    // MARK: - Sections
 
-            if let kg = estimatedTowBarKg {
-                Text(Formatters.kg(kg))
+    private var assignLocationsHeader: some View {
+        HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
+            AppSectionHeading(
+                "Assign locations",
+                caption: "Choose where each loaded item sits on the caravan. This affects nose weight estimates."
+            )
+
+            Button {
+                showLocationsHelp = true
+            } label: {
+                Image(systemName: "questionmark.circle")
+                    .font(.title3)
+                    .foregroundStyle(Color.secondary)
+                    .accessibilityLabel("About locations")
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 2)
+        }
+    }
+
+    private var assignItemsSection: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            Text("Assign items to locations")
+                .font(.headline)
+                .foregroundStyle(Color.primary)
+
+            VStack(spacing: 0) {
+                ForEach(Array(loadedItems.enumerated()), id: \.element.id) { index, loaded in
+                    LocationItemRow(
+                        title: title(for: loaded),
+                        weightLine: weightLine(for: loaded),
+                        zone: loaded.zone,
+                        onTap: { zonePickerItem = loaded }
+                    )
+
+                    if index < loadedItems.count - 1 {
+                        Divider()
+                            .padding(.leading, AppScreenMetrics.cardInteriorPadding)
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
+        }
+    }
+
+    private func towBarEstimateCard(summary: WeightSummary, config: SetupConfig) -> some View {
+        HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                Text("Estimated Tow Bar Weight")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSupporting)
+
+                Text(Formatters.kg(summary.estimatedNoseWeightKg))
                     .font(.largeTitle.weight(.bold))
                     .fontDesign(.rounded)
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(summary.isOverTowBallLimit ? AppColors.red : Color.primary)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
-            } else {
-                Text("—")
-                    .font(.largeTitle.weight(.bold))
-                    .fontDesign(.rounded)
-                    .foregroundStyle(.tertiary)
             }
+
+            Spacer(minLength: 0)
+
+            TowBarWeightStatusBadge(summary: summary, config: config)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppScreenMetrics.cardInteriorPadding)
@@ -87,24 +154,7 @@ struct LocationView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var zoneLegend: some View {
-        HStack(spacing: AppScreenMetrics.smallSpacing) {
-            ForEach(LoadZone.pickerZones) { zone in
-                HStack(spacing: AppScreenMetrics.tinySpacing) {
-                    Circle()
-                        .fill(zone.chipAccentColor)
-                        .frame(width: 12, height: 12)
-                        .accessibilityHidden(true)
-
-                    Text(zone.shortLabel)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.primary)
-                }
-                .frame(maxWidth: .infinity)
-            }
-        }
-        .accessibilityLabel("Zone legend: \(LoadZone.pickerZones.map(\.shortLabel).joined(separator: ", "))")
-    }
+    // MARK: - Helpers
 
     private func title(for loaded: LoadedItem) -> String {
         let name = loaded.item?.name ?? "Unknown item"
@@ -126,6 +176,8 @@ struct LocationView: View {
 // MARK: - Empty state
 
 private struct LocationEmptyStateView: View {
+    var onAddItems: (() -> Void)?
+
     var body: some View {
         VStack(spacing: AppScreenMetrics.fieldSpacing) {
             Image(systemName: "mappin.and.ellipse")
@@ -143,92 +195,134 @@ private struct LocationEmptyStateView: View {
                 .foregroundStyle(AppColors.textSupporting)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, AppScreenMetrics.sectionSpacingLoose)
+
+            if onAddItems != nil {
+                Button("Go to Load") {
+                    onAddItems?()
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, AppScreenMetrics.smallSpacing)
+            }
         }
         .padding(.vertical, AppScreenMetrics.sectionSpacingLoose)
     }
 }
 
-// MARK: - Item card
+// MARK: - Item row
 
-private struct LocationItemZoneCard: View {
+private struct LocationItemRow: View {
     let title: String
     let weightLine: String
-    let selectedZone: LoadZone
-    let onSelectZone: (LoadZone) -> Void
+    let zone: LoadZone
+    let onTap: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-            HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.smallSpacing) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(Color.primary)
-
-                Text(weightLine)
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSupporting)
-            }
-
+        Button(action: onTap) {
             HStack(spacing: AppScreenMetrics.controlSpacing) {
-                ForEach(LoadZone.pickerZones) { zone in
-                    zoneChip(for: zone)
+                VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                    Text(title)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(Color.primary)
+                        .multilineTextAlignment(.leading)
+
+                    Text(weightLine)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
                 }
+
+                Spacer(minLength: 0)
+
+                LocationZoneBadge(zone: zone)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color(.tertiaryLabel))
+                    .accessibilityHidden(true)
             }
-        }
-        .padding(.vertical, AppScreenMetrics.smallSpacing)
-        .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
-    }
-
-    private func zoneChip(for zone: LoadZone) -> some View {
-        let selected = selectedZone == zone
-
-        return Button {
-            onSelectZone(zone)
-        } label: {
-            Text(zone.shortLabel)
-                .font(.caption.weight(.bold))
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
-                .foregroundStyle(selected ? Color.white : Color.primary)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(selected ? zone.chipAccentColor : zone.chipAccentColor.opacity(0.28))
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(selected ? Color.primary : Color.clear, lineWidth: selected ? 2 : 0)
-                }
+            .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(zone.title) zone")
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
+        .accessibilityHint("Opens zone picker")
+    }
+}
+
+private struct LocationZoneBadge: View {
+    let zone: LoadZone
+
+    var body: some View {
+        if zone == .unassigned {
+            Text("Assign")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppColors.textSupporting)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule()
+                        .fill(Color(.tertiarySystemFill))
+                )
+        } else {
+            HStack(spacing: 4) {
+                Text(zone.shortLabel)
+                    .font(.caption.weight(.bold))
+                Text(zone.locationBadgeTitle)
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(zone.chipAccentColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(zone.chipAccentColor.opacity(0.14))
+            )
+        }
     }
 }
 
 // MARK: - Zone labels & colors (Locations UI)
 
 extension LoadZone {
-    /// Zones shown as FB / F / M / B / BR chips (excludes `unassigned`).
+    /// Zones shown on the map and in the zone picker (excludes `unassigned`).
     static var pickerZones: [LoadZone] {
         [.frontLocker, .front, .middle, .rear, .bikeRack]
     }
 
     var shortLabel: String {
         switch self {
-        case .frontLocker: return "FB"
+        case .frontLocker: return "FL"
         case .front: return "F"
         case .middle: return "M"
-        case .rear: return "B"
-        case .bikeRack: return "BR"
+        case .rear: return "R"
+        case .bikeRack: return "RB"
         case .unassigned: return "—"
         }
     }
 
-    /// Matches legend / chip hues from design (FB blue … BR green).
+    /// Full zone name for map labels and list badges (e.g. “Front locker”, “Rear bike”).
+    var locationBadgeTitle: String {
+        switch self {
+        case .frontLocker: return "Front locker"
+        case .front: return "Front"
+        case .middle: return "Middle"
+        case .rear: return "Rear"
+        case .bikeRack: return "Rear bike"
+        case .unassigned: return "Unassigned"
+        }
+    }
+
+    var noseImpactHint: String {
+        switch self {
+        case .frontLocker: return "Increases nose weight most"
+        case .front: return "Increases nose weight"
+        case .middle: return "Neutral impact on nose weight"
+        case .rear: return "Decreases nose weight"
+        case .bikeRack: return "Decreases nose weight most"
+        case .unassigned: return ""
+        }
+    }
+
+    /// Matches map / badge hues (FL blue … RB green).
     var chipAccentColor: Color {
         switch self {
         case .frontLocker: AppColors.blue
