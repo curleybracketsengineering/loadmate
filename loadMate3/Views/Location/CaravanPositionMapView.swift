@@ -13,8 +13,6 @@ struct CaravanPositionMapView: View {
             caravanOutline
 
             noseImpactScale
-
-            zoneTotalsRow
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -29,19 +27,23 @@ struct CaravanPositionMapView: View {
     private var caravanOutline: some View {
         HStack(spacing: 3) {
             ForEach(LoadZone.pickerZones) { zone in
-                VStack(spacing: 4) {
-                    Text(zone.shortLabel)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(zone.chipAccentColor)
+                VStack(spacing: 3) {
                     Text(zone.locationBadgeTitle)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(Color.primary.opacity(0.75))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(zone.chipAccentColor)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                         .minimumScaleFactor(0.8)
+                    Text(Formatters.kg(zoneWeightsKg[zone] ?? 0))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.primary)
+                        .multilineTextAlignment(.center)
+                        .minimumScaleFactor(0.65)
+                        .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: 76)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 4)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(zone.chipAccentColor.opacity(0.32))
@@ -50,7 +52,7 @@ struct CaravanPositionMapView: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(zone.chipAccentColor.opacity(0.55), lineWidth: 1)
                 }
-                .accessibilityLabel("\(zone.locationBadgeTitle) zone")
+                .accessibilityLabel("\(zone.locationBadgeTitle) zone, \(Formatters.kg(zoneWeightsKg[zone] ?? 0))")
             }
         }
         .padding(10)
@@ -75,7 +77,7 @@ struct CaravanPositionMapView: View {
             .clipShape(Capsule())
 
             HStack {
-                Text("More Increases")
+                Text("Increases")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(AppColors.blue)
                 Spacer()
@@ -83,7 +85,7 @@ struct CaravanPositionMapView: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(LoadZone.middle.chipAccentColor)
                 Spacer()
-                Text("More Decreases")
+                Text("Decreases")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(AppColors.green)
             }
@@ -91,30 +93,6 @@ struct CaravanPositionMapView: View {
         .accessibilityLabel("Nose weight impact scale. Front zones increase nose weight; rear zones decrease it.")
     }
 
-    private var zoneTotalsRow: some View {
-        HStack(alignment: .top, spacing: AppScreenMetrics.tinySpacing) {
-            ForEach(LoadZone.pickerZones) { zone in
-                VStack(spacing: 3) {
-                    Text(zone.shortLabel)
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(zone.chipAccentColor)
-                    Text(zone.locationBadgeTitle)
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(AppColors.textSupporting)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.75)
-                    Text(Formatters.kg(zoneWeightsKg[zone] ?? 0))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.primary)
-                        .minimumScaleFactor(0.7)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity)
-                .accessibilityLabel("\(zone.shortLabel) \(zone.locationBadgeTitle), \(Formatters.kg(zoneWeightsKg[zone] ?? 0))")
-            }
-        }
-    }
 }
 
 enum LocationZoneWeights {

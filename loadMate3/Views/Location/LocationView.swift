@@ -263,19 +263,15 @@ private struct LocationZoneBadge: View {
                         .fill(Color(.tertiarySystemFill))
                 )
         } else {
-            HStack(spacing: 4) {
-                Text(zone.shortLabel)
-                    .font(.caption.weight(.bold))
-                Text(zone.locationBadgeTitle)
-                    .font(.caption.weight(.semibold))
-            }
-            .foregroundStyle(zone.chipAccentColor)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule()
-                    .fill(zone.chipAccentColor.opacity(0.14))
-            )
+            Text(zone.locationBadgeTitle)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(zone.chipAccentColor)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule()
+                        .fill(zone.chipAccentColor.opacity(0.14))
+                )
         }
     }
 }
@@ -288,25 +284,14 @@ extension LoadZone {
         [.frontLocker, .front, .middle, .rear, .bikeRack]
     }
 
-    var shortLabel: String {
-        switch self {
-        case .frontLocker: return "FL"
-        case .front: return "F"
-        case .middle: return "M"
-        case .rear: return "R"
-        case .bikeRack: return "RB"
-        case .unassigned: return "—"
-        }
-    }
-
-    /// Full zone name for map labels and list badges (e.g. “Front locker”, “Rear bike”).
+    /// Full zone name for map labels and list badges (e.g. “Locker”, “Bike”).
     var locationBadgeTitle: String {
         switch self {
-        case .frontLocker: return "Front locker"
+        case .frontLocker: return "Locker"
         case .front: return "Front"
         case .middle: return "Middle"
         case .rear: return "Rear"
-        case .bikeRack: return "Rear bike"
+        case .bikeRack: return "Bike"
         case .unassigned: return "Unassigned"
         }
     }
@@ -322,7 +307,7 @@ extension LoadZone {
         }
     }
 
-    /// Matches map / badge hues (FL blue … RB green).
+    /// Matches map / badge hues by zone position (front … bike rack).
     var chipAccentColor: Color {
         switch self {
         case .frontLocker: AppColors.blue
