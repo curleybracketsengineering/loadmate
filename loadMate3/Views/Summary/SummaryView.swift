@@ -356,17 +356,24 @@ private struct NoseWeightSafeZoneGauge: View {
     private static let markerHeight: CGFloat = 20
     /// Matches gap from bar bottom to tick label centres (`tickLabel` `y` offset).
     private static let tickBarGap: CGFloat = 26
+    /// Gap from car-max triangle tip to the coloured bar (half of `tickBarGap` for tighter layout).
+    private static let carMaxBarGap: CGFloat = tickBarGap / 2
     /// Fixed height for the “Max tow” stack above the bar (text + triangle).
     private static let carMaxPointerHeight: CGFloat = 48
 
+    private static let textPointBump: CGFloat = 2
+    private static let caption2PointSize: CGFloat = 11 + textPointBump
+    private static let captionPointSize: CGFloat = 12 + textPointBump
+
     private static let legendScale: CGFloat = 1.1
     private static let legendDotDiameter: CGFloat = 7 * legendScale
-    private static let legendTextSize: CGFloat = 11 * legendScale
-    private static let legendTriangleSize: CGFloat = 8 * legendScale
+    private static let legendTextSize: CGFloat = 11 * legendScale + textPointBump
+    private static let legendTriangleSize: CGFloat = 8 * legendScale + textPointBump
+    private static let carMaxTriangleSize: CGFloat = 11 + textPointBump
 
-    /// Y-offset of the coloured bar: room above for car max pointer + same gap as tick labels.
+    /// Y-offset of the coloured bar: room above for car max pointer + `carMaxBarGap` to the bar.
     private var barTop: CGFloat {
-        carMaxTowBallKg > 0 ? Self.tickBarGap + Self.carMaxPointerHeight : 2
+        carMaxTowBallKg > 0 ? Self.carMaxBarGap + Self.carMaxPointerHeight : 2
     }
 
     private var idealMidKg: Double { (zoneLowKg + zoneHighKg) / 2 }
@@ -456,7 +463,7 @@ private struct NoseWeightSafeZoneGauge: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Safe zone")
-                .font(.caption.weight(.semibold))
+                .font(.system(size: Self.captionPointSize, weight: .semibold))
                 .foregroundStyle(Color.secondary)
 
             GeometryReader { geo in
@@ -467,7 +474,7 @@ private struct NoseWeightSafeZoneGauge: View {
                         carMaxTowBallPointer()
                             .position(
                                 x: clampedCenterX(forKg: carMaxTowBallKg, width: width),
-                                y: barTop - Self.tickBarGap - Self.carMaxPointerHeight / 2
+                                y: barTop - Self.carMaxBarGap - Self.carMaxPointerHeight / 2
                             )
                             .accessibilityHidden(true)
                     }
@@ -505,7 +512,7 @@ private struct NoseWeightSafeZoneGauge: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .frame(height: barTop + Self.barHeight + 52)
+            .frame(height: barTop + Self.barHeight + 56)
 
             HStack(spacing: AppScreenMetrics.smallSpacing * Self.legendScale) {
                 legendDot(AppColors.green.opacity(0.92))
@@ -546,14 +553,14 @@ private struct NoseWeightSafeZoneGauge: View {
     private func carMaxTowBallPointer() -> some View {
         VStack(spacing: 2) {
             Text("Max tow")
-                .font(.caption2.weight(.semibold))
+                .font(.system(size: Self.caption2PointSize, weight: .semibold))
                 .foregroundStyle(Color.secondary)
             Text(stripKgGauge(Formatters.kg(carMaxTowBallKg)))
-                .font(.caption2.weight(.bold))
+                .font(.system(size: Self.caption2PointSize, weight: .bold))
                 .foregroundStyle(Color.accentColor)
             Spacer(minLength: 0)
             Image(systemName: "arrowtriangle.down.fill")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: Self.carMaxTriangleSize, weight: .semibold))
                 .foregroundStyle(Color.accentColor)
         }
         .frame(width: 76, height: Self.carMaxPointerHeight, alignment: .top)
@@ -562,10 +569,10 @@ private struct NoseWeightSafeZoneGauge: View {
     private func tickLabel(valueKg: Double, title: String, width: CGFloat) -> some View {
         VStack(spacing: 1) {
             Text(stripKgGauge(Formatters.kg(valueKg)))
-                .font(.caption.weight(.semibold))
+                .font(.system(size: Self.captionPointSize, weight: .semibold))
                 .foregroundStyle(Color.primary)
             Text(title)
-                .font(.caption2.weight(.medium))
+                .font(.system(size: Self.caption2PointSize, weight: .medium))
                 .foregroundStyle(Color.secondary)
         }
         .frame(width: min(width * 0.34, 120))
