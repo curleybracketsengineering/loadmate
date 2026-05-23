@@ -26,6 +26,7 @@ struct ChecklistView: View {
     @State private var itemRenameField = ""
 
     @State private var showResetAllConfirm = false
+    @State private var showChecklistHelp = false
 
     /// Section IDs that are expanded; omitted sections render collapsed (default for new sessions).
     @State private var expandedSectionIDs: Set<UUID> = []
@@ -77,7 +78,23 @@ struct ChecklistView: View {
         .appScreenBackground()
         // Inline + principal title avoids scroll glitches with expanding checklist cards.
         .appPrincipalTabTitle("Checklist")
+        .alert("How to use the checklist", isPresented: $showChecklistHelp) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(checklistHelpMessage)
+        }
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showChecklistHelp = true
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(Color.secondary)
+                }
+                .accessibilityLabel("Checklist help")
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button {
@@ -259,25 +276,13 @@ struct ChecklistView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(section.title), \(isExpanded ? "expanded" : "collapsed")")
-            .accessibilityHint("Double tap to \(isExpanded ? "collapse" : "expand")")
+            .accessibilityHint("Double tap to \(isExpanded ? "collapse" : "expand"). Press and hold for rename or delete.")
+            .contextMenu {
+                sectionManagementActions(section)
+            }
 
             Menu {
-                Button {
-                    sectionPendingRename = section
-                    renameField = section.title
-                } label: {
-                    Label("Rename", systemImage: "pencil")
-                }
-                Button {
-                    viewModel.resetSection(section, in: modelContext)
-                } label: {
-                    Label("Reset section", systemImage: "arrow.counterclockwise")
-                }
-                Button(role: .destructive) {
-                    viewModel.deleteSection(section, in: modelContext)
-                } label: {
-                    Label("Delete section", systemImage: "trash")
-                }
+                sectionManagementActions(section)
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.body.weight(.medium))
@@ -289,24 +294,71 @@ struct ChecklistView: View {
         }
     }
 
+    @ViewBuilder
+    private func sectionManagementActions(_ section: ChecklistSection) -> some View {
+        Button {
+            sectionPendingRename = section
+            renameField = section.title
+        } label: {
+            Label("Rename", systemImage: "pencil")
+        }
+        Button {
+            viewModel.resetSection(section, in: modelContext)
+        } label: {
+            Label("Reset section", systemImage: "arrow.counterclockwise")
+        }
+        Button(role: .destructive) {
+            viewModel.deleteSection(section, in: modelContext)
+        } label: {
+            Label("Delete section", systemImage: "trash")
+        }
+    }
+
+    private var checklistHelpMessage: String {
+        """
+        Tap a circle to check or uncheck an item.
+
+        Tap a section title or chevron to expand or collapse it.
+
+        Press and hold a section title, subgroup title, or item to rename or delete it.
+
+        Use Add subgroup and Add item inside each section to customise your lists.
+
+        Tap … on a section or subgroup for the same options without long press.
+
+        Tap ? (top left) anytime to see this help. Tap … (top right) to add a section or reset the entire checklist.
+        """
+    }
+
+    @ViewBuilder
+    private func subgroupManagementActions(_ group: ChecklistGroup) -> some View {
+        Button {
+            groupPendingRename = group
+            subgroupRenameField = group.title
+        } label: {
+            Label("Rename", systemImage: "pencil")
+        }
+        Button(role: .destructive) {
+            viewModel.deleteGroup(group, in: modelContext)
+        } label: {
+            Label("Delete subgroup", systemImage: "trash")
+        }
+    }
+
     private func subgroupHeader(_ group: ChecklistGroup, sectionTitle: String) -> some View {
         HStack(alignment: .center, spacing: AppScreenMetrics.controlSpacing) {
             Text(group.title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.primary)
-            Spacer(minLength: AppScreenMetrics.smallSpacing)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .accessibilityHint("Press and hold for rename or delete.")
+                .contextMenu {
+                    subgroupManagementActions(group)
+                }
+
             Menu {
-                Button {
-                    groupPendingRename = group
-                    subgroupRenameField = group.title
-                } label: {
-                    Label("Rename", systemImage: "pencil")
-                }
-                Button(role: .destructive) {
-                    viewModel.deleteGroup(group, in: modelContext)
-                } label: {
-                    Label("Delete subgroup", systemImage: "trash")
-                }
+                subgroupManagementActions(group)
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.caption.weight(.semibold))
@@ -341,6 +393,7 @@ struct ChecklistView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(item.title), \(item.isChecked ? "checked" : "unchecked")")
+        .accessibilityHint("Press and hold for rename or delete.")
         .contextMenu {
             Button {
                 itemPendingRename = item
