@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct SummaryView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [VehicleProfile]
     @Query private var appStates: [AppState]
     @Query private var allLoadedItems: [LoadedItem]
@@ -11,20 +12,25 @@ struct SummaryView: View {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
     }
 
+    private var activeTrip: Trip? {
+        TripStore.activeTrip(for: activeProfile)
+    }
+
     private var profileLoadedItems: [LoadedItem] {
-        VehicleProfileStore.loadedItems(for: activeProfile, from: allLoadedItems)
+        TripStore.loadedItems(for: activeTrip, from: allLoadedItems)
     }
 
     private var refreshToken: String {
+        let tripSignature = activeTrip.map { "\($0.id)-\($0.name)" } ?? "no-trip"
         let profileSignature = activeProfile.map { profile in
-            "\(profile.id)-\(profile.kindRaw)-\(profile.baseWeightKg)-\(profile.weighbridgeWeightKg)-\(profile.mtplmKg)-\(profile.maxFrontAxleKg)-\(profile.maxRearAxleKg)-\(profile.maxGarageKg)-\(profile.weighbridgeFrontAxleKg)-\(profile.weighbridgeRearAxleKg)"
+            "\(profile.id)-\(profile.kindRaw)-\(profile.baseWeightKg)-\(profile.weighbridgeWeightKg)-\(profile.mtplmKg)-\(profile.maxFrontAxleKg)-\(profile.maxRearAxleKg)-\(profile.maxGarageKg)-\(profile.garageLimitIncludesBikeRack)-\(profile.weighbridgeFrontAxleKg)-\(profile.weighbridgeRearAxleKg)"
         } ?? "no-profile"
 
         let itemSignature = profileLoadedItems.map {
             "\($0.id.uuidString)-\($0.quantity)-\($0.zoneRaw)-\($0.item?.weightKg ?? 0)"
         }.joined(separator: "|")
 
-        return "\(profileSignature)|\(itemSignature)"
+        return "\(tripSignature)|\(profileSignature)|\(itemSignature)"
     }
 
     var body: some View {
@@ -45,6 +51,9 @@ struct SummaryView: View {
             .toolbar(.hidden, for: .navigationBar)
             .task(id: refreshToken) {
                 viewModel.refresh(profile: activeProfile, loadedItems: profileLoadedItems)
+            }
+            .task(id: profiles.map(\.id)) {
+                TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
             }
         }
     }
@@ -140,7 +149,7 @@ struct SummaryView: View {
                 title: "Rear axle limit exceeded",
                 lines: [
                     "Reduce rear axle load by \(kgAmountPhrase(reduce))",
-                    "Move items forward; lighten garage or overhang storage"
+                    "Move items forward; lighten garage, bike rack, or rear overhang"
                 ],
                 background: AppColors.red,
                 accessibilitySummary: "Rear axle limit exceeded."
@@ -150,7 +159,7 @@ struct SummaryView: View {
                 title: "Garage weight limit exceeded",
                 lines: [
                     "Reduce garage load by \(kgAmountPhrase(reduce))",
-                    "Move items out of the garage zone or use a lighter rack"
+                    "Move items out of the garage zone or lighten bikes on the rack"
                 ],
                 background: AppColors.red,
                 accessibilitySummary: "Garage weight limit exceeded."
@@ -360,7 +369,7 @@ struct SummaryView: View {
                     AppSectionDivider()
 
                     VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
-                        Text("Calculated Nose Weight")
+                        Text("Estimated Nose Weight")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.secondary)
                         Text(Formatters.kg(summary.estimatedNoseWeightKg))

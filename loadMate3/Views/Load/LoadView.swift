@@ -14,13 +14,25 @@ struct LoadView: View {
     @State private var newWeight = ""
     @State private var libraryItemEditSession: LibraryItemEditSession?
     @State private var searchText = ""
+    @State private var showAddTrip = false
+    @State private var newTripName = ""
+    @State private var tripPendingRename: Trip?
+    @State private var tripRenameField = ""
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
     }
 
+    private var activeTrip: Trip? {
+        TripStore.activeTrip(for: activeProfile)
+    }
+
+    private var profileTrips: [Trip] {
+        TripStore.sortedTrips(for: activeProfile)
+    }
+
     private var loadedItems: [LoadedItem] {
-        VehicleProfileStore.loadedItems(for: activeProfile, from: allLoadedItems)
+        TripStore.loadedItems(for: activeTrip, from: allLoadedItems)
     }
 
     private var filteredLibraryItems: [LibraryItem] {
@@ -63,6 +75,17 @@ struct LoadView: View {
                 VStack(spacing: 0) {
                     if showSetupBanner {
                         AppWarningBanner(message: setupBannerMessage)
+                    }
+
+                    if let profile = activeProfile, !profileTrips.isEmpty {
+                        TripPickerBar(
+                            profile: profile,
+                            trips: profileTrips,
+                            activeTrip: activeTrip,
+                            showAddTrip: $showAddTrip,
+                            tripPendingRename: $tripPendingRename,
+                            tripRenameField: $tripRenameField
+                        )
                     }
 
                     if libraryItems.isEmpty {
@@ -124,7 +147,7 @@ struct LoadView: View {
                                         Button("Load") {
                                             viewModel.load(
                                                 item: item,
-                                                profile: activeProfile,
+                                                trip: activeTrip,
                                                 loadedItems: loadedItems,
                                                 in: modelContext
                                             )
@@ -144,7 +167,7 @@ struct LoadView: View {
                                             Label("Edit Item", systemImage: "pencil")
                                         }
                                         Button(role: .destructive) {
-                                            viewModel.delete(item: item, loadedItems: loadedItems, in: modelContext)
+                                            viewModel.delete(item: item, allLoadedItems: allLoadedItems, in: modelContext)
                                         } label: {
                                             Label("Delete", systemImage: "trash")
                                         }
@@ -176,6 +199,36 @@ struct LoadView: View {
                 .padding(.bottom, AppScreenMetrics.fieldSpacing)
             }
             .appPrincipalTabTitle("Load")
+            .task(id: profiles.map(\.id)) {
+                TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
+            }
+            .sheet(isPresented: $showAddTrip, onDismiss: {
+                newTripName = ""
+            }) {
+                AddTripSheet(name: $newTripName) {
+                    guard let profile = activeProfile else { return }
+                    let trimmed = newTripName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    _ = TripStore.addTrip(name: trimmed, to: profile, in: modelContext)
+                    newTripName = ""
+                    showAddTrip = false
+                }
+            }
+            .alert("Rename trip", isPresented: Binding(
+                get: { tripPendingRename != nil },
+                set: { if !$0 { tripPendingRename = nil } }
+            )) {
+                TextField("Trip name", text: $tripRenameField)
+                Button("Save") {
+                    if let trip = tripPendingRename {
+                        TripStore.renameTrip(trip, name: tripRenameField, in: modelContext)
+                    }
+                    tripPendingRename = nil
+                }
+                Button("Cancel", role: .cancel) {
+                    tripPendingRename = nil
+                }
+            }
             .sheet(isPresented: $showAddItem, onDismiss: {
                 newName = ""
                 newWeight = ""

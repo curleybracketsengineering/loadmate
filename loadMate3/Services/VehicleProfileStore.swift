@@ -45,6 +45,7 @@ enum VehicleProfileStore {
         if profiles.isEmpty {
             let caravan = VehicleProfile(name: "My Caravan", kind: .caravan, sortOrder: 0)
             context.insert(caravan)
+            _ = TripStore.ensureDefaultTrip(for: caravan, in: context)
             setActive(caravan, appState: state, in: context)
             return ([caravan], state)
         }
@@ -52,6 +53,8 @@ enum VehicleProfileStore {
         if state.activeProfileID == nil, let first = sortedProfiles(profiles).first {
             setActive(first, appState: state, in: context)
         }
+
+        TripStore.ensureTripsMigrated(in: context, profiles: profiles)
 
         return (sortedProfiles(profiles), state)
     }
@@ -72,6 +75,7 @@ enum VehicleProfileStore {
             sortOrder: nextOrder
         )
         context.insert(profile)
+        _ = TripStore.ensureDefaultTrip(for: profile, in: context)
         setActive(profile, appState: appState, in: context)
         return profile
     }
@@ -98,8 +102,7 @@ enum VehicleProfileStore {
     }
 
     static func loadedItems(for profile: VehicleProfile?, from all: [LoadedItem]) -> [LoadedItem] {
-        guard let profile else { return [] }
-        return all.filter { $0.profile?.id == profile.id }
+        TripStore.loadedItems(for: TripStore.activeTrip(for: profile), from: all)
     }
 
     private static func save(_ context: ModelContext) {

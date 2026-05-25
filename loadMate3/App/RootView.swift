@@ -35,6 +35,7 @@ private enum RootPreviewData {
     static func makeContainer() -> ModelContainer {
         let schema = Schema([
             VehicleProfile.self,
+            Trip.self,
             LibraryItem.self,
             LoadedItem.self,
             AppState.self,
@@ -59,13 +60,17 @@ private enum RootPreviewData {
             context.insert(profile)
             appState.activeProfileID = profile.id
 
+            let trip = Trip(name: "Weekend", sortOrder: 0, profile: profile)
+            context.insert(trip)
+            profile.activeTripID = trip.id
+
             let chair = LibraryItem(name: "Camping Chair", weightKg: 4.5, defaultZoneRaw: LoadZone.middle.rawValue)
             let awning = LibraryItem(name: "Awning", weightKg: 22, defaultZoneRaw: LoadZone.front.rawValue)
             context.insert(chair)
             context.insert(awning)
 
-            context.insert(LoadedItem(item: chair, quantity: 1, zone: .middle, profile: profile))
-            context.insert(LoadedItem(item: awning, quantity: 1, zone: .front, profile: profile))
+            context.insert(LoadedItem(item: chair, quantity: 1, zone: .middle, trip: trip))
+            context.insert(LoadedItem(item: awning, quantity: 1, zone: .front, trip: trip))
 
             try context.save()
             return container

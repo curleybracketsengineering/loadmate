@@ -7,10 +7,18 @@ extension LoadZone {
 
     // MARK: Motorhome zones
 
-    static let motorhomePickerZones: [LoadZone] = [.driver, .front, .central, .back, .garage]
+    static let motorhomePickerZones: [LoadZone] = [.driver, .front, .central, .back, .garage, .bikeRack]
 
     static func pickerZones(for kind: VehicleKind) -> [LoadZone] {
         kind == .motorhome ? motorhomePickerZones : caravanPickerZones
+    }
+
+    /// Zone used for weight distribution math when the user has not assigned a location.
+    func calculationZone(for kind: VehicleKind) -> LoadZone {
+        guard self != .unassigned else {
+            return kind == .motorhome ? .central : .middle
+        }
+        return LoadZone.resolved(rawValue: rawValue, for: kind)
     }
 
     static var motorhomeGarageZone: LoadZone { .garage }
@@ -23,7 +31,6 @@ extension LoadZone {
         case .frontLocker: return .driver
         case .middle: return .central
         case .rear: return .back
-        case .bikeRack: return .garage
         default: return zone
         }
     }
@@ -35,7 +42,6 @@ extension LoadZone {
         case .frontLocker: return .driver
         case .middle: return .central
         case .rear: return .back
-        case .bikeRack: return .garage
         default: return self
         }
     }
@@ -54,11 +60,12 @@ extension LoadZone {
             }
         case .motorhome:
             switch self {
-            case .driver: return "Driver"
+            case .driver: return "Cab"
             case .front: return "Front"
             case .central: return "Central"
             case .back: return "Back"
             case .garage: return "Garage"
+            case .bikeRack: return "Bike"
             case .unassigned: return "Unassigned"
             default: return LoadZone.resolved(rawValue: rawValue, for: .motorhome).locationBadgeTitle(for: .motorhome)
             }
@@ -69,11 +76,12 @@ extension LoadZone {
     func mapBadgeTitle(for kind: VehicleKind) -> String {
         guard kind == .motorhome else { return locationBadgeTitle(for: kind) }
         switch self {
-        case .driver: return "Driver"
+        case .driver: return "Cab"
         case .front: return "Front"
         case .central: return "Mid."
         case .back: return "Back"
         case .garage: return "Gar."
+        case .bikeRack: return "Bike"
         case .unassigned: return "—"
         default: return LoadZone.resolved(rawValue: rawValue, for: .motorhome).mapBadgeTitle(for: .motorhome)
         }
@@ -98,6 +106,7 @@ extension LoadZone {
             case .central: return "Between axles — shared"
             case .back: return "Above rear axle"
             case .garage: return "Behind rear axle — garage limit"
+            case .bikeRack: return "Rear rack — strongly loads rear axle"
             case .unassigned: return ""
             default: return ""
             }

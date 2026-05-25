@@ -5,6 +5,12 @@ enum NoseWeightGaugeDisplayStyle {
   case compact
 }
 
+private enum EstimatePinEdge {
+  case none
+  case leading
+  case trailing
+}
+
 /// Horizontal scale: green = ideal band, amber = caution outside band (but not over car limit), red = over limit.
 struct NoseWeightSafeZoneGauge: View {
   let zoneLowKg: Double
@@ -15,7 +21,8 @@ struct NoseWeightSafeZoneGauge: View {
 
   private static let amberFill = Color(red: 0.97, green: 0.73, blue: 0.12)
   private static let barHeight: CGFloat = 12
-  private static let markerHeight: CGFloat = 20
+  private static let estimateLineWidth: CGFloat = 4
+  private static let estimateMarkerHeight: CGFloat = 20
   private static let tickBarGap: CGFloat = 26
   private static let carMaxBarGap: CGFloat = tickBarGap / 2
   private static let carMaxPointerHeight: CGFloat = 48
@@ -29,25 +36,31 @@ struct NoseWeightSafeZoneGauge: View {
   private static let legendTextSize: CGFloat = 11 * legendScale + textPointBump
   private static let legendTriangleSize: CGFloat = 8 * legendScale + textPointBump
   private static let carMaxTriangleSize: CGFloat = 11 + textPointBump
-
   private var barTop: CGFloat {
     carMaxTowBallKg > 0 ? Self.carMaxBarGap + Self.carMaxPointerHeight : 2
   }
 
   private var idealMidKg: Double { (zoneLowKg + zoneHighKg) / 2 }
 
+  /// Scale bounds exclude the estimate so the bar stays stable; the indicator pins to an end when off-scale.
   private var axisMin: Double {
-    let candidates = [zoneLowKg, zoneHighKg, estimatedNoseKg, carMaxTowBallKg > 0 ? carMaxTowBallKg : zoneHighKg]
+    let candidates = [zoneLowKg, zoneHighKg, carMaxTowBallKg > 0 ? carMaxTowBallKg : zoneHighKg]
     let lo = candidates.min() ?? 0
     let pad = max((zoneHighKg - zoneLowKg) * 0.12, 2)
     return max(0, lo - pad)
   }
 
   private var axisMax: Double {
-    var hi = max(zoneHighKg, estimatedNoseKg)
+    var hi = zoneHighKg
     if carMaxTowBallKg > 0 { hi = max(hi, carMaxTowBallKg) }
     let pad = max((zoneHighKg - zoneLowKg) * 0.12, 2)
     return hi + pad
+  }
+
+  private var estimatePinEdge: EstimatePinEdge {
+    if estimatedNoseKg < axisMin { return .leading }
+    if estimatedNoseKg > axisMax { return .trailing }
+    return .none
   }
 
   private var axisSpan: Double { max(axisMax - axisMin, 1) }
@@ -100,6 +113,12 @@ struct NoseWeightSafeZoneGauge: View {
 
   private var accessibilitySummary: String {
     let est = kgAmountGauge(estimatedNoseKg)
+    if estimatePinEdge == .leading {
+      return "Estimated nose weight \(est), below scale minimum \(kgAmountGauge(axisMin)). Indicator at left end of scale."
+    }
+    if estimatePinEdge == .trailing {
+      return "Estimated nose weight \(est), above scale maximum \(kgAmountGauge(axisMax)). Indicator at right end of scale."
+    }
     if estimatedNoseKg < zoneLowKg {
       return "Estimated nose weight \(est), below ideal range starting at \(kgAmountGauge(zoneLowKg))."
     }
@@ -153,11 +172,11 @@ struct NoseWeightSafeZoneGauge: View {
 
           RoundedRectangle(cornerRadius: 1.5, style: .continuous)
             .fill(Color.primary)
-            .frame(width: 4, height: Self.markerHeight)
+            .frame(width: Self.estimateLineWidth, height: Self.estimateMarkerHeight)
             .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
             .offset(
-              x: clampedCenterX(forKg: estimatedNoseKg, width: width) - 2,
-              y: barTop + Self.barHeight / 2 - Self.markerHeight / 2
+              x: estimateMarkerCenterX(width: width) - Self.estimateLineWidth / 2,
+              y: barTop + Self.barHeight / 2 - Self.estimateMarkerHeight / 2
             )
             .accessibilityHidden(true)
 
@@ -210,6 +229,21 @@ struct NoseWeightSafeZoneGauge: View {
   private func clampedCenterX(forKg kg: Double, width: CGFloat) -> CGFloat {
     let raw = width * clampedXFraction(kg)
     return min(max(raw, 26), width - 26)
+  }
+
+  private func estimateMarkerCenterX(width: CGFloat) -> CGFloat {
+    let half = Self.estimateLineWidth / 2
+    let minX = half
+    let maxX = width - half
+    switch estimatePinEdge {
+    case .leading:
+      return minX
+    case .trailing:
+      return maxX
+    case .none:
+      let raw = width * clampedXFraction(estimatedNoseKg)
+      return min(max(raw, minX), maxX)
+    }
   }
 
   private func carMaxTowBallPointer() -> some View {

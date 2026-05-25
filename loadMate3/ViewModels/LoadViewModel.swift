@@ -6,13 +6,14 @@ import SwiftData
 final class LoadViewModel: ObservableObject {
     func load(
         item: LibraryItem,
-        profile: VehicleProfile?,
+        trip: Trip?,
         loadedItems: [LoadedItem],
         in context: ModelContext
     ) {
+        let kind = trip?.profile?.kind ?? .caravan
         let rawDefault = item.defaultZone ?? .unassigned
-        let zone = rawDefault.defaultForLoading(on: profile?.kind ?? .caravan)
-        context.insert(LoadedItem(item: item, quantity: 1, zone: zone, profile: profile))
+        let zone = rawDefault.defaultForLoading(on: kind)
+        context.insert(LoadedItem(item: item, quantity: 1, zone: zone, trip: trip))
         save(context)
     }
 
@@ -29,8 +30,8 @@ final class LoadViewModel: ObservableObject {
         save(context)
     }
 
-    func delete(item: LibraryItem, loadedItems: [LoadedItem], in context: ModelContext) {
-        loadedItems.filter { $0.item?.id == item.id }.forEach(context.delete)
+    func delete(item: LibraryItem, allLoadedItems: [LoadedItem], in context: ModelContext) {
+        allLoadedItems.filter { $0.item?.id == item.id }.forEach(context.delete)
         context.delete(item)
         save(context)
     }

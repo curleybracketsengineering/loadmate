@@ -12,13 +12,25 @@ struct LocationView: View {
     @StateObject private var viewModel = LocationViewModel()
     @State private var zonePickerItem: LoadedItem?
     @State private var showLocationsHelp = false
+    @State private var showAddTrip = false
+    @State private var newTripName = ""
+    @State private var tripPendingRename: Trip?
+    @State private var tripRenameField = ""
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
     }
 
+    private var activeTrip: Trip? {
+        TripStore.activeTrip(for: activeProfile)
+    }
+
+    private var profileTrips: [Trip] {
+        TripStore.sortedTrips(for: activeProfile)
+    }
+
     private var loadedItems: [LoadedItem] {
-        VehicleProfileStore.loadedItems(for: activeProfile, from: allLoadedItems)
+        TripStore.loadedItems(for: activeTrip, from: allLoadedItems)
     }
 
     private var caravanSummary: WeightSummary? {
@@ -39,12 +51,27 @@ struct LocationView: View {
         NavigationStack {
             Group {
                 if loadedItems.isEmpty {
-                    LocationEmptyStateView(onAddItems: onNavigateToLoad)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    LocationEmptyStateView(
+                        tripName: activeTrip?.name,
+                        onAddItems: onNavigateToLoad
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ZStack(alignment: .bottomTrailing) {
                         ScrollView {
                             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                                if let profile = activeProfile, !profileTrips.isEmpty {
+                                    TripPickerBar(
+                                        profile: profile,
+                                        trips: profileTrips,
+                                        activeTrip: activeTrip,
+                                        showAddTrip: $showAddTrip,
+                                        tripPendingRename: $tripPendingRename,
+                                        tripRenameField: $tripRenameField
+                                    )
+                                    .padding(.horizontal, 0)
+                                }
+
                                 assignLocationsHeader
 
                                 if let profile = activeProfile {
@@ -74,6 +101,32 @@ struct LocationView: View {
             }
             .background(Color(.systemGroupedBackground))
             .appPrincipalTabTitle("Locations")
+            .task(id: profiles.map(\.id)) {
+                TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
+            }
+            .sheet(isPresented: $showAddTrip, onDismiss: { newTripName = "" }) {
+                AddTripSheet(name: $newTripName) {
+                    guard let profile = activeProfile else { return }
+                    let trimmed = newTripName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    _ = TripStore.addTrip(name: trimmed, to: profile, in: modelContext)
+                    newTripName = ""
+                    showAddTrip = false
+                }
+            }
+            .alert("Rename trip", isPresented: Binding(
+                get: { tripPendingRename != nil },
+                set: { if !$0 { tripPendingRename = nil } }
+            )) {
+                TextField("Trip name", text: $tripRenameField)
+                Button("Save") {
+                    if let trip = tripPendingRename {
+                        TripStore.renameTrip(trip, name: tripRenameField, in: modelContext)
+                    }
+                    tripPendingRename = nil
+                }
+                Button("Cancel", role: .cancel) { tripPendingRename = nil }
+            }
             .sheet(item: $zonePickerItem) { loaded in
                 LocationZonePickerSheet(
                     vehicleKind: activeProfile?.kind ?? .caravan,
@@ -94,14 +147,14 @@ struct LocationView: View {
 
     private var locationsHelpMessage: String {
         if activeProfile?.kind == .motorhome {
-            return "Front is above the front axle; Back above the rear; Garage behind the rear. Stay within plated axle and garage limits."
+            return "Front is above the front axle; Back above the rear; Garage and bike rack behind the rear. Stay within plated axle and garage limits."
         }
         return "Where you place each item shifts estimated tow bar (nose) weight. Front zones tend to increase it; rear zones tend to decrease it. Stay within your car’s tow ball limit."
     }
 
     private var assignLocationsCaption: String {
         if activeProfile?.kind == .motorhome {
-            return "Choose where each loaded item sits: Driver, Front, Central, Back, or Garage."
+            return "Choose where each loaded item sits: Cab, Front, Central, Back, Garage, or Bike Rack."
         }
         return "Choose where each loaded item sits on the caravan. This affects nose weight estimates."
     }
@@ -219,7 +272,7 @@ struct LocationView: View {
                 Divider()
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Garage load")
+                        Text(profile.garageLimitIncludesBikeRack ? "Garage + rack load" : "Garage load")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(AppColors.textSupporting)
                         Text(Formatters.kg(summary.garageLoadedKg))
@@ -280,6 +333,7 @@ struct LocationView: View {
 // MARK: - Empty state
 
 private struct LocationEmptyStateView: View {
+    var tripName: String?
     var onAddItems: (() -> Void)?
 
     var body: some View {
@@ -294,7 +348,7 @@ private struct LocationEmptyStateView: View {
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(Color.primary)
 
-            Text("Use the Load tab to add items, then assign each one to a zone here.")
+            Text(emptyMessage)
                 .font(.caption)
                 .foregroundStyle(AppColors.textSupporting)
                 .multilineTextAlignment(.center)
@@ -309,6 +363,13 @@ private struct LocationEmptyStateView: View {
             }
         }
         .padding(.vertical, AppScreenMetrics.sectionSpacingLoose)
+    }
+
+    private var emptyMessage: String {
+        if let tripName, !tripName.isEmpty {
+            return "No items loaded for “\(tripName)”. Use the Load tab to add items, then assign zones here."
+        }
+        return "Use the Load tab to add items, then assign each one to a zone here."
     }
 }
 

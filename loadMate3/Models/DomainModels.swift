@@ -16,8 +16,23 @@ enum VehicleKind: String, Codable, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .caravan: return "car.rear.and.trailer.road.lane"
+        case .caravan: return "tow.hitch.fill"
         case .motorhome: return "bus.fill"
+        }
+    }
+}
+
+/// What mass to use when calculating the 5%–7% nose weight safe band.
+enum NoseSafeZoneBasis: String, Codable, CaseIterable, Identifiable {
+    case mtplm
+    case ladenWeight
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .mtplm: return "MTPLM"
+        case .ladenWeight: return "Laden weight"
         }
     }
 }
@@ -46,7 +61,7 @@ enum LoadZone: String, Codable, CaseIterable, Identifiable {
         case .middle: return "Middle (Axle)"
         case .rear: return "Rear"
         case .bikeRack: return "Bike Rack"
-        case .driver: return "Driver"
+        case .driver: return "Cab"
         case .central: return "Central"
         case .back: return "Back"
         case .garage: return "Garage"
@@ -75,6 +90,8 @@ final class VehicleProfile {
     var caravanMaxNoseKg: Double
     var carMaxTowBallKg: Double
     var noseWeightBasePercent: Double
+    /// Stored basis for 5%–7% safe zone; default MTPLM for existing profiles.
+    var noseSafeZoneBasisRaw: String = NoseSafeZoneBasis.mtplm.rawValue
 
     var factorFrontLocker: Double
     var factorFront: Double
@@ -92,6 +109,8 @@ final class VehicleProfile {
     var maxRearAxleKg: Double
     /// Max load for the rear garage / overhang box (0 = not set — no separate limit).
     var maxGarageKg: Double
+    /// When true, trip items in the bike rack zone count toward `maxGarageKg` (manufacturer combined rear limit).
+    var garageLimitIncludesBikeRack: Bool
 
     /// Motorhome: kg added to each axle estimate per kg of item in that zone.
     var mhFactorDriverFront: Double
@@ -104,9 +123,14 @@ final class VehicleProfile {
     var mhFactorBackRear: Double
     var mhFactorGarageFront: Double
     var mhFactorGarageRear: Double
+    var mhFactorBikeRackFront: Double
+    var mhFactorBikeRackRear: Double
 
-    @Relationship(deleteRule: .cascade, inverse: \LoadedItem.profile)
-    var loadedItems: [LoadedItem] = []
+    /// Last-selected load setup for this vehicle (beach, Europe, etc.).
+    var activeTripID: UUID?
+
+    @Relationship(deleteRule: .cascade, inverse: \Trip.profile)
+    var trips: [Trip] = []
 
     init(
         id: UUID = UUID(),
@@ -124,6 +148,7 @@ final class VehicleProfile {
         self.caravanMaxNoseKg = 0
         self.carMaxTowBallKg = 0
         self.noseWeightBasePercent = 6.0
+        self.noseSafeZoneBasisRaw = NoseSafeZoneBasis.mtplm.rawValue
         self.factorFrontLocker = 0.25
         self.factorFront = 0.15
         self.factorMiddle = 0.0
@@ -135,6 +160,7 @@ final class VehicleProfile {
         self.maxFrontAxleKg = 0
         self.maxRearAxleKg = 0
         self.maxGarageKg = 0
+        self.garageLimitIncludesBikeRack = false
         self.mhFactorDriverFront = 0.75
         self.mhFactorDriverRear = 0.15
         self.mhFactorFrontFront = 0.95
@@ -145,6 +171,8 @@ final class VehicleProfile {
         self.mhFactorBackRear = 0.95
         self.mhFactorGarageFront = 0.02
         self.mhFactorGarageRear = 0.98
+        self.mhFactorBikeRackFront = -0.08
+        self.mhFactorBikeRackRear = 1.08
     }
 
     var kind: VehicleKind {
@@ -161,7 +189,7 @@ final class VehicleProfile {
     }
 
     /// Per-kg factors: how much each kg in a zone adds to front vs rear axle estimates.
-    /// Front zone sits above the front axle; Back above the rear axle; Garage behind the rear axle.
+    /// Front zone sits above the front axle; Back above the rear axle; Garage and bike rack behind the rear axle.
     static func applyMotorhomeFactorDefaults(to profile: VehicleProfile) {
         profile.mhFactorDriverFront = 0.75
         profile.mhFactorDriverRear = 0.15
@@ -173,13 +201,35 @@ final class VehicleProfile {
         profile.mhFactorBackRear = 0.95
         profile.mhFactorGarageFront = 0.02
         profile.mhFactorGarageRear = 0.98
+        profile.mhFactorBikeRackFront = -0.08
+        profile.mhFactorBikeRackRear = 1.08
     }
 }
 
 extension VehicleProfile {
+    /// Wording for garage limit UI when monitoring rear storage.
+    var garageLimitSourcesLabel: String {
+        garageLimitIncludesBikeRack ? "Garage and bike rack" : "Garage only"
+    }
+
     var effectiveMaxTowBallKg: Double {
         let limits = [carMaxTowBallKg, caravanMaxNoseKg].filter { $0 > 0 }
         return limits.min() ?? 0
+    }
+
+    var noseSafeZoneBasis: NoseSafeZoneBasis {
+        get { NoseSafeZoneBasis(rawValue: noseSafeZoneBasisRaw) ?? .mtplm }
+        set { noseSafeZoneBasisRaw = newValue.rawValue }
+    }
+
+    /// Mass used for 5% / 7% nose safe-zone bounds (car and hitch caps still apply separately).
+    func noseSafeZoneReferenceWeightKg(totalLadenWeightKg: Double) -> Double {
+        switch noseSafeZoneBasis {
+        case .mtplm:
+            return mtplmKg > 0 ? mtplmKg : totalLadenWeightKg
+        case .ladenWeight:
+            return totalLadenWeightKg
+        }
     }
 
     var calculationBaseWeightKg: Double {
@@ -216,6 +266,30 @@ extension VehicleProfile {
 }
 
 @Model
+final class Trip {
+    @Attribute(.unique) var id: UUID
+    var name: String
+    var sortOrder: Int
+
+    var profile: VehicleProfile?
+
+    @Relationship(deleteRule: .cascade, inverse: \LoadedItem.trip)
+    var loadedItems: [LoadedItem] = []
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        sortOrder: Int = 0,
+        profile: VehicleProfile? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.sortOrder = sortOrder
+        self.profile = profile
+    }
+}
+
+@Model
 final class LibraryItem {
     @Attribute(.unique) var id: UUID
     var name: String
@@ -242,6 +316,8 @@ final class LoadedItem {
     var zoneRaw: String
     var loadedAt: Date = Date()
     var item: LibraryItem?
+    var trip: Trip?
+    /// Legacy link; new items use `trip` only. Kept for SwiftData migration from older stores.
     var profile: VehicleProfile?
 
     init(
@@ -250,6 +326,7 @@ final class LoadedItem {
         quantity: Int = 1,
         zone: LoadZone = .unassigned,
         loadedAt: Date = Date(),
+        trip: Trip? = nil,
         profile: VehicleProfile? = nil
     ) {
         self.id = id
@@ -257,12 +334,13 @@ final class LoadedItem {
         self.quantity = quantity
         self.zoneRaw = zone.rawValue
         self.loadedAt = loadedAt
-        self.profile = profile
+        self.trip = trip
+        self.profile = profile ?? trip?.profile
     }
 
     var zone: LoadZone {
         get {
-            let kind = profile?.kind ?? .caravan
+            let kind = (trip?.profile ?? profile)?.kind ?? .caravan
             return LoadZone.resolved(rawValue: zoneRaw, for: kind)
         }
         set { zoneRaw = newValue.rawValue }

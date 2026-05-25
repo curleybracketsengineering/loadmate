@@ -11,7 +11,7 @@ struct MotorhomeWeightSummary {
     let estimatedFrontAxleKg: Double
     let estimatedRearAxleKg: Double
 
-    /// Trip items assigned to the garage zone only.
+    /// Trip items counted toward the garage limit (garage zone, plus bike rack when enabled on profile).
     let garageLoadedKg: Double
     let isOverGarageLimit: Bool
 
@@ -50,20 +50,30 @@ extension VehicleProfile {
 
 enum MotorhomeWeightCalculator {
     static func frontRearFactors(for zone: LoadZone, profile: VehicleProfile) -> (front: Double, rear: Double) {
-        let z = LoadZone.resolved(rawValue: zone.rawValue, for: .motorhome)
+        let z = zone.calculationZone(for: .motorhome)
         switch z {
         case .driver: return (profile.mhFactorDriverFront, profile.mhFactorDriverRear)
         case .front: return (profile.mhFactorFrontFront, profile.mhFactorFrontRear)
         case .central: return (profile.mhFactorCentralFront, profile.mhFactorCentralRear)
         case .back: return (profile.mhFactorBackFront, profile.mhFactorBackRear)
         case .garage: return (profile.mhFactorGarageFront, profile.mhFactorGarageRear)
+        case .bikeRack:
+            let front = profile.mhFactorBikeRackFront
+            let rear = profile.mhFactorBikeRackRear
+            if front == 0, rear == 0 {
+                return (-0.08, 1.08)
+            }
+            return (front, rear)
         default: return (0, 0)
         }
     }
 
-    static func garageLoadedMassKg(from loadedItems: [LoadedItem]) -> Double {
+    static func garageLoadedMassKg(from loadedItems: [LoadedItem], profile: VehicleProfile) -> Double {
         loadedItems.reduce(0.0) { sum, loaded in
-            guard loaded.zone == .garage else { return sum }
+            let zone = loaded.zone
+            let countsTowardGarageLimit = zone == .garage
+                || (profile.garageLimitIncludesBikeRack && zone == .bikeRack)
+            guard countsTowardGarageLimit else { return sum }
             let weight = loaded.item?.weightKg ?? 0
             return sum + (weight * Double(max(loaded.quantity, 0)))
         }
@@ -80,7 +90,7 @@ enum MotorhomeWeightCalculator {
 
         let totalWeight = profile.calculationBaseWeightKg + loadedWeight
         let availableGross = profile.mtplmKg - totalWeight
-        let garageLoaded = garageLoadedMassKg(from: loadedItems)
+        let garageLoaded = garageLoadedMassKg(from: loadedItems, profile: profile)
 
         var frontImpact = 0.0
         var rearImpact = 0.0

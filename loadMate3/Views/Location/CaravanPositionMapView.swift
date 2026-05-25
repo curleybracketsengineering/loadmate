@@ -49,6 +49,7 @@ struct CaravanPositionMapView: View {
             motorhomeColumn(zone: .central)
             motorhomeColumn(zone: .back, showRearAxle: true)
             motorhomeColumn(zone: .garage)
+            motorhomeColumn(zone: .bikeRack)
         }
         .padding(10)
         .background(
@@ -202,7 +203,7 @@ struct CaravanPositionMapView: View {
         }
         .accessibilityLabel(
             vehicleKind == .motorhome
-                ? "Axle load impact scale. Front is above the front axle; Back above the rear; Gar. behind the rear axle."
+                ? "Axle load impact scale. Front is above the front axle; Back above the rear; Gar. and Bike behind the rear axle."
                 : "Nose weight impact scale. Front zones increase nose weight; rear zones decrease it."
         )
     }
@@ -213,7 +214,7 @@ enum LocationZoneWeights {
         let zones = LoadZone.pickerZones(for: kind)
         var totals = Dictionary(uniqueKeysWithValues: zones.map { ($0, 0.0) })
         for loaded in loadedItems {
-            let zone = loaded.zone
+            let zone = loaded.zone.calculationZone(for: kind)
             guard zones.contains(zone) else { continue }
             let mass = (loaded.item?.weightKg ?? 0) * Double(max(loaded.quantity, 0))
             totals[zone, default: 0] += mass

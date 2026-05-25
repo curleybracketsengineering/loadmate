@@ -9,6 +9,7 @@ struct LoadMateNativeApp: App {
         }
         .modelContainer(for: [
             VehicleProfile.self,
+            Trip.self,
             LibraryItem.self,
             LoadedItem.self,
             AppState.self,

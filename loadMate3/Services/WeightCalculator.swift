@@ -33,7 +33,7 @@ struct WeightSummary {
 
 enum WeightCalculator {
     static func zoneFactor(for zone: LoadZone, profile: VehicleProfile) -> Double {
-        switch zone {
+        switch zone.calculationZone(for: profile.kind) {
         case .frontLocker: return profile.factorFrontLocker
         case .front: return profile.factorFront
         case .middle: return profile.factorMiddle
@@ -67,7 +67,7 @@ enum WeightCalculator {
         let baseNosePercent = totalWeight * (basePercent / 100.0)
         let estimatedNoseWeight = baseNoseOffsetKg + baseNosePercent + locationImpact
 
-        let towBallReferenceWeight = profile.mtplmKg > 0 ? min(totalWeight, profile.mtplmKg) : totalWeight
+        let towBallReferenceWeight = profile.noseSafeZoneReferenceWeightKg(totalLadenWeightKg: totalWeight)
         let towBallMin = towBallReferenceWeight * 0.05
         let towBallMax = towBallReferenceWeight * 0.07
 

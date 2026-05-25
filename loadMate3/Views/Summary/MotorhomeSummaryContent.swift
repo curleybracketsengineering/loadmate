@@ -70,7 +70,7 @@ enum MotorhomeSummaryContent {
                     .font(.headline)
                     .foregroundStyle(Color.primary)
 
-                Text("Trip items in the garage zone. Also included in rear axle estimate.")
+                Text(garageLimitCaption(profile: profile))
                     .font(.caption)
                     .foregroundStyle(AppColors.textSupporting)
                     .fixedSize(horizontal: false, vertical: true)
@@ -93,7 +93,7 @@ enum MotorhomeSummaryContent {
                 )
 
                 if summary.garageLoadedKg == 0 {
-                    Text("Assign items to the Garage zone on the Locations tab.")
+                    Text(garageLimitEmptyHint(profile: profile))
                         .font(.caption)
                         .foregroundStyle(AppColors.textSupporting)
                 }
@@ -156,6 +156,20 @@ enum MotorhomeSummaryContent {
         .frame(height: 8)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue("\(Int(fill * 100)) percent")
+    }
+
+    private static func garageLimitCaption(profile: VehicleProfile) -> String {
+        if profile.garageLimitIncludesBikeRack {
+            return "Trip items in the Garage and Bike Rack zones, versus your combined rear limit. Also included in rear axle estimate."
+        }
+        return "Trip items in the Garage zone only. Bike rack items are not included in this limit. Also included in rear axle estimate."
+    }
+
+    private static func garageLimitEmptyHint(profile: VehicleProfile) -> String {
+        if profile.garageLimitIncludesBikeRack {
+            return "Assign items to the Garage or Bike Rack zone on the Locations tab."
+        }
+        return "Assign items to the Garage zone on the Locations tab."
     }
 
     private static func stripKg(_ s: String) -> String {

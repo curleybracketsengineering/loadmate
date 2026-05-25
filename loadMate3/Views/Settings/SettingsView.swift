@@ -13,6 +13,9 @@ struct SettingsView: View {
     @State private var showAddVehicle = false
     @State private var newVehicleName = ""
     @State private var newVehicleKind: VehicleKind = .caravan
+    @State private var profilePendingRename: VehicleProfile?
+    @State private var profileRenameField = ""
+    @State private var showNoseSafeZoneHelp = false
 
     private var sortedProfiles: [VehicleProfile] {
         VehicleProfileStore.sortedProfiles(profiles)
@@ -96,6 +99,28 @@ struct SettingsView: View {
                 }
             )
         }
+        .alert("5–7% safe zone", isPresented: $showNoseSafeZoneHelp) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(Self.noseSafeZoneHelpMessage)
+        }
+        .alert("Rename vehicle", isPresented: Binding(
+            get: { profilePendingRename != nil },
+            set: { if !$0 { profilePendingRename = nil } }
+        )) {
+            TextField("Vehicle name", text: $profileRenameField)
+            Button("Save") {
+                if let profile = profilePendingRename {
+                    let trimmed = profileRenameField.trimmingCharacters(in: .whitespacesAndNewlines)
+                    profile.name = trimmed.isEmpty ? profile.kind.displayName : trimmed
+                    viewModel.save(modelContext)
+                }
+                profilePendingRename = nil
+            }
+            Button("Cancel", role: .cancel) {
+                profilePendingRename = nil
+            }
+        }
     }
 
     private func profileSubtitle(_ profile: VehicleProfile) -> String {
@@ -106,61 +131,112 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func vehicleProfilesSection(active: VehicleProfile) -> some View {
-        AppSettingsSection(
-            "My vehicles",
-            caption: "Switch between caravan and motorhome. Each has its own limits and load list."
-        ) {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                ForEach(sortedProfiles) { profile in
-                    Button {
-                        guard let state = appState else { return }
-                        viewModel.setActiveProfile(profile, appState: state, in: modelContext)
-                        editingProfile = profile
-                    } label: {
-                        HStack(spacing: AppScreenMetrics.controlSpacing) {
-                            Image(systemName: profile.kind.systemImage)
-                                .font(.body)
-                                .foregroundStyle(profile.id == active.id ? Color.accentColor : Color.secondary)
-                                .frame(width: 28)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(profile.name)
-                                    .font(.body.weight(.medium))
-                                    .foregroundStyle(Color.primary)
-                                Text(profile.kind.displayName)
-                                    .font(.caption)
-                                    .foregroundStyle(AppColors.textSupporting)
-                            }
-
-                            Spacer()
-
-                            if profile.id == active.id {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(Color.accentColor)
-                            }
-                        }
-                        .padding(.vertical, AppScreenMetrics.tinySpacing)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                AppSecondaryButton("Add vehicle") {
-                    showAddVehicle = true
-                }
-
-                if sortedProfiles.count > 1 {
-                    AppSecondaryButton("Remove “\(active.name)”") {
-                        guard let state = appState else { return }
-                        viewModel.deleteProfile(active, profiles: profiles, appState: state, in: modelContext)
-                        editingProfile = VehicleProfileStore.activeProfile(profiles: profiles, appState: state)
-                    }
-                }
-
-                AppLabeledTextField(
-                    "Vehicle name",
-                    placeholder: "e.g. Bailey Pegasus",
-                    text: nameBinding(for: active)
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
+                AppSectionHeading(
+                    "My vehicles",
+                    caption: "Switch between caravan and motorhome. Each has its own limits; use trips on Load for separate packing lists."
                 )
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Menu {
+                    Button {
+                        showAddVehicle = true
+                    } label: {
+                        Label("Add vehicle", systemImage: "plus.circle")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Vehicle list actions")
+            }
+
+            AppGroupedCard {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(sortedProfiles.enumerated()), id: \.element.id) { index, profile in
+                        if index > 0 {
+                            Divider()
+                        }
+                        vehicleProfileRow(profile, active: active)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func vehicleProfileRow(_ profile: VehicleProfile, active: VehicleProfile) -> some View {
+        HStack(alignment: .center, spacing: AppScreenMetrics.controlSpacing) {
+            Button {
+                guard let state = appState else { return }
+                viewModel.setActiveProfile(profile, appState: state, in: modelContext)
+                editingProfile = profile
+            } label: {
+                HStack(spacing: AppScreenMetrics.controlSpacing) {
+                    Image(systemName: profile.kind.systemImage)
+                        .font(.body)
+                        .foregroundStyle(profile.id == active.id ? Color.accentColor : Color.secondary)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(profile.name)
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Color.primary)
+                        Text(profile.kind.displayName)
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if profile.id == active.id {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.accentColor)
+                            .accessibilityLabel("Selected")
+                    }
+                }
+                .padding(.vertical, AppScreenMetrics.tinySpacing)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Double tap to select. Press and hold or tap … for rename or remove.")
+
+            Menu {
+                profileManagementActions(profile)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Options for \(profile.name)")
+        }
+        .contextMenu {
+            profileManagementActions(profile)
+        }
+    }
+
+    @ViewBuilder
+    private func profileManagementActions(_ profile: VehicleProfile) -> some View {
+        Button {
+            profilePendingRename = profile
+            profileRenameField = profile.name
+        } label: {
+            Label("Rename", systemImage: "pencil")
+        }
+
+        if sortedProfiles.count > 1 {
+            Button(role: .destructive) {
+                guard let state = appState else { return }
+                viewModel.deleteProfile(profile, profiles: profiles, appState: state, in: modelContext)
+                editingProfile = VehicleProfileStore.activeProfile(profiles: profiles, appState: state)
+            } label: {
+                Label("Remove vehicle", systemImage: "trash")
             }
         }
     }
@@ -207,9 +283,59 @@ struct SettingsView: View {
             )
         }
 
+        noseSafeZoneBasisSection(profile)
+
         locationSection(profile)
 
         caravanWeightFactors(profile)
+    }
+
+    private static let noseSafeZoneHelpMessage = """
+        Choose what weight to use for the recommended 5%–7% nose weight band on the Weight tab.
+
+        MTPLM uses your caravan plate maximum laden mass. The band stays fixed (for example 75–105 kg when MTPLM is 1,500 kg), even if you travel lighter. This matches many manufacturer guides.
+
+        Laden weight uses your actual caravan mass (weighbridge plus trip items). The band updates as you load or unload, which aligns with NCC guidance when you know your real weight.
+
+        Your car tow ball limit and caravan hitch limit still apply—the lowest of those caps and the 5–7% band is always used.
+        """
+
+    @ViewBuilder
+    private func noseSafeZoneBasisSection(_ profile: VehicleProfile) -> some View {
+        AppSettingsSection(
+            "Nose weight safe zone",
+            caption: "How the 5%–7% recommended band is calculated on the Weight tab."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                HStack(alignment: .center, spacing: AppScreenMetrics.smallSpacing) {
+                    Picker("5–7% based on", selection: noseSafeZoneBasisBinding(on: profile)) {
+                        ForEach(NoseSafeZoneBasis.allCases) { basis in
+                            Text(basis.displayName).tag(basis)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    Button {
+                        showNoseSafeZoneHelp = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Color.secondary)
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Safe zone help")
+                }
+
+                Text(profile.noseSafeZoneBasis == .mtplm
+                    ? "Min and max use 5% and 7% of MTPLM from your plate."
+                    : "Min and max use 5% and 7% of weighbridge weight plus trip items.")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     @ViewBuilder
@@ -313,11 +439,23 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 AppLabeledNumberField(
                     "Max garage load (kg)",
-                    caption: "Manufacturer limit for the garage structure — trip items in the Garage location are totalled against this",
+                    caption: "Manufacturer limit for rear storage — see switch below for which locations count",
                     value: binding(for: \.maxGarageKg, on: profile),
                     fractionDigitsUpperBound: 0
                 )
-                Text("Items in the Garage zone still count toward gross weight and rear axle estimates.")
+                Toggle(isOn: boolBinding(for: \.garageLimitIncludesBikeRack, on: profile)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Include bike rack in garage limit")
+                            .font(.subheadline.weight(.medium))
+                        Text(profile.garageLimitIncludesBikeRack
+                            ? "Garage limit totals items in Garage and Bike Rack zones."
+                            : "Garage limit totals items in the Garage zone only (typical if your plate names the under-bed box).")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                    }
+                }
+                .tint(Color.accentColor)
+                Text("All items still count toward MAM and axle estimates. Bike rack axle impact is unchanged.")
                     .font(.caption)
                     .foregroundStyle(AppColors.textSupporting)
                     .fixedSize(horizontal: false, vertical: true)
@@ -339,14 +477,15 @@ struct SettingsView: View {
     private func motorhomeWeightFactors(_ profile: VehicleProfile) -> some View {
         AppCollapsibleSettingsSection(
             "Axle load factors",
-            caption: "Kg added to each axle per kg of item. Front is above the front axle; Back above the rear; Garage behind the rear.",
+            caption: "Kg added to each axle per kg of item. Front is above the front axle; Back above the rear; Garage and bike rack behind the rear.",
             isExpanded: $isWeightFactorsExpanded
         ) {
-            motorhomeFactorPair(profile, zone: "Driver (ahead of front axle)", front: \.mhFactorDriverFront, rear: \.mhFactorDriverRear)
+            motorhomeFactorPair(profile, zone: "Cab (ahead of front axle)", front: \.mhFactorDriverFront, rear: \.mhFactorDriverRear)
             motorhomeFactorPair(profile, zone: "Front (above front axle)", front: \.mhFactorFrontFront, rear: \.mhFactorFrontRear)
             motorhomeFactorPair(profile, zone: "Central (between axles)", front: \.mhFactorCentralFront, rear: \.mhFactorCentralRear)
             motorhomeFactorPair(profile, zone: "Back (above rear axle)", front: \.mhFactorBackFront, rear: \.mhFactorBackRear)
             motorhomeFactorPair(profile, zone: "Garage (behind rear axle)", front: \.mhFactorGarageFront, rear: \.mhFactorGarageRear)
+            motorhomeFactorPair(profile, zone: "Bike rack (rear overhang)", front: \.mhFactorBikeRackFront, rear: \.mhFactorBikeRackRear)
 
             AppSecondaryButton("Reset axle factors to defaults") {
                 viewModel.resetMotorhomeFactors(profile: profile, in: modelContext)
@@ -373,7 +512,7 @@ struct SettingsView: View {
     @ViewBuilder
     private func locationSection(_ profile: VehicleProfile) -> some View {
         let zones = profile.kind == .motorhome
-            ? "Driver, front, central, back, and garage"
+            ? "Cab, front, central, back, garage, and bike rack"
             : "Front locker, front, middle, rear, and bike rack"
         AppSettingsSection("Location") {
             Text("\(zones), used on the Locations tab when assigning items.")
@@ -393,16 +532,26 @@ struct SettingsView: View {
         )
     }
 
-    private func nameBinding(for profile: VehicleProfile) -> Binding<String> {
+    private func boolBinding(for keyPath: ReferenceWritableKeyPath<VehicleProfile, Bool>, on profile: VehicleProfile) -> Binding<Bool> {
         Binding(
-            get: { profile.name },
+            get: { profile[keyPath: keyPath] },
             set: { newValue in
-                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                profile.name = trimmed.isEmpty ? profile.kind.displayName : trimmed
+                profile[keyPath: keyPath] = newValue
                 viewModel.save(modelContext)
             }
         )
     }
+
+    private func noseSafeZoneBasisBinding(on profile: VehicleProfile) -> Binding<NoseSafeZoneBasis> {
+        Binding(
+            get: { profile.noseSafeZoneBasis },
+            set: { newValue in
+                profile.noseSafeZoneBasis = newValue
+                viewModel.save(modelContext)
+            }
+        )
+    }
+
 }
 
 // MARK: - Add vehicle sheet
