@@ -1,0 +1,118 @@
+import Foundation
+
+struct MotorhomeWeightSummary {
+    let loadedWeightKg: Double
+    let totalWeightKg: Double
+    let availableGrossKg: Double
+    let baselineFrontAxleKg: Double
+    let baselineRearAxleKg: Double
+    let frontAxleImpactKg: Double
+    let rearAxleImpactKg: Double
+    let estimatedFrontAxleKg: Double
+    let estimatedRearAxleKg: Double
+
+    /// Trip items assigned to the garage zone only.
+    let garageLoadedKg: Double
+    let isOverGarageLimit: Bool
+
+    let isOverMAM: Bool
+    let isOverFrontAxle: Bool
+    let isOverRearAxle: Bool
+
+    var isOverallSafe: Bool {
+        !isOverMAM && !isOverFrontAxle && !isOverRearAxle && !isOverGarageLimit
+    }
+
+    func mamFillFraction(profile: VehicleProfile) -> Double {
+        guard profile.mtplmKg > 0 else { return 0 }
+        return min(max(totalWeightKg / profile.mtplmKg, 0), 1)
+    }
+
+    func frontAxleFillFraction(profile: VehicleProfile) -> Double {
+        guard profile.maxFrontAxleKg > 0 else { return 0 }
+        return min(max(estimatedFrontAxleKg / profile.maxFrontAxleKg, 0), 1)
+    }
+
+    func rearAxleFillFraction(profile: VehicleProfile) -> Double {
+        guard profile.maxRearAxleKg > 0 else { return 0 }
+        return min(max(estimatedRearAxleKg / profile.maxRearAxleKg, 0), 1)
+    }
+
+    func garageFillFraction(profile: VehicleProfile) -> Double {
+        guard profile.maxGarageKg > 0 else { return 0 }
+        return min(max(garageLoadedKg / profile.maxGarageKg, 0), 1)
+    }
+}
+
+extension VehicleProfile {
+    var monitorsGarageLimit: Bool { kind == .motorhome && maxGarageKg > 0 }
+}
+
+enum MotorhomeWeightCalculator {
+    static func frontRearFactors(for zone: LoadZone, profile: VehicleProfile) -> (front: Double, rear: Double) {
+        let z = LoadZone.resolved(rawValue: zone.rawValue, for: .motorhome)
+        switch z {
+        case .driver: return (profile.mhFactorDriverFront, profile.mhFactorDriverRear)
+        case .front: return (profile.mhFactorFrontFront, profile.mhFactorFrontRear)
+        case .central: return (profile.mhFactorCentralFront, profile.mhFactorCentralRear)
+        case .back: return (profile.mhFactorBackFront, profile.mhFactorBackRear)
+        case .garage: return (profile.mhFactorGarageFront, profile.mhFactorGarageRear)
+        default: return (0, 0)
+        }
+    }
+
+    static func garageLoadedMassKg(from loadedItems: [LoadedItem]) -> Double {
+        loadedItems.reduce(0.0) { sum, loaded in
+            guard loaded.zone == .garage else { return sum }
+            let weight = loaded.item?.weightKg ?? 0
+            return sum + (weight * Double(max(loaded.quantity, 0)))
+        }
+    }
+
+    static func summary(
+        profile: VehicleProfile,
+        loadedItems: [LoadedItem]
+    ) -> MotorhomeWeightSummary {
+        let loadedWeight = loadedItems.reduce(0.0) { sum, loaded in
+            let weight = loaded.item?.weightKg ?? 0
+            return sum + (weight * Double(max(loaded.quantity, 0)))
+        }
+
+        let totalWeight = profile.calculationBaseWeightKg + loadedWeight
+        let availableGross = profile.mtplmKg - totalWeight
+        let garageLoaded = garageLoadedMassKg(from: loadedItems)
+
+        var frontImpact = 0.0
+        var rearImpact = 0.0
+        for loaded in loadedItems {
+            let mass = (loaded.item?.weightKg ?? 0) * Double(max(loaded.quantity, 0))
+            let factors = frontRearFactors(for: loaded.zone, profile: profile)
+            frontImpact += mass * factors.front
+            rearImpact += mass * factors.rear
+        }
+
+        let frontBase = profile.baselineFrontAxleKg
+        let rearBase = profile.baselineRearAxleKg
+        let estimatedFront = frontBase + frontImpact
+        let estimatedRear = rearBase + rearImpact
+
+        let overGarage = profile.maxGarageKg > 0 && garageLoaded > profile.maxGarageKg
+
+        return MotorhomeWeightSummary(
+            loadedWeightKg: loadedWeight,
+            totalWeightKg: totalWeight,
+            availableGrossKg: availableGross,
+            baselineFrontAxleKg: frontBase,
+            baselineRearAxleKg: rearBase,
+            frontAxleImpactKg: frontImpact,
+            rearAxleImpactKg: rearImpact,
+            estimatedFrontAxleKg: estimatedFront,
+            estimatedRearAxleKg: estimatedRear,
+            garageLoadedKg: garageLoaded,
+            isOverGarageLimit: overGarage,
+            isOverMAM: profile.mtplmKg > 0 && totalWeight > profile.mtplmKg,
+            isOverFrontAxle: profile.maxFrontAxleKg > 0 && estimatedFront > profile.maxFrontAxleKg,
+            isOverRearAxle: profile.maxRearAxleKg > 0 && estimatedRear > profile.maxRearAxleKg
+        )
+    }
+}

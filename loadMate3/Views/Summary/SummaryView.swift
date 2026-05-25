@@ -2,45 +2,41 @@ import SwiftUI
 import SwiftData
 
 struct SummaryView: View {
-    @Query private var configs: [SetupConfig]
-    @Query private var loadedItems: [LoadedItem]
+    @Query private var profiles: [VehicleProfile]
+    @Query private var appStates: [AppState]
+    @Query private var allLoadedItems: [LoadedItem]
     @StateObject private var viewModel = SummaryViewModel()
 
-    private var refreshToken: String {
-        let configSignature = configs.first.map {
-            "\($0.baseWeightKg)-\($0.weighbridgeWeightKg)-\($0.mtplmKg)-\($0.caravanMaxNoseKg)-\($0.carMaxTowBallKg)-\($0.noseWeightBasePercent)-\($0.factorFrontLocker)-\($0.factorFront)-\($0.factorMiddle)-\($0.factorRear)-\($0.factorBikeRack)"
-        } ?? "no-config"
+    private var activeProfile: VehicleProfile? {
+        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+    }
 
-        let itemSignature = loadedItems.map {
+    private var profileLoadedItems: [LoadedItem] {
+        VehicleProfileStore.loadedItems(for: activeProfile, from: allLoadedItems)
+    }
+
+    private var refreshToken: String {
+        let profileSignature = activeProfile.map { profile in
+            "\(profile.id)-\(profile.kindRaw)-\(profile.baseWeightKg)-\(profile.weighbridgeWeightKg)-\(profile.mtplmKg)-\(profile.maxFrontAxleKg)-\(profile.maxRearAxleKg)-\(profile.maxGarageKg)-\(profile.weighbridgeFrontAxleKg)-\(profile.weighbridgeRearAxleKg)"
+        } ?? "no-profile"
+
+        let itemSignature = profileLoadedItems.map {
             "\($0.id.uuidString)-\($0.quantity)-\($0.zoneRaw)-\($0.item?.weightKg ?? 0)"
         }.joined(separator: "|")
 
-        return "\(configSignature)|\(itemSignature)"
+        return "\(profileSignature)|\(itemSignature)"
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if let summary = viewModel.summary, let config = configs.first {
-                    ScrollView {
-                        VStack(spacing: AppScreenMetrics.sectionSpacing) {
-                            statusBanner(summary: summary, config: config)
-
-                            currentWeightCard(summary: summary, config: config)
-
-                            noseWeightCard(summary: summary, config: config)
-                        }
-                        .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                        .padding(.top, AppScreenMetrics.verticalScreenPadding)
-                        .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
-                    }
-                    .scrollDismissesKeyboard(.interactively)
-                    .background(Color(.systemGroupedBackground))
+                if let profile = activeProfile, profile.isConfiguredForWeightCalculations {
+                    configuredContent(profile: profile)
                 } else {
                     ContentUnavailableView(
                         "Setup required",
                         systemImage: "exclamationmark.triangle",
-                        description: Text("Open Settings and enter base weight, MTPLM, and tow-ball limit.")
+                        description: Text(setupRequiredMessage)
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color(.systemGroupedBackground))
@@ -48,12 +44,123 @@ struct SummaryView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .task(id: refreshToken) {
-                viewModel.refresh(config: configs.first, loadedItems: loadedItems)
+                viewModel.refresh(profile: activeProfile, loadedItems: profileLoadedItems)
             }
         }
     }
 
-    private enum StatusBannerKind {
+    private var setupRequiredMessage: String {
+        guard let profile = activeProfile else {
+            return "Open Settings and add a vehicle profile."
+        }
+        switch profile.kind {
+        case .caravan:
+            return "Open Settings and enter base weight, MTPLM, and tow-ball limit."
+        case .motorhome:
+            return "Open Settings and enter base weight, MAM, and front and rear axle limits."
+        }
+    }
+
+    @ViewBuilder
+    private func configuredContent(profile: VehicleProfile) -> some View {
+        ScrollView {
+            VStack(spacing: AppScreenMetrics.sectionSpacing) {
+                switch profile.kind {
+                case .caravan:
+                    if let summary = viewModel.caravanSummary {
+                        caravanStatusBanner(summary: summary, profile: profile)
+                        caravanCurrentWeightCard(summary: summary, profile: profile)
+                        caravanNoseWeightCard(summary: summary, profile: profile)
+                    }
+                case .motorhome:
+                    if let summary = viewModel.motorhomeSummary {
+                        motorhomeStatusBanner(summary: summary, profile: profile)
+                        MotorhomeSummaryContent.grossWeightCard(summary: summary, profile: profile)
+                        MotorhomeSummaryContent.axleCard(
+                            title: "Front Axle",
+                            estimatedKg: summary.estimatedFrontAxleKg,
+                            limitKg: profile.maxFrontAxleKg,
+                            impactKg: summary.frontAxleImpactKg,
+                            fillFraction: CGFloat(summary.frontAxleFillFraction(profile: profile)),
+                            isOverLimit: summary.isOverFrontAxle,
+                            accessibilityLabel: "Progress toward front axle limit"
+                        )
+                        MotorhomeSummaryContent.axleCard(
+                            title: "Rear Axle",
+                            estimatedKg: summary.estimatedRearAxleKg,
+                            limitKg: profile.maxRearAxleKg,
+                            impactKg: summary.rearAxleImpactKg,
+                            fillFraction: CGFloat(summary.rearAxleFillFraction(profile: profile)),
+                            isOverLimit: summary.isOverRearAxle,
+                            accessibilityLabel: "Progress toward rear axle limit"
+                        )
+                        if profile.monitorsGarageLimit {
+                            MotorhomeSummaryContent.garageCard(summary: summary, profile: profile)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+            .padding(.top, AppScreenMetrics.verticalScreenPadding)
+            .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .background(Color(.systemGroupedBackground))
+    }
+
+    // MARK: - Motorhome banners
+
+    @ViewBuilder
+    private func motorhomeStatusBanner(summary: MotorhomeWeightSummary, profile: VehicleProfile) -> some View {
+        switch MotorhomeSummaryContent.resolveStatusBanner(summary: summary, profile: profile) {
+        case .safe:
+            safeBanner
+        case .overMAM(let reduce):
+            actionableWarningBanner(
+                title: "Gross weight limit exceeded",
+                lines: [
+                    "Reduce load by \(kgAmountPhrase(reduce))",
+                    "Remove items or lighten the motorhome"
+                ],
+                background: AppColors.red,
+                accessibilitySummary: "Gross weight limit exceeded."
+            )
+        case .frontAxleExceeded(let reduce):
+            actionableWarningBanner(
+                title: "Front axle limit exceeded",
+                lines: [
+                    "Reduce front axle load by \(kgAmountPhrase(reduce))",
+                    "Move items rearward or between the axles"
+                ],
+                background: AppColors.red,
+                accessibilitySummary: "Front axle limit exceeded."
+            )
+        case .rearAxleExceeded(let reduce):
+            actionableWarningBanner(
+                title: "Rear axle limit exceeded",
+                lines: [
+                    "Reduce rear axle load by \(kgAmountPhrase(reduce))",
+                    "Move items forward; lighten garage or overhang storage"
+                ],
+                background: AppColors.red,
+                accessibilitySummary: "Rear axle limit exceeded."
+            )
+        case .garageExceeded(let reduce):
+            actionableWarningBanner(
+                title: "Garage weight limit exceeded",
+                lines: [
+                    "Reduce garage load by \(kgAmountPhrase(reduce))",
+                    "Move items out of the garage zone or use a lighter rack"
+                ],
+                background: AppColors.red,
+                accessibilitySummary: "Garage weight limit exceeded."
+            )
+        }
+    }
+
+    // MARK: - Caravan banners & cards
+
+    private enum CaravanStatusBannerKind {
         case safe
         case overMTPLM(reduceLoadByKg: Double)
         case towBallLimitExceeded(reduceNoseByKg: Double)
@@ -61,43 +168,28 @@ struct SummaryView: View {
         case noseAboveRecommended(reduceNoseByKg: Double)
     }
 
-    private func resolveStatusBanner(summary: WeightSummary, config: SetupConfig) -> StatusBannerKind {
+    private func resolveCaravanStatusBanner(summary: WeightSummary, profile: VehicleProfile) -> CaravanStatusBannerKind {
         if summary.isOverallSafe { return .safe }
         if summary.isOverMTPLM {
-            let overBy = max(0, summary.totalWeightKg - config.mtplmKg)
-            return .overMTPLM(reduceLoadByKg: overBy)
+            return .overMTPLM(reduceLoadByKg: max(0, summary.totalWeightKg - profile.mtplmKg))
         }
         if summary.isOverTowBallLimit {
-            let reduce = max(0, summary.estimatedNoseWeightKg - config.effectiveMaxTowBallKg)
-            return .towBallLimitExceeded(reduceNoseByKg: reduce)
+            return .towBallLimitExceeded(reduceNoseByKg: max(0, summary.estimatedNoseWeightKg - profile.effectiveMaxTowBallKg))
         }
         if summary.isNoseBelowRecommended {
-            let add = max(0, summary.towBallMinKg - summary.estimatedNoseWeightKg)
-            return .noseBelowRecommended(increaseNoseByKg: add)
+            return .noseBelowRecommended(increaseNoseByKg: max(0, summary.towBallMinKg - summary.estimatedNoseWeightKg))
         }
         if summary.isNoseAboveRecommended {
-            let reduce = max(0, summary.estimatedNoseWeightKg - summary.towBallMaxKg)
-            return .noseAboveRecommended(reduceNoseByKg: reduce)
+            return .noseAboveRecommended(reduceNoseByKg: max(0, summary.estimatedNoseWeightKg - summary.towBallMaxKg))
         }
         return .safe
     }
 
     @ViewBuilder
-    private func statusBanner(summary: WeightSummary, config: SetupConfig) -> some View {
-        let kind = resolveStatusBanner(summary: summary, config: config)
-
-        switch kind {
+    private func caravanStatusBanner(summary: WeightSummary, profile: VehicleProfile) -> some View {
+        switch resolveCaravanStatusBanner(summary: summary, profile: profile) {
         case .safe:
-            Text("SAFE")
-                .font(.headline.weight(.bold))
-                .foregroundStyle(Color.white)
-                .tracking(1.2)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, AppScreenMetrics.fieldSpacing)
-                .background(Color.accentColor)
-                .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
-                .accessibilityLabel("Status: safe")
-
+            safeBanner
         case .overMTPLM(let reduceLoadByKg):
             actionableWarningBanner(
                 title: "Caravan weight limit exceeded",
@@ -106,9 +198,8 @@ struct SummaryView: View {
                     "Remove items or lighten the caravan"
                 ],
                 background: AppColors.red,
-                accessibilitySummary: "Caravan weight limit exceeded. Reduce load by \(kgAmountPhrase(reduceLoadByKg))."
+                accessibilitySummary: "Caravan weight limit exceeded."
             )
-
         case .towBallLimitExceeded(let reduceNoseByKg):
             actionableWarningBanner(
                 title: "Tow ball limit exceeded",
@@ -117,9 +208,8 @@ struct SummaryView: View {
                     "Move items rearward"
                 ],
                 background: AppColors.red,
-                accessibilitySummary: "Tow ball limit exceeded. Reduce nose weight by \(kgAmountPhrase(reduceNoseByKg)). Move items rearward."
+                accessibilitySummary: "Tow ball limit exceeded."
             )
-
         case .noseBelowRecommended(let increaseNoseByKg):
             actionableWarningBanner(
                 title: "Nose weight below recommended range",
@@ -128,9 +218,8 @@ struct SummaryView: View {
                     "Move heavier items forward"
                 ],
                 background: AppColors.orange,
-                accessibilitySummary: "Nose weight below recommended range. Increase nose weight by \(kgAmountPhrase(increaseNoseByKg)). Move heavier items forward."
+                accessibilitySummary: "Nose weight below recommended range."
             )
-
         case .noseAboveRecommended(let reduceNoseByKg):
             actionableWarningBanner(
                 title: "Nose weight above recommended range",
@@ -139,12 +228,23 @@ struct SummaryView: View {
                     "Move items rearward"
                 ],
                 background: AppColors.orange,
-                accessibilitySummary: "Nose weight above recommended range. Reduce nose weight by \(kgAmountPhrase(reduceNoseByKg)). Move items rearward."
+                accessibilitySummary: "Nose weight above recommended range."
             )
         }
     }
 
-    /// Spoken/written amount like "4.3 kg" (no double "kg").
+    private var safeBanner: some View {
+        Text("SAFE")
+            .font(.headline.weight(.bold))
+            .foregroundStyle(Color.white)
+            .tracking(1.2)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, AppScreenMetrics.fieldSpacing)
+            .background(Color.accentColor)
+            .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+            .accessibilityLabel("Status: safe")
+    }
+
     private func kgAmountPhrase(_ kg: Double) -> String {
         stripKgSuffix(Formatters.kg(kg)) + " kg"
     }
@@ -185,8 +285,8 @@ struct SummaryView: View {
         .accessibilityLabel(accessibilitySummary)
     }
 
-    private func currentWeightCard(summary: WeightSummary, config: SetupConfig) -> some View {
-        SummaryCard {
+    private func caravanCurrentWeightCard(summary: WeightSummary, profile: VehicleProfile) -> some View {
+        SummaryMetricCard {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Current Weight")
@@ -201,13 +301,14 @@ struct SummaryView: View {
                         .lineLimit(1)
                 }
 
-                mtplmProgressBar(
-                    fill: CGFloat(summary.mtplmFillFraction(config: config)),
-                    isOverLimit: summary.isOverMTPLM
+                progressBar(
+                    fill: CGFloat(summary.mtplmFillFraction(profile: profile)),
+                    isOverLimit: summary.isOverMTPLM,
+                    label: "Progress toward MTPLM"
                 )
 
                 HStack {
-                    Text("MTPLM: \(stripKgSuffix(Formatters.kg(config.mtplmKg))) kg")
+                    Text("MTPLM: \(stripKgSuffix(Formatters.kg(profile.mtplmKg))) kg")
                         .font(.caption)
                         .foregroundStyle(Color.secondary)
                     Spacer()
@@ -219,25 +320,25 @@ struct SummaryView: View {
         }
     }
 
-    private func noseWeightCard(summary: WeightSummary, config: SetupConfig) -> some View {
-        SummaryCard {
+    private func caravanNoseWeightCard(summary: WeightSummary, profile: VehicleProfile) -> some View {
+        SummaryMetricCard {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 Text("Nose Weight")
                     .font(.headline)
                     .foregroundStyle(Color.primary)
 
-                let zoneBounds = summary.noseGaugeZoneBounds(config: config)
+                let zoneBounds = summary.noseGaugeZoneBounds(profile: profile)
 
                 NoseWeightSafeZoneGauge(
                     zoneLowKg: zoneBounds.low,
                     zoneHighKg: zoneBounds.high,
-                    carMaxTowBallKg: config.effectiveMaxTowBallKg,
+                    carMaxTowBallKg: profile.effectiveMaxTowBallKg,
                     estimatedNoseKg: summary.estimatedNoseWeightKg
                 )
 
                 VStack(spacing: AppScreenMetrics.controlSpacing) {
                     HStack {
-                        Text(baseNosePercentLabel(config: config))
+                        Text(baseNosePercentLabel(profile: profile))
                             .font(.subheadline)
                             .foregroundStyle(Color.secondary)
                         Spacer()
@@ -277,7 +378,7 @@ struct SummaryView: View {
                 .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
 
                 HStack(spacing: 0) {
-                    let effectiveLimit = config.effectiveMaxTowBallKg
+                    let effectiveLimit = profile.effectiveMaxTowBallKg
                     let carLimitOverridesMin = effectiveLimit > 0 && effectiveLimit < summary.towBallMinKg
                     let carLimitOverridesMax = effectiveLimit > 0 && effectiveLimit < summary.towBallMaxKg
 
@@ -311,7 +412,7 @@ struct SummaryView: View {
         }
     }
 
-    private func mtplmProgressBar(fill: CGFloat, isOverLimit: Bool) -> some View {
+    private func progressBar(fill: CGFloat, isOverLimit: Bool, label: String) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule()
@@ -322,52 +423,26 @@ struct SummaryView: View {
             }
         }
         .frame(height: 8)
-        .accessibilityLabel("Progress toward MTPLM")
+        .accessibilityLabel(label)
         .accessibilityValue("\(Int(fill * 100)) percent")
     }
 
-    private func baseNosePercentLabel(config: SetupConfig) -> String {
-        let percent = config.noseWeightBasePercent > 0 ? config.noseWeightBasePercent : 6.0
+    private func baseNosePercentLabel(profile: VehicleProfile) -> String {
+        let percent = profile.noseWeightBasePercent > 0 ? profile.noseWeightBasePercent : 6.0
         if percent.truncatingRemainder(dividingBy: 1) == 0 {
             return "Base (\(Int(percent))%)"
         }
         return String(format: "Base (%.1f%%)", percent)
     }
 
-    /// Shows kg with sign for near-zero impact values.
     private func signedKg(_ value: Double) -> String {
         let formatted = Formatters.oneDecimal.string(from: NSNumber(value: abs(value))) ?? String(format: "%.1f", abs(value))
-        if value < 0 {
-            return "-\(formatted) kg"
-        }
-        if value > 0 {
-            return "+\(formatted) kg"
-        }
+        if value < 0 { return "-\(formatted) kg" }
+        if value > 0 { return "+\(formatted) kg" }
         return "0.0 kg"
     }
 
     private func stripKgSuffix(_ s: String) -> String {
         s.replacingOccurrences(of: " kg", with: "").trimmingCharacters(in: .whitespaces)
-    }
-}
-
-// MARK: - Card chrome
-
-private struct SummaryCard<Content: View>: View {
-    @ViewBuilder let content: Content
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
-    var body: some View {
-        content
-            .padding(AppScreenMetrics.cardInteriorPadding + 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
-            )
-            .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
     }
 }

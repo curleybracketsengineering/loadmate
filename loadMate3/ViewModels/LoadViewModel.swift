@@ -4,9 +4,15 @@ import SwiftData
 
 @MainActor
 final class LoadViewModel: ObservableObject {
-    func load(item: LibraryItem, loadedItems: [LoadedItem], in context: ModelContext) {
-        let zone = item.defaultZone ?? .unassigned
-        context.insert(LoadedItem(item: item, quantity: 1, zone: zone))
+    func load(
+        item: LibraryItem,
+        profile: VehicleProfile?,
+        loadedItems: [LoadedItem],
+        in context: ModelContext
+    ) {
+        let rawDefault = item.defaultZone ?? .unassigned
+        let zone = rawDefault.defaultForLoading(on: profile?.kind ?? .caravan)
+        context.insert(LoadedItem(item: item, quantity: 1, zone: zone, profile: profile))
         save(context)
     }
 

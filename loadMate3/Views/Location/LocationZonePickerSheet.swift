@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LocationZonePickerSheet: View {
+    let vehicleKind: VehicleKind
     let itemTitle: String
     let selectedZone: LoadZone
     let onSelect: (LoadZone) -> Void
@@ -10,7 +11,7 @@ struct LocationZonePickerSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(LoadZone.pickerZones) { zone in
+                ForEach(LoadZone.pickerZones(for: vehicleKind)) { zone in
                     Button {
                         onSelect(zone)
                         dismiss()
@@ -22,10 +23,10 @@ struct LocationZonePickerSheet: View {
                                 .accessibilityHidden(true)
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(zone.locationBadgeTitle)
+                                Text(zone.locationBadgeTitle(for: vehicleKind))
                                     .font(.body.weight(.medium))
                                     .foregroundStyle(Color.primary)
-                                Text(zone.noseImpactHint)
+                                Text(zone.locationImpactHint(for: vehicleKind))
                                     .font(.caption)
                                     .foregroundStyle(AppColors.textSupporting)
                             }
@@ -42,7 +43,7 @@ struct LocationZonePickerSheet: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(zone.locationBadgeTitle)
+                    .accessibilityLabel(zone.locationBadgeTitle(for: vehicleKind))
                     .accessibilityAddTraits(selectedZone == zone ? [.isSelected] : [])
                 }
             }

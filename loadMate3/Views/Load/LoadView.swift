@@ -4,8 +4,9 @@ import SwiftData
 struct LoadView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\LibraryItem.name)]) private var libraryItems: [LibraryItem]
-    @Query private var loadedItems: [LoadedItem]
-    @Query private var configs: [SetupConfig]
+    @Query private var allLoadedItems: [LoadedItem]
+    @Query private var profiles: [VehicleProfile]
+    @Query private var appStates: [AppState]
 
     @StateObject private var viewModel = LoadViewModel()
     @State private var showAddItem = false
@@ -14,7 +15,13 @@ struct LoadView: View {
     @State private var libraryItemEditSession: LibraryItemEditSession?
     @State private var searchText = ""
 
-    private var setupConfig: SetupConfig? { configs.first }
+    private var activeProfile: VehicleProfile? {
+        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+    }
+
+    private var loadedItems: [LoadedItem] {
+        VehicleProfileStore.loadedItems(for: activeProfile, from: allLoadedItems)
+    }
 
     private var filteredLibraryItems: [LibraryItem] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -22,9 +29,18 @@ struct LoadView: View {
         return libraryItems.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
 
-    private var showCaravanSetupBanner: Bool {
-        guard let config = setupConfig else { return true }
-        return !config.isConfiguredForWeightCalculations
+    private var showSetupBanner: Bool {
+        guard let profile = activeProfile else { return true }
+        return !profile.isConfiguredForWeightCalculations
+    }
+
+    private var setupBannerMessage: String {
+        guard let profile = activeProfile else {
+            return "Add a vehicle in Settings to see weight calculations."
+        }
+        return profile.kind == .motorhome
+            ? "Configure motorhome settings (MAM and axle limits) for weight calculations."
+            : "Configure caravan settings to see weight calculations."
     }
 
     private var loadedUnitCount: Int {
@@ -45,8 +61,8 @@ struct LoadView: View {
         NavigationStack {
             ZStack(alignment: .bottomTrailing) {
                 VStack(spacing: 0) {
-                    if showCaravanSetupBanner {
-                        AppWarningBanner(message: "Configure caravan settings to see weight calculations.")
+                    if showSetupBanner {
+                        AppWarningBanner(message: setupBannerMessage)
                     }
 
                     if libraryItems.isEmpty {
@@ -106,7 +122,12 @@ struct LoadView: View {
                                     )
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                         Button("Load") {
-                                            viewModel.load(item: item, loadedItems: loadedItems, in: modelContext)
+                                            viewModel.load(
+                                                item: item,
+                                                profile: activeProfile,
+                                                loadedItems: loadedItems,
+                                                in: modelContext
+                                            )
                                         }
                                         .tint(AppColors.green)
                                     }

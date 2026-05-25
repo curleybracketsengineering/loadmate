@@ -1,16 +1,24 @@
 import Foundation
 import Combine
-import SwiftData
 
 @MainActor
 final class SummaryViewModel: ObservableObject {
-    @Published private(set) var summary: WeightSummary?
+    @Published private(set) var caravanSummary: WeightSummary?
+    @Published private(set) var motorhomeSummary: MotorhomeWeightSummary?
 
-    func refresh(config: SetupConfig?, loadedItems: [LoadedItem]) {
-        guard let config else {
-            summary = nil
+    func refresh(profile: VehicleProfile?, loadedItems: [LoadedItem]) {
+        guard let profile else {
+            caravanSummary = nil
+            motorhomeSummary = nil
             return
         }
-        summary = WeightCalculator.summary(config: config, loadedItems: loadedItems)
+        switch profile.kind {
+        case .caravan:
+            motorhomeSummary = nil
+            caravanSummary = WeightCalculator.summary(profile: profile, loadedItems: loadedItems)
+        case .motorhome:
+            caravanSummary = nil
+            motorhomeSummary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: loadedItems)
+        }
     }
 }

@@ -5,22 +5,34 @@ struct LocationView: View {
     var onNavigateToLoad: (() -> Void)?
 
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: [SortDescriptor(\LoadedItem.loadedAt)]) private var loadedItems: [LoadedItem]
-    @Query private var configs: [SetupConfig]
+    @Query(sort: [SortDescriptor(\LoadedItem.loadedAt)]) private var allLoadedItems: [LoadedItem]
+    @Query private var profiles: [VehicleProfile]
+    @Query private var appStates: [AppState]
 
     @StateObject private var viewModel = LocationViewModel()
     @State private var zonePickerItem: LoadedItem?
     @State private var showLocationsHelp = false
 
-    private var setupConfig: SetupConfig? { configs.first }
+    private var activeProfile: VehicleProfile? {
+        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+    }
 
-    private var weightSummary: WeightSummary? {
-        guard let config = setupConfig else { return nil }
-        return WeightCalculator.summary(config: config, loadedItems: loadedItems)
+    private var loadedItems: [LoadedItem] {
+        VehicleProfileStore.loadedItems(for: activeProfile, from: allLoadedItems)
+    }
+
+    private var caravanSummary: WeightSummary? {
+        guard let profile = activeProfile, profile.kind == .caravan else { return nil }
+        return WeightCalculator.summary(profile: profile, loadedItems: loadedItems)
+    }
+
+    private var motorhomeSummary: MotorhomeWeightSummary? {
+        guard let profile = activeProfile, profile.kind == .motorhome else { return nil }
+        return MotorhomeWeightCalculator.summary(profile: profile, loadedItems: loadedItems)
     }
 
     private var zoneWeightsKg: [LoadZone: Double] {
-        LocationZoneWeights.totals(for: loadedItems)
+        LocationZoneWeights.totals(for: loadedItems, kind: activeProfile?.kind ?? .caravan)
     }
 
     var body: some View {
@@ -35,11 +47,14 @@ struct LocationView: View {
                             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
                                 assignLocationsHeader
 
-                                if let summary = weightSummary, let config = setupConfig {
-                                    towBarEstimateCard(summary: summary, config: config)
-                                }
+                                if let profile = activeProfile {
+                                    weightEstimateCard(profile: profile)
 
-                                CaravanPositionMapView(zoneWeightsKg: zoneWeightsKg)
+                                    CaravanPositionMapView(
+                                        vehicleKind: profile.kind,
+                                        zoneWeightsKg: zoneWeightsKg
+                                    )
+                                }
 
                                 assignItemsSection
                             }
@@ -61,6 +76,7 @@ struct LocationView: View {
             .appPrincipalTabTitle("Locations")
             .sheet(item: $zonePickerItem) { loaded in
                 LocationZonePickerSheet(
+                    vehicleKind: activeProfile?.kind ?? .caravan,
                     itemTitle: title(for: loaded),
                     selectedZone: loaded.zone,
                     onSelect: { zone in
@@ -71,19 +87,30 @@ struct LocationView: View {
             .alert("About locations", isPresented: $showLocationsHelp) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Where you place each item shifts estimated tow bar (nose) weight. Front zones tend to increase it; rear zones tend to decrease it. Stay within your car’s tow ball limit.")
+                Text(locationsHelpMessage)
             }
         }
+    }
+
+    private var locationsHelpMessage: String {
+        if activeProfile?.kind == .motorhome {
+            return "Front is above the front axle; Back above the rear; Garage behind the rear. Stay within plated axle and garage limits."
+        }
+        return "Where you place each item shifts estimated tow bar (nose) weight. Front zones tend to increase it; rear zones tend to decrease it. Stay within your car’s tow ball limit."
+    }
+
+    private var assignLocationsCaption: String {
+        if activeProfile?.kind == .motorhome {
+            return "Choose where each loaded item sits: Driver, Front, Central, Back, or Garage."
+        }
+        return "Choose where each loaded item sits on the caravan. This affects nose weight estimates."
     }
 
     // MARK: - Sections
 
     private var assignLocationsHeader: some View {
         HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
-            AppSectionHeading(
-                "Assign locations",
-                caption: "Choose where each loaded item sits on the caravan. This affects nose weight estimates."
-            )
+            AppSectionHeading("Assign locations", caption: assignLocationsCaption)
 
             Button {
                 showLocationsHelp = true
@@ -95,6 +122,20 @@ struct LocationView: View {
             }
             .buttonStyle(.plain)
             .padding(.top, 2)
+        }
+    }
+
+    @ViewBuilder
+    private func weightEstimateCard(profile: VehicleProfile) -> some View {
+        switch profile.kind {
+        case .caravan:
+            if let summary = caravanSummary {
+                towBarEstimateCard(summary: summary, profile: profile)
+            }
+        case .motorhome:
+            if let summary = motorhomeSummary {
+                motorhomeAxleEstimateCard(summary: summary, profile: profile)
+            }
         }
     }
 
@@ -110,6 +151,7 @@ struct LocationView: View {
                         title: title(for: loaded),
                         weightLine: weightLine(for: loaded),
                         zone: loaded.zone,
+                        vehicleKind: activeProfile?.kind ?? .caravan,
                         onTap: { zonePickerItem = loaded }
                     )
 
@@ -126,7 +168,7 @@ struct LocationView: View {
         }
     }
 
-    private func towBarEstimateCard(summary: WeightSummary, config: SetupConfig) -> some View {
+    private func towBarEstimateCard(summary: WeightSummary, profile: VehicleProfile) -> some View {
         HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                 Text("Estimated Tow Bar Weight")
@@ -143,7 +185,7 @@ struct LocationView: View {
 
             Spacer(minLength: 0)
 
-            TowBarWeightStatusBadge(summary: summary, config: config)
+            TowBarWeightStatusBadge(summary: summary, profile: profile)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppScreenMetrics.cardInteriorPadding)
@@ -152,6 +194,68 @@ struct LocationView: View {
                 .fill(Color(.secondarySystemGroupedBackground))
         )
         .accessibilityElement(children: .combine)
+    }
+
+    private func motorhomeAxleEstimateCard(summary: MotorhomeWeightSummary, profile: VehicleProfile) -> some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+            Text("Estimated axle loads")
+                .font(.subheadline)
+                .foregroundStyle(AppColors.textSupporting)
+
+            HStack(spacing: AppScreenMetrics.sectionSpacing) {
+                axleColumn(
+                    title: "Front",
+                    kg: summary.estimatedFrontAxleKg,
+                    isOver: summary.isOverFrontAxle
+                )
+                axleColumn(
+                    title: "Rear",
+                    kg: summary.estimatedRearAxleKg,
+                    isOver: summary.isOverRearAxle
+                )
+            }
+
+            if profile.monitorsGarageLimit {
+                Divider()
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Garage load")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(AppColors.textSupporting)
+                        Text(Formatters.kg(summary.garageLoadedKg))
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(summary.isOverGarageLimit ? AppColors.red : Color.primary)
+                    }
+                    Spacer()
+                    Text("max \(Formatters.kg(profile.maxGarageKg))")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
+                }
+            } else if summary.garageLoadedKg > 0 {
+                Text("Garage zone: \(Formatters.kg(summary.garageLoadedKg)) — set a max in Settings to monitor")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AppScreenMetrics.cardInteriorPadding)
+        .background(
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+
+    private func axleColumn(title: String, kg: Double, isOver: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(AppColors.textSupporting)
+            Text(Formatters.kg(kg))
+                .font(.title2.weight(.bold))
+                .fontDesign(.rounded)
+                .foregroundStyle(isOver ? AppColors.red : Color.primary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Helpers
@@ -214,6 +318,7 @@ private struct LocationItemRow: View {
     let title: String
     let weightLine: String
     let zone: LoadZone
+    let vehicleKind: VehicleKind
     let onTap: () -> Void
 
     var body: some View {
@@ -232,7 +337,7 @@ private struct LocationItemRow: View {
 
                 Spacer(minLength: 0)
 
-                LocationZoneBadge(zone: zone)
+                LocationZoneBadge(zone: zone, vehicleKind: vehicleKind)
 
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
@@ -250,6 +355,7 @@ private struct LocationItemRow: View {
 
 private struct LocationZoneBadge: View {
     let zone: LoadZone
+    let vehicleKind: VehicleKind
 
     var body: some View {
         if zone == .unassigned {
@@ -263,7 +369,7 @@ private struct LocationZoneBadge: View {
                         .fill(Color(.tertiarySystemFill))
                 )
         } else {
-            Text(zone.locationBadgeTitle)
+            Text(zone.locationBadgeTitle(for: vehicleKind))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(zone.chipAccentColor)
                 .padding(.horizontal, 10)
@@ -272,50 +378,6 @@ private struct LocationZoneBadge: View {
                     Capsule()
                         .fill(zone.chipAccentColor.opacity(0.14))
                 )
-        }
-    }
-}
-
-// MARK: - Zone labels & colors (Locations UI)
-
-extension LoadZone {
-    /// Zones shown on the map and in the zone picker (excludes `unassigned`).
-    static var pickerZones: [LoadZone] {
-        [.frontLocker, .front, .middle, .rear, .bikeRack]
-    }
-
-    /// Full zone name for map labels and list badges (e.g. “Locker”, “Bike”).
-    var locationBadgeTitle: String {
-        switch self {
-        case .frontLocker: return "Locker"
-        case .front: return "Front"
-        case .middle: return "Middle"
-        case .rear: return "Rear"
-        case .bikeRack: return "Bike"
-        case .unassigned: return "Unassigned"
-        }
-    }
-
-    var noseImpactHint: String {
-        switch self {
-        case .frontLocker: return "Increases nose weight most"
-        case .front: return "Increases nose weight"
-        case .middle: return "Neutral impact on nose weight"
-        case .rear: return "Decreases nose weight"
-        case .bikeRack: return "Decreases nose weight most"
-        case .unassigned: return ""
-        }
-    }
-
-    /// Matches map / badge hues by zone position (front … bike rack).
-    var chipAccentColor: Color {
-        switch self {
-        case .frontLocker: AppColors.blue
-        case .front: Color(red: 0.58, green: 0.29, blue: 0.91)
-        case .middle: Color(red: 1.0, green: 0.27, blue: 0.45)
-        case .rear: AppColors.orange
-        case .bikeRack: AppColors.green
-        case .unassigned: Color.secondary
         }
     }
 }

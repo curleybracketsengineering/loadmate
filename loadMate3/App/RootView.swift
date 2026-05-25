@@ -34,7 +34,7 @@ struct RootView: View {
 private enum RootPreviewData {
     static func makeContainer() -> ModelContainer {
         let schema = Schema([
-            SetupConfig.self,
+            VehicleProfile.self,
             LibraryItem.self,
             LoadedItem.self,
             AppState.self,
@@ -51,17 +51,21 @@ private enum RootPreviewData {
             let appState = AppState(disclaimerAccepted: true, acceptedAt: .now)
             context.insert(appState)
 
-            let config = SetupConfig(baseWeightKg: 1250, weighbridgeWeightKg: 1285, mtplmKg: 1500, carMaxTowBallKg: 75)
-            context.insert(config)
+            let profile = VehicleProfile(name: "Preview Caravan", kind: .caravan, sortOrder: 0)
+            profile.baseWeightKg = 1250
+            profile.weighbridgeWeightKg = 1285
+            profile.mtplmKg = 1500
+            profile.carMaxTowBallKg = 75
+            context.insert(profile)
+            appState.activeProfileID = profile.id
 
             let chair = LibraryItem(name: "Camping Chair", weightKg: 4.5, defaultZoneRaw: LoadZone.middle.rawValue)
             let awning = LibraryItem(name: "Awning", weightKg: 22, defaultZoneRaw: LoadZone.front.rawValue)
             context.insert(chair)
             context.insert(awning)
 
-            context.insert(LoadedItem(item: chair, quantity: 1, zone: .middle, loadedAt: .now.addingTimeInterval(-60)))
-            context.insert(LoadedItem(item: chair, quantity: 1, zone: .rear, loadedAt: .now))
-            context.insert(LoadedItem(item: awning, quantity: 1, zone: .front))
+            context.insert(LoadedItem(item: chair, quantity: 1, zone: .middle, profile: profile))
+            context.insert(LoadedItem(item: awning, quantity: 1, zone: .front, profile: profile))
 
             try context.save()
             return container

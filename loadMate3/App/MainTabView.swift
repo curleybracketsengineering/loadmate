@@ -10,15 +10,20 @@ enum AppTab: Hashable {
 }
 
 struct MainTabView: View {
-    @Query private var configs: [SetupConfig]
+    @Query private var profiles: [VehicleProfile]
+    @Query private var appStates: [AppState]
 
     @State private var selectedTab: AppTab = .weight
-    @State private var showCaravanSetupAlert = false
-    @State private var didPresentCaravanSetupPrompt = false
+    @State private var showSetupAlert = false
+    @State private var didPresentSetupPrompt = false
 
-    private var needsCaravanSetup: Bool {
-        guard let config = configs.first else { return true }
-        return !config.isConfiguredForWeightCalculations
+    private var activeProfile: VehicleProfile? {
+        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+    }
+
+    private var needsSetup: Bool {
+        guard let profile = activeProfile else { return true }
+        return !profile.isConfiguredForWeightCalculations
     }
 
     var body: some View {
@@ -44,25 +49,38 @@ struct MainTabView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
         .onAppear {
-            presentCaravanSetupPromptIfNeeded()
+            presentSetupPromptIfNeeded()
         }
-        .onChange(of: needsCaravanSetup) { _, _ in
-            presentCaravanSetupPromptIfNeeded()
+        .onChange(of: needsSetup) { _, _ in
+            presentSetupPromptIfNeeded()
         }
-        .alert("Caravan setup", isPresented: $showCaravanSetupAlert) {
+        .alert(setupAlertTitle, isPresented: $showSetupAlert) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(
-                "Your caravan and tow vehicle details are needed for accurate weight calculations. " +
-                "You can still use Load, Locations, and Checklist before completing Settings."
-            )
+            Text(setupAlertMessage)
         }
     }
 
-    private func presentCaravanSetupPromptIfNeeded() {
-        guard needsCaravanSetup, !didPresentCaravanSetupPrompt else { return }
-        didPresentCaravanSetupPrompt = true
+    private var setupAlertTitle: String {
+        activeProfile?.kind == .motorhome ? "Motorhome setup" : "Caravan setup"
+    }
+
+    private var setupAlertMessage: String {
+        guard let profile = activeProfile else {
+            return "Add a vehicle in Settings for weight calculations. You can still use Load, Locations, and Checklist first."
+        }
+        switch profile.kind {
+        case .caravan:
+            return "Your caravan and tow vehicle details are needed for accurate weight calculations. You can still use Load, Locations, and Checklist before completing Settings."
+        case .motorhome:
+            return "Your motorhome MAM and axle limits are needed for accurate weight estimates. Enter weighbridge axle weights when you can. You can still use Load, Locations, and Checklist before completing Settings."
+        }
+    }
+
+    private func presentSetupPromptIfNeeded() {
+        guard needsSetup, !didPresentSetupPrompt else { return }
+        didPresentSetupPrompt = true
         selectedTab = .settings
-        showCaravanSetupAlert = true
+        showSetupAlert = true
     }
 }

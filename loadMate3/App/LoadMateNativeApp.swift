@@ -8,7 +8,7 @@ struct LoadMateNativeApp: App {
             RootView()
         }
         .modelContainer(for: [
-            SetupConfig.self,
+            VehicleProfile.self,
             LibraryItem.self,
             LoadedItem.self,
             AppState.self,
@@ -18,4 +18,3 @@ struct LoadMateNativeApp: App {
         ])
     }
 }
-

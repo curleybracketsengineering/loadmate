@@ -24,27 +24,27 @@ struct WeightSummary {
     }
 
     /// Progress toward MTPLM as a 0…1 fraction (capped at 1 for bar width even when over limit).
-    func mtplmFillFraction(config: SetupConfig) -> Double {
-        guard config.mtplmKg > 0 else { return 0 }
-        let ratio = totalWeightKg / config.mtplmKg
+    func mtplmFillFraction(profile: VehicleProfile) -> Double {
+        guard profile.mtplmKg > 0 else { return 0 }
+        let ratio = totalWeightKg / profile.mtplmKg
         return min(max(ratio, 0), 1)
     }
 }
 
 enum WeightCalculator {
-    static func zoneFactor(for zone: LoadZone, config: SetupConfig) -> Double {
+    static func zoneFactor(for zone: LoadZone, profile: VehicleProfile) -> Double {
         switch zone {
-        case .frontLocker: return config.factorFrontLocker
-        case .front: return config.factorFront
-        case .middle: return config.factorMiddle
-        case .rear: return config.factorRear
-        case .bikeRack: return config.factorBikeRack
-        case .unassigned: return 0
+        case .frontLocker: return profile.factorFrontLocker
+        case .front: return profile.factorFront
+        case .middle: return profile.factorMiddle
+        case .rear: return profile.factorRear
+        case .bikeRack: return profile.factorBikeRack
+        case .driver, .central, .back, .garage, .unassigned: return 0
         }
     }
 
     static func summary(
-        config: SetupConfig,
+        profile: VehicleProfile,
         loadedItems: [LoadedItem],
         baseNoseOffsetKg: Double = 0
     ) -> WeightSummary {
@@ -53,21 +53,21 @@ enum WeightCalculator {
             return sum + (weight * Double(max(loaded.quantity, 0)))
         }
 
-        let totalWeight = config.calculationBaseWeightKg + loadedWeight
-        let availableWeight = config.mtplmKg - totalWeight
-        let mtplmPercent = config.mtplmKg > 0 ? (totalWeight / config.mtplmKg) * 100 : 0
+        let totalWeight = profile.calculationBaseWeightKg + loadedWeight
+        let availableWeight = profile.mtplmKg - totalWeight
+        let mtplmPercent = profile.mtplmKg > 0 ? (totalWeight / profile.mtplmKg) * 100 : 0
 
         let locationImpact = loadedItems.reduce(0.0) { sum, loaded in
             let weight = loaded.item?.weightKg ?? 0
-            let factor = zoneFactor(for: loaded.zone, config: config)
+            let factor = zoneFactor(for: loaded.zone, profile: profile)
             return sum + (weight * Double(max(loaded.quantity, 0)) * factor)
         }
 
-        let basePercent = config.noseWeightBasePercent > 0 ? config.noseWeightBasePercent : 6.0
+        let basePercent = profile.noseWeightBasePercent > 0 ? profile.noseWeightBasePercent : 6.0
         let baseNosePercent = totalWeight * (basePercent / 100.0)
         let estimatedNoseWeight = baseNoseOffsetKg + baseNosePercent + locationImpact
 
-        let towBallReferenceWeight = config.mtplmKg > 0 ? min(totalWeight, config.mtplmKg) : totalWeight
+        let towBallReferenceWeight = profile.mtplmKg > 0 ? min(totalWeight, profile.mtplmKg) : totalWeight
         let towBallMin = towBallReferenceWeight * 0.05
         let towBallMax = towBallReferenceWeight * 0.07
 
@@ -81,8 +81,8 @@ enum WeightCalculator {
             estimatedNoseWeightKg: estimatedNoseWeight,
             towBallMinKg: towBallMin,
             towBallMaxKg: towBallMax,
-            isOverMTPLM: config.mtplmKg > 0 && totalWeight > config.mtplmKg,
-            isOverTowBallLimit: config.effectiveMaxTowBallKg > 0 && estimatedNoseWeight > config.effectiveMaxTowBallKg,
+            isOverMTPLM: profile.mtplmKg > 0 && totalWeight > profile.mtplmKg,
+            isOverTowBallLimit: profile.effectiveMaxTowBallKg > 0 && estimatedNoseWeight > profile.effectiveMaxTowBallKg,
             isNoseBelowRecommended: estimatedNoseWeight < towBallMin,
             isNoseAboveRecommended: estimatedNoseWeight > towBallMax
         )
