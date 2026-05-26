@@ -7,6 +7,8 @@ enum MotorhomeSummaryContent {
         case frontAxleExceeded(reduceByKg: Double)
         case rearAxleExceeded(reduceByKg: Double)
         case garageExceeded(reduceByKg: Double)
+        case towBarMeasurementMissing
+        case towBarLimitExceeded(reduceByKg: Double)
     }
 
     static func resolveStatusBanner(summary: MotorhomeWeightSummary, profile: VehicleProfile) -> StatusBannerKind {
@@ -22,6 +24,12 @@ enum MotorhomeSummaryContent {
         }
         if summary.isOverGarageLimit {
             return .garageExceeded(reduceByKg: max(0, summary.garageLoadedKg - profile.maxGarageKg))
+        }
+        if summary.isTowBarMeasurementMissing {
+            return .towBarMeasurementMissing
+        }
+        if summary.isOverTowBarLimit {
+            return .towBarLimitExceeded(reduceByKg: max(0, summary.towBarLoadKg - profile.maxTowBarKg))
         }
         return .safe
     }
@@ -57,6 +65,43 @@ enum MotorhomeSummaryContent {
                     Text("Available: \(stripKg(Formatters.kg(summary.availableGrossKg))) kg")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(summary.availableGrossKg < 0 ? AppColors.red : Color.secondary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    static func towBarCard(summary: MotorhomeWeightSummary, profile: VehicleProfile) -> some View {
+        SummaryMetricCard {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                Text("Tow bar load")
+                    .font(.headline)
+                    .foregroundStyle(Color.primary)
+
+                Text("Entered on the Load tab for this trip. Not estimated from item positions.")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(alignment: .firstTextBaseline) {
+                    Text(summary.isTowBarMeasurementMissing ? "Not set" : Formatters.kg(summary.towBarLoadKg))
+                        .font(.title.weight(.bold))
+                        .fontDesign(.rounded)
+                        .foregroundStyle(summary.isOverTowBarLimit || summary.isTowBarMeasurementMissing ? AppColors.red : Color.accentColor)
+                    Spacer()
+                    if profile.maxTowBarKg > 0 {
+                        Text("Max \(stripKg(Formatters.kg(profile.maxTowBarKg))) kg")
+                            .font(.caption)
+                            .foregroundStyle(Color.secondary)
+                    }
+                }
+
+                if profile.maxTowBarKg > 0, !summary.isTowBarMeasurementMissing {
+                    axleProgressBar(
+                        fill: CGFloat(summary.towBarFillFraction(profile: profile)),
+                        isOverLimit: summary.isOverTowBarLimit,
+                        accessibilityLabel: "Progress toward tow bar limit"
+                    )
                 }
             }
         }

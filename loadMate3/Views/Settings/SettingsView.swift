@@ -481,13 +481,35 @@ struct SettingsView: View {
             }
         }
 
-        motorhomeWeightFactors(profile)
+        AppSettingsSection(
+            "Tow bar",
+            caption: "When you tow a caravan or trailer behind your motorhome."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                Toggle(isOn: boolBinding(for: \.usesManualTowBarLoad, on: profile)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("I have a tow bar")
+                            .font(.subheadline.weight(.medium))
+                        Text("Show a Tow bar field on the Load tab. Enter the measured downforce per trip — the app does not estimate it.")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .tint(Color.accentColor)
 
-        AppSettingsSection("Coming later") {
-            Text("Towing a caravan or trailer behind your motorhome is planned for a future update.")
-                .font(.subheadline)
-                .foregroundStyle(AppColors.textSupporting)
+                if profile.usesManualTowBarLoad {
+                    AppLabeledNumberField(
+                        "Max tow bar load (kg)",
+                        caption: "Maximum nose weight your motorhome tow bar can take",
+                        value: binding(for: \.maxTowBarKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
+                }
+            }
         }
+
+        motorhomeWeightFactors(profile)
     }
 
     @ViewBuilder

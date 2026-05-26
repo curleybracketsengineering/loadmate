@@ -111,6 +111,10 @@ final class VehicleProfile {
     var maxGarageKg: Double
     /// When true, trip items in the bike rack zone count toward `maxGarageKg` (manufacturer combined rear limit).
     var garageLimitIncludesBikeRack: Bool
+    /// Motorhome: user tows with a tow bar — enter load per trip on the Load tab.
+    var usesManualTowBarLoad: Bool
+    /// Maximum tow bar (nose) load the motorhome tow bar can take (0 = not set).
+    var maxTowBarKg: Double
 
     /// Motorhome: kg added to each axle estimate per kg of item in that zone.
     var mhFactorDriverFront: Double
@@ -161,6 +165,8 @@ final class VehicleProfile {
         self.maxRearAxleKg = 0
         self.maxGarageKg = 0
         self.garageLimitIncludesBikeRack = false
+        self.usesManualTowBarLoad = false
+        self.maxTowBarKg = 0
         self.mhFactorDriverFront = 0.75
         self.mhFactorDriverRear = 0.15
         self.mhFactorFrontFront = 0.95
@@ -270,6 +276,8 @@ final class Trip {
     @Attribute(.unique) var id: UUID
     var name: String
     var sortOrder: Int
+    /// Manually entered tow bar (nose) load for this trip (kg).
+    var manualTowBarLoadKg: Double
 
     var profile: VehicleProfile?
 
@@ -280,11 +288,13 @@ final class Trip {
         id: UUID = UUID(),
         name: String,
         sortOrder: Int = 0,
+        manualTowBarLoadKg: Double = 0,
         profile: VehicleProfile? = nil
     ) {
         self.id = id
         self.name = name
         self.sortOrder = sortOrder
+        self.manualTowBarLoadKg = manualTowBarLoadKg
         self.profile = profile
     }
 }

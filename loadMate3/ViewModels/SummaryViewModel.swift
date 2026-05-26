@@ -6,7 +6,7 @@ final class SummaryViewModel: ObservableObject {
     @Published private(set) var caravanSummary: WeightSummary?
     @Published private(set) var motorhomeSummary: MotorhomeWeightSummary?
 
-    func refresh(profile: VehicleProfile?, loadedItems: [LoadedItem]) {
+    func refresh(profile: VehicleProfile?, trip: Trip?, loadedItems: [LoadedItem]) {
         guard let profile else {
             caravanSummary = nil
             motorhomeSummary = nil
@@ -18,7 +18,7 @@ final class SummaryViewModel: ObservableObject {
             caravanSummary = WeightCalculator.summary(profile: profile, loadedItems: loadedItems)
         case .motorhome:
             caravanSummary = nil
-            motorhomeSummary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: loadedItems)
+            motorhomeSummary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: loadedItems, trip: trip)
         }
     }
 }

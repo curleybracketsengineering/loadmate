@@ -21,9 +21,9 @@ struct SummaryView: View {
     }
 
     private var refreshToken: String {
-        let tripSignature = activeTrip.map { "\($0.id)-\($0.name)" } ?? "no-trip"
+        let tripSignature = activeTrip.map { "\($0.id)-\($0.name)-\($0.manualTowBarLoadKg)" } ?? "no-trip"
         let profileSignature = activeProfile.map { profile in
-            "\(profile.id)-\(profile.kindRaw)-\(profile.baseWeightKg)-\(profile.weighbridgeWeightKg)-\(profile.mtplmKg)-\(profile.maxFrontAxleKg)-\(profile.maxRearAxleKg)-\(profile.maxGarageKg)-\(profile.garageLimitIncludesBikeRack)-\(profile.weighbridgeFrontAxleKg)-\(profile.weighbridgeRearAxleKg)"
+            "\(profile.id)-\(profile.kindRaw)-\(profile.baseWeightKg)-\(profile.weighbridgeWeightKg)-\(profile.mtplmKg)-\(profile.maxFrontAxleKg)-\(profile.maxRearAxleKg)-\(profile.maxGarageKg)-\(profile.garageLimitIncludesBikeRack)-\(profile.usesManualTowBarLoad)-\(profile.maxTowBarKg)-\(profile.weighbridgeFrontAxleKg)-\(profile.weighbridgeRearAxleKg)"
         } ?? "no-profile"
 
         let itemSignature = profileLoadedItems.map {
@@ -50,7 +50,7 @@ struct SummaryView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .task(id: refreshToken) {
-                viewModel.refresh(profile: activeProfile, loadedItems: profileLoadedItems)
+                viewModel.refresh(profile: activeProfile, trip: activeTrip, loadedItems: profileLoadedItems)
             }
             .task(id: profiles.map(\.id)) {
                 TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
@@ -105,6 +105,9 @@ struct SummaryView: View {
                         )
                         if profile.monitorsGarageLimit {
                             MotorhomeSummaryContent.garageCard(summary: summary, profile: profile)
+                        }
+                        if summary.monitorsTowBar {
+                            MotorhomeSummaryContent.towBarCard(summary: summary, profile: profile)
                         }
                     }
                 }
@@ -163,6 +166,26 @@ struct SummaryView: View {
                 ],
                 background: AppColors.red,
                 accessibilitySummary: "Garage weight limit exceeded."
+            )
+        case .towBarMeasurementMissing:
+            actionableWarningBanner(
+                title: "Tow bar load required",
+                lines: [
+                    "Enter tow bar load on the Load tab",
+                    "Use your measured downforce for this trip"
+                ],
+                background: AppColors.orange,
+                accessibilitySummary: "Tow bar load value is required."
+            )
+        case .towBarLimitExceeded(let reduce):
+            actionableWarningBanner(
+                title: "Tow bar limit exceeded",
+                lines: [
+                    "Reduce tow bar load by \(kgAmountPhrase(reduce))",
+                    "Lighten what you are towing or redistribute load"
+                ],
+                background: AppColors.red,
+                accessibilitySummary: "Tow bar limit exceeded."
             )
         }
     }

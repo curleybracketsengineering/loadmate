@@ -19,8 +19,18 @@ struct MotorhomeWeightSummary {
     let isOverFrontAxle: Bool
     let isOverRearAxle: Bool
 
+    let monitorsTowBar: Bool
+    let towBarLoadKg: Double
+    let isTowBarMeasurementMissing: Bool
+    let isOverTowBarLimit: Bool
+
     var isOverallSafe: Bool {
-        !isOverMAM && !isOverFrontAxle && !isOverRearAxle && !isOverGarageLimit
+        !isOverMAM
+            && !isOverFrontAxle
+            && !isOverRearAxle
+            && !isOverGarageLimit
+            && !isTowBarMeasurementMissing
+            && !isOverTowBarLimit
     }
 
     func mamFillFraction(profile: VehicleProfile) -> Double {
@@ -42,10 +52,17 @@ struct MotorhomeWeightSummary {
         guard profile.maxGarageKg > 0 else { return 0 }
         return min(max(garageLoadedKg / profile.maxGarageKg, 0), 1)
     }
+
+    func towBarFillFraction(profile: VehicleProfile) -> Double {
+        guard profile.maxTowBarKg > 0 else { return 0 }
+        return min(max(towBarLoadKg / profile.maxTowBarKg, 0), 1)
+    }
 }
 
 extension VehicleProfile {
     var monitorsGarageLimit: Bool { kind == .motorhome && maxGarageKg > 0 }
+
+    var monitorsTowBarLimit: Bool { kind == .motorhome && usesManualTowBarLoad && maxTowBarKg > 0 }
 }
 
 enum MotorhomeWeightCalculator {
@@ -81,7 +98,8 @@ enum MotorhomeWeightCalculator {
 
     static func summary(
         profile: VehicleProfile,
-        loadedItems: [LoadedItem]
+        loadedItems: [LoadedItem],
+        trip: Trip? = nil
     ) -> MotorhomeWeightSummary {
         let loadedWeight = loadedItems.reduce(0.0) { sum, loaded in
             let weight = loaded.item?.weightKg ?? 0
@@ -108,6 +126,11 @@ enum MotorhomeWeightCalculator {
 
         let overGarage = profile.maxGarageKg > 0 && garageLoaded > profile.maxGarageKg
 
+        let monitorsTowBar = profile.usesManualTowBarLoad
+        let towBarLoad = monitorsTowBar ? max(0, trip?.manualTowBarLoadKg ?? 0) : 0
+        let towBarMissing = monitorsTowBar && towBarLoad <= 0
+        let overTowBar = profile.maxTowBarKg > 0 && towBarLoad > profile.maxTowBarKg
+
         return MotorhomeWeightSummary(
             loadedWeightKg: loadedWeight,
             totalWeightKg: totalWeight,
@@ -122,7 +145,11 @@ enum MotorhomeWeightCalculator {
             isOverGarageLimit: overGarage,
             isOverMAM: profile.mtplmKg > 0 && totalWeight > profile.mtplmKg,
             isOverFrontAxle: profile.maxFrontAxleKg > 0 && estimatedFront > profile.maxFrontAxleKg,
-            isOverRearAxle: profile.maxRearAxleKg > 0 && estimatedRear > profile.maxRearAxleKg
+            isOverRearAxle: profile.maxRearAxleKg > 0 && estimatedRear > profile.maxRearAxleKg,
+            monitorsTowBar: monitorsTowBar,
+            towBarLoadKg: towBarLoad,
+            isTowBarMeasurementMissing: towBarMissing,
+            isOverTowBarLimit: !towBarMissing && overTowBar
         )
     }
 }
