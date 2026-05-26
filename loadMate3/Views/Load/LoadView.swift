@@ -71,8 +71,7 @@ struct LoadView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
-                VStack(spacing: 0) {
+            VStack(spacing: 0) {
                     if showSetupBanner {
                         AppWarningBanner(message: setupBannerMessage)
                     }
@@ -175,10 +174,22 @@ struct LoadView: View {
                                 }
                                 }
                             } header: {
-                                AppSectionHeading(
-                                    itemsSectionTitle,
-                                    caption: "Swipe left for Load • Swipe right for Unload • Long-press a row to edit or delete"
-                                )
+                                HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.smallSpacing) {
+                                    AppSectionHeading(itemsSectionTitle)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                                    Button {
+                                        showAddItem = true
+                                    } label: {
+                                        Image(systemName: "plus.circle")
+                                            .font(.body.weight(.medium))
+                                            .foregroundStyle(Color.accentColor)
+                                            .frame(minWidth: 44, minHeight: 44)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Add item")
+                                }
                                 .textCase(nil)
                             }
                             .headerProminence(.increased)
@@ -191,14 +202,21 @@ struct LoadView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.systemGroupedBackground))
-
-                AppFloatingAddButton(accessibilityLabel: "Add item") {
-                    showAddItem = true
-                }
-                .padding(.trailing, AppScreenMetrics.horizontalPadding)
-                .padding(.bottom, AppScreenMetrics.fieldSpacing)
-            }
             .appPrincipalTabTitle("Load")
+            .toolbar {
+                if libraryItems.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showAddItem = true
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .accessibilityLabel("Add item")
+                    }
+                }
+            }
             .task(id: profiles.map(\.id)) {
                 TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
             }
@@ -292,12 +310,6 @@ private struct LoadEmptyStateView: View {
             Text("No Items")
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(Color.primary)
-
-            Text("Tap + to add items to your load list.")
-                .font(.caption)
-                .foregroundStyle(AppColors.textSupporting)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, AppScreenMetrics.sectionSpacingLoose)
         }
         .frame(maxWidth: .infinity)
     }

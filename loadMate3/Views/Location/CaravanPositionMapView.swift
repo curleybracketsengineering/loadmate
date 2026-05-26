@@ -4,6 +4,12 @@ import SwiftUI
 struct CaravanPositionMapView: View {
     let vehicleKind: VehicleKind
     let zoneWeightsKg: [LoadZone: Double]
+    let onDropAssign: ((LoadZone, UUID) -> Void)?
+    /// Inline beside “Caravan Position Map” title; ignored for motorhome.
+    var caravanEstimatedTowBarKg: Double? = nil
+    var caravanTowBarUsesWarningColor: Bool = false
+
+    @State private var dropTargetZone: LoadZone?
 
     private var zones: [LoadZone] {
         LoadZone.pickerZones(for: vehicleKind)
@@ -15,9 +21,22 @@ struct CaravanPositionMapView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-            Text(vehicleKind == .motorhome ? "Motorhome Position Map" : "Caravan Position Map")
-                .font(.headline)
-                .foregroundStyle(Color.primary)
+            HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.smallSpacing) {
+                Text(vehicleKind == .motorhome ? "Motorhome Position Map" : "Caravan Position Map")
+                    .font(.headline)
+                    .foregroundStyle(Color.primary)
+
+                if vehicleKind == .caravan, let kg = caravanEstimatedTowBarKg {
+                    Spacer(minLength: 0)
+                    Text(Formatters.kg(kg))
+                        .font(.headline.weight(.bold))
+                        .fontDesign(.rounded)
+                        .foregroundStyle(caravanTowBarUsesWarningColor ? AppColors.red : Color.primary)
+                        .minimumScaleFactor(0.65)
+                        .lineLimit(1)
+                        .accessibilityLabel("Estimated tow bar weight, \(Formatters.kg(kg))")
+                }
+            }
 
             if vehicleKind == .motorhome {
                 motorhomeOutline
@@ -94,8 +113,24 @@ struct CaravanPositionMapView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(zone.chipAccentColor.opacity(0.55), lineWidth: 1)
+            if dropTargetZone == zone {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.85), lineWidth: 2.5)
+            }
         }
         .accessibilityLabel("\(zone.locationBadgeTitle(for: .motorhome)) zone, \(Formatters.kg(zoneWeightsKg[zone] ?? 0))")
+        .dropDestination(
+            for: LoadedItemDragPayload.self,
+            action: { payloads, _ in
+                guard let onDropAssign else { return false }
+                guard let payload = payloads.first else { return false }
+                onDropAssign(zone, payload.loadedItemID)
+                return true
+            },
+            isTargeted: { targeted in
+                dropTargetZone = targeted ? zone : nil
+            }
+        )
     }
 
     @ViewBuilder
@@ -153,8 +188,24 @@ struct CaravanPositionMapView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(zone.chipAccentColor.opacity(0.55), lineWidth: 1)
+            if dropTargetZone == zone {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.85), lineWidth: 2.5)
+            }
         }
         .accessibilityLabel("\(zone.locationBadgeTitle(for: vehicleKind)) zone, \(Formatters.kg(zoneWeightsKg[zone] ?? 0))")
+        .dropDestination(
+            for: LoadedItemDragPayload.self,
+            action: { payloads, _ in
+                guard let onDropAssign else { return false }
+                guard let payload = payloads.first else { return false }
+                onDropAssign(zone, payload.loadedItemID)
+                return true
+            },
+            isTargeted: { targeted in
+                dropTargetZone = targeted ? zone : nil
+            }
+        )
     }
 
     private var impactScale: some View {

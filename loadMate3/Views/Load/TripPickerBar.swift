@@ -18,12 +18,9 @@ struct TripPickerBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
-            HStack(alignment: .center, spacing: AppScreenMetrics.smallSpacing) {
-                AppSectionHeading(
-                    "Trip",
-                    caption: "Each trip keeps its own load list and zone assignments."
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.smallSpacing) {
+                AppSectionHeading("Trip")
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 Menu {
                     Button {

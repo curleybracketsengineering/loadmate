@@ -275,17 +275,36 @@ struct SettingsView: View {
         }
 
         AppSettingsSection("Vehicle", caption: "Your car’s towing specification.") {
-            AppLabeledNumberField(
-                "Car tow ball limit (kg)",
-                caption: "Maximum tow ball weight your car can handle",
-                value: binding(for: \.carMaxTowBallKg, on: profile),
-                fractionDigitsUpperBound: 0
-            )
+            let baselineSummary = WeightCalculator.summary(profile: profile, loadedItems: [])
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                AppLabeledNumberField(
+                    "Car tow ball limit (kg)",
+                    caption: "Maximum tow ball weight your car can handle",
+                    value: binding(for: \.carMaxTowBallKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+
+                if SettingsView.hasCaravanContextForFivePercentRule(profile),
+                   baselineSummary.towBallMinKg > 0 {
+                    let effectiveCap = profile.effectiveMaxTowBallKg
+                    if effectiveCap > 0, baselineSummary.isTowVehicleUnsuitable {
+                        AppWarningBanner(
+                            message: SettingsView.carTowBallFivePercentConflictMessage(
+                                profile: profile,
+                                summary: baselineSummary
+                            )
+                        )
+                    } else if !(effectiveCap > 0 && baselineSummary.isTowVehicleUnsuitable) {
+                        Text(SettingsView.carTowBallFivePercentHintText(profile: profile, summary: baselineSummary))
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
         }
 
         noseSafeZoneBasisSection(profile)
-
-        locationSection(profile)
 
         caravanWeightFactors(profile)
     }
@@ -329,8 +348,8 @@ struct SettingsView: View {
                 }
 
                 Text(profile.noseSafeZoneBasis == .mtplm
-                    ? "Min and max use 5% and 7% of MTPLM from your plate."
-                    : "Min and max use 5% and 7% of weighbridge weight plus trip items.")
+                    ? "Min and max use MTPLM from your plate."
+                    : "Min and max use weighbridge weight plus trip items.")
                     .font(.caption)
                     .foregroundStyle(AppColors.textSupporting)
                     .fixedSize(horizontal: false, vertical: true)
@@ -462,8 +481,6 @@ struct SettingsView: View {
             }
         }
 
-        locationSection(profile)
-
         motorhomeWeightFactors(profile)
 
         AppSettingsSection("Coming later") {
@@ -509,19 +526,6 @@ struct SettingsView: View {
         .padding(.bottom, AppScreenMetrics.tinySpacing)
     }
 
-    @ViewBuilder
-    private func locationSection(_ profile: VehicleProfile) -> some View {
-        let zones = profile.kind == .motorhome
-            ? "Cab, front, central, back, garage, and bike rack"
-            : "Front locker, front, middle, rear, and bike rack"
-        AppSettingsSection("Location") {
-            Text("\(zones), used on the Locations tab when assigning items.")
-                .font(.subheadline)
-                .foregroundStyle(AppColors.textSupporting)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
     private func binding(for keyPath: ReferenceWritableKeyPath<VehicleProfile, Double>, on profile: VehicleProfile) -> Binding<Double> {
         Binding(
             get: { profile[keyPath: keyPath] },
@@ -550,6 +554,33 @@ struct SettingsView: View {
                 viewModel.save(modelContext)
             }
         )
+    }
+
+    /// Enough caravan data to evaluate the 5% nose band used on the Weight tab (matches “Nose weight safe zone”).
+    private static func hasCaravanContextForFivePercentRule(_ profile: VehicleProfile) -> Bool {
+        switch profile.noseSafeZoneBasis {
+        case .mtplm:
+            return profile.mtplmKg > 0
+        case .ladenWeight:
+            return profile.calculationBaseWeightKg > 0
+        }
+    }
+
+    private static func carTowBallFivePercentConflictMessage(profile: VehicleProfile, summary: WeightSummary) -> String {
+        let minNose = Formatters.kg(summary.towBallMinKg)
+        let limit = Formatters.kg(profile.effectiveMaxTowBallKg)
+        return "The 5% minimum nose weight (\(minNose)) meets or exceeds your effective limit (\(limit))—the lower of your car tow ball and caravan hitch limits. You may need a higher car limit, a higher hitch rating (only if the car allows), or a lighter caravan."
+    }
+
+    private static func carTowBallFivePercentHintText(profile: VehicleProfile, summary: WeightSummary) -> String {
+        let minNose = Formatters.kg(summary.towBallMinKg)
+        let maxNose = Formatters.kg(summary.towBallMaxKg)
+        let basis = profile.noseSafeZoneBasis == .mtplm ? "MTPLM" : "laden weight"
+        let effective = profile.effectiveMaxTowBallKg
+        if effective > 0 {
+            return "At your current inputs the recommended nose band is about \(minNose) to \(maxNose) (5%–7% of \(basis), same as the Weight tab). Your effective limit (\(Formatters.kg(effective))) is the lower of your car and hitch ratings—it is above the \(minNose) (5%) end of that band."
+        }
+        return "At your current inputs the recommended nose band is about \(minNose) to \(maxNose) (5%–7% of \(basis), same as the Weight tab). Enter your tow ball and hitch limits so the app can warn you if those caps conflict with that 5% minimum."
     }
 
 }

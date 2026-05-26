@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct LocationView: View {
     var onNavigateToLoad: (() -> Void)?
@@ -75,12 +76,7 @@ struct LocationView: View {
                                 assignLocationsHeader
 
                                 if let profile = activeProfile {
-                                    weightEstimateCard(profile: profile)
-
-                                    CaravanPositionMapView(
-                                        vehicleKind: profile.kind,
-                                        zoneWeightsKg: zoneWeightsKg
-                                    )
+                                    mapAndWeightSection(profile: profile)
                                 }
 
                                 assignItemsSection
@@ -152,55 +148,64 @@ struct LocationView: View {
         return "Where you place each item shifts estimated tow bar (nose) weight. Front zones tend to increase it; rear zones tend to decrease it. Stay within your car’s tow ball limit."
     }
 
-    private var assignLocationsCaption: String {
-        if activeProfile?.kind == .motorhome {
-            return "Choose where each loaded item sits: Cab, Front, Central, Back, Garage, or Bike Rack."
-        }
-        return "Choose where each loaded item sits on the caravan. This affects nose weight estimates."
-    }
-
     // MARK: - Sections
 
     private var assignLocationsHeader: some View {
-        HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
-            AppSectionHeading("Assign locations", caption: assignLocationsCaption)
-
-            Button {
-                showLocationsHelp = true
-            } label: {
-                Image(systemName: "questionmark.circle")
-                    .font(.title3)
-                    .foregroundStyle(Color.secondary)
-                    .accessibilityLabel("About locations")
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 2)
-        }
+        AppSectionHeading("Assign locations")
     }
 
     @ViewBuilder
-    private func weightEstimateCard(profile: VehicleProfile) -> some View {
+    private func mapAndWeightSection(profile: VehicleProfile) -> some View {
+        let summary = caravanSummary
+        let towBarWarning = summary.map { $0.isOverTowBallLimit || $0.isTowVehicleUnsuitable } ?? false
+
+        let map = CaravanPositionMapView(
+            vehicleKind: profile.kind,
+            zoneWeightsKg: zoneWeightsKg,
+            onDropAssign: { zone, loadedItemID in
+                guard let loaded = loadedItems.first(where: { $0.id == loadedItemID }) else { return }
+                viewModel.updateZone(for: loaded, to: zone, in: modelContext)
+            },
+            caravanEstimatedTowBarKg: profile.kind == .caravan ? summary?.estimatedNoseWeightKg : nil,
+            caravanTowBarUsesWarningColor: profile.kind == .caravan ? towBarWarning : false
+        )
+
         switch profile.kind {
         case .caravan:
-            if let summary = caravanSummary {
-                towBarEstimateCard(summary: summary, profile: profile)
-            }
+            map
         case .motorhome:
-            if let summary = motorhomeSummary {
-                motorhomeAxleEstimateCard(summary: summary, profile: profile)
+            VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                if let summary = motorhomeSummary {
+                    motorhomeAxleEstimateCard(summary: summary, profile: profile)
+                }
+                map
             }
         }
     }
 
     private var assignItemsSection: some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-            Text("Assign items to locations")
-                .font(.headline)
-                .foregroundStyle(Color.primary)
+            HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.smallSpacing) {
+                Text("Assign items to locations")
+                    .font(.headline)
+                    .foregroundStyle(Color.primary)
+
+                Button {
+                    showLocationsHelp = true
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.title3)
+                        .foregroundStyle(Color.secondary)
+                        .accessibilityLabel("About locations")
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
 
             VStack(spacing: 0) {
                 ForEach(Array(loadedItems.enumerated()), id: \.element.id) { index, loaded in
                     LocationItemRow(
+                        loaded: loaded,
                         title: title(for: loaded),
                         weightLine: weightLine(for: loaded),
                         zone: loaded.zone,
@@ -219,34 +224,6 @@ struct LocationView: View {
                     .fill(Color(.secondarySystemGroupedBackground))
             )
         }
-    }
-
-    private func towBarEstimateCard(summary: WeightSummary, profile: VehicleProfile) -> some View {
-        HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                Text("Estimated Tow Bar Weight")
-                    .font(.subheadline)
-                    .foregroundStyle(AppColors.textSupporting)
-
-                Text(Formatters.kg(summary.estimatedNoseWeightKg))
-                    .font(.largeTitle.weight(.bold))
-                    .fontDesign(.rounded)
-                    .foregroundStyle(summary.isOverTowBallLimit || summary.isTowVehicleUnsuitable ? AppColors.red : Color.primary)
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
-
-            TowBarWeightStatusBadge(summary: summary, profile: profile)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(
-            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
-        .accessibilityElement(children: .combine)
     }
 
     private func motorhomeAxleEstimateCard(summary: MotorhomeWeightSummary, profile: VehicleProfile) -> some View {
@@ -376,6 +353,7 @@ private struct LocationEmptyStateView: View {
 // MARK: - Item row
 
 private struct LocationItemRow: View {
+    let loaded: LoadedItem
     let title: String
     let weightLine: String
     let zone: LoadZone
@@ -383,34 +361,36 @@ private struct LocationItemRow: View {
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: AppScreenMetrics.controlSpacing) {
-                VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
-                    Text(title)
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(Color.primary)
-                        .multilineTextAlignment(.leading)
+        HStack(spacing: AppScreenMetrics.controlSpacing) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                Text(title)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.primary)
+                    .multilineTextAlignment(.leading)
 
-                    Text(weightLine)
-                        .font(.caption)
-                        .foregroundStyle(AppColors.textSupporting)
-                }
-
-                Spacer(minLength: 0)
-
-                LocationZoneBadge(zone: zone, vehicleKind: vehicleKind)
-
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color(.tertiaryLabel))
-                    .accessibilityHidden(true)
+                Text(weightLine)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
             }
-            .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
+
+            Spacer(minLength: 0)
+
+            LocationZoneBadge(zone: zone, vehicleKind: vehicleKind)
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color(.tertiaryLabel))
+                .accessibilityHidden(true)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
         .accessibilityHint("Opens zone picker")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onTap() }
+        // Dragging an item onto a zone updates its `LoadedItem.zone`.
+        .draggable(LoadedItemDragPayload(loadedItemID: loaded.id))
     }
 }
 
@@ -441,4 +421,19 @@ private struct LocationZoneBadge: View {
                 )
         }
     }
+}
+
+// MARK: - Drag payload
+
+/// Drag payload used to assign a loaded item to a zone by dropping onto the position map.
+struct LoadedItemDragPayload: Transferable, Hashable, Codable {
+    let loadedItemID: UUID
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .loadedItem)
+    }
+}
+
+private extension UTType {
+    static let loadedItem: UTType = UTType(exportedAs: "com.loadmate.loaded-item")
 }
