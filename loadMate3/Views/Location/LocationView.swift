@@ -231,7 +231,7 @@ struct LocationView: View {
                 Text(Formatters.kg(summary.estimatedNoseWeightKg))
                     .font(.largeTitle.weight(.bold))
                     .fontDesign(.rounded)
-                    .foregroundStyle(summary.isOverTowBallLimit ? AppColors.red : Color.primary)
+                    .foregroundStyle(summary.isOverTowBallLimit || summary.isTowVehicleUnsuitable ? AppColors.red : Color.primary)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
             }

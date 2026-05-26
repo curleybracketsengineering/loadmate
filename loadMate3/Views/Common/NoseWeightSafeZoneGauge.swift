@@ -41,6 +41,7 @@ struct NoseWeightSafeZoneGauge: View {
   }
 
   private var idealMidKg: Double { (zoneLowKg + zoneHighKg) / 2 }
+  private var hasCollapsedSafeZone: Bool { abs(zoneHighKg - zoneLowKg) < 0.0001 }
 
   /// Scale bounds exclude the estimate so the bar stays stable; the indicator pins to an end when off-scale.
   private var axisMin: Double {
@@ -180,14 +181,16 @@ struct NoseWeightSafeZoneGauge: View {
             )
             .accessibilityHidden(true)
 
-          tickLabel(valueKg: zoneLowKg, title: "Low", width: width)
-            .position(x: labelX(forKg: zoneLowKg, width: width), y: barTop + Self.barHeight + Self.tickBarGap)
+          if !hasCollapsedSafeZone {
+            tickLabel(valueKg: zoneLowKg, title: "Low", width: width)
+              .position(x: labelX(forKg: zoneLowKg, width: width), y: barTop + Self.barHeight + Self.tickBarGap)
 
-          tickLabel(valueKg: idealMidKg, title: "Ideal", width: width)
-            .position(x: labelX(forKg: idealMidKg, width: width), y: barTop + Self.barHeight + Self.tickBarGap)
+            tickLabel(valueKg: idealMidKg, title: "Ideal", width: width)
+              .position(x: labelX(forKg: idealMidKg, width: width), y: barTop + Self.barHeight + Self.tickBarGap)
 
-          tickLabel(valueKg: zoneHighKg, title: "Max", width: width)
-            .position(x: labelX(forKg: zoneHighKg, width: width), y: barTop + Self.barHeight + Self.tickBarGap)
+            tickLabel(valueKg: zoneHighKg, title: "Max", width: width)
+              .position(x: labelX(forKg: zoneHighKg, width: width), y: barTop + Self.barHeight + Self.tickBarGap)
+          }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       }
@@ -303,6 +306,14 @@ struct TowBarWeightStatusBadge: View {
   }
 
   private var badgeStyle: BadgeStyle? {
+    if summary.isTowVehicleUnsuitable {
+      return BadgeStyle(
+        title: "Not suitable",
+        delta: "5% min ≥ tow ball limit",
+        foreground: AppColors.red,
+        background: AppColors.red.opacity(0.12)
+      )
+    }
     if summary.isOverTowBallLimit {
       let over = max(0, summary.estimatedNoseWeightKg - profile.effectiveMaxTowBallKg)
       return BadgeStyle(
@@ -336,7 +347,7 @@ struct TowBarWeightStatusBadge: View {
   var body: some View {
     if let style = badgeStyle {
       HStack(alignment: .top, spacing: 8) {
-        if summary.isOverTowBallLimit {
+        if summary.isTowVehicleUnsuitable || summary.isOverTowBallLimit {
           Image(systemName: "exclamationmark.triangle.fill")
             .font(.subheadline)
             .accessibilityHidden(true)

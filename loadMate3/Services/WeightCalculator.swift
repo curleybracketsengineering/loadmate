@@ -14,13 +14,15 @@ struct WeightSummary {
     let towBallMaxKg: Double
 
     let isOverMTPLM: Bool
+    /// True when the 5% minimum nose weight meets or exceeds the effective tow ball limit—no compliant loading window.
+    let isTowVehicleUnsuitable: Bool
     let isOverTowBallLimit: Bool
     let isNoseBelowRecommended: Bool
     let isNoseAboveRecommended: Bool
 
     /// True when none of the warning conditions apply (good for a green SAFE banner).
     var isOverallSafe: Bool {
-        !isOverMTPLM && !isOverTowBallLimit && !isNoseBelowRecommended && !isNoseAboveRecommended
+        !isOverMTPLM && !isTowVehicleUnsuitable && !isOverTowBallLimit && !isNoseBelowRecommended && !isNoseAboveRecommended
     }
 
     /// Progress toward MTPLM as a 0…1 fraction (capped at 1 for bar width even when over limit).
@@ -70,6 +72,8 @@ enum WeightCalculator {
         let towBallReferenceWeight = profile.noseSafeZoneReferenceWeightKg(totalLadenWeightKg: totalWeight)
         let towBallMin = towBallReferenceWeight * 0.05
         let towBallMax = towBallReferenceWeight * 0.07
+        let effectiveTowBallLimit = profile.effectiveMaxTowBallKg
+        let isTowVehicleUnsuitable = effectiveTowBallLimit > 0 && towBallMin >= effectiveTowBallLimit
 
         return WeightSummary(
             loadedWeightKg: loadedWeight,
@@ -82,7 +86,8 @@ enum WeightCalculator {
             towBallMinKg: towBallMin,
             towBallMaxKg: towBallMax,
             isOverMTPLM: profile.mtplmKg > 0 && totalWeight > profile.mtplmKg,
-            isOverTowBallLimit: profile.effectiveMaxTowBallKg > 0 && estimatedNoseWeight > profile.effectiveMaxTowBallKg,
+            isTowVehicleUnsuitable: isTowVehicleUnsuitable,
+            isOverTowBallLimit: effectiveTowBallLimit > 0 && estimatedNoseWeight > effectiveTowBallLimit,
             isNoseBelowRecommended: estimatedNoseWeight < towBallMin,
             isNoseAboveRecommended: estimatedNoseWeight > towBallMax
         )

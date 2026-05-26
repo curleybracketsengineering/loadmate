@@ -172,6 +172,7 @@ struct SummaryView: View {
     private enum CaravanStatusBannerKind {
         case safe
         case overMTPLM(reduceLoadByKg: Double)
+        case towVehicleUnsuitable
         case towBallLimitExceeded(reduceNoseByKg: Double)
         case noseBelowRecommended(increaseNoseByKg: Double)
         case noseAboveRecommended(reduceNoseByKg: Double)
@@ -181,6 +182,9 @@ struct SummaryView: View {
         if summary.isOverallSafe { return .safe }
         if summary.isOverMTPLM {
             return .overMTPLM(reduceLoadByKg: max(0, summary.totalWeightKg - profile.mtplmKg))
+        }
+        if summary.isTowVehicleUnsuitable {
+            return .towVehicleUnsuitable
         }
         if summary.isOverTowBallLimit {
             return .towBallLimitExceeded(reduceNoseByKg: max(0, summary.estimatedNoseWeightKg - profile.effectiveMaxTowBallKg))
@@ -208,6 +212,16 @@ struct SummaryView: View {
                 ],
                 background: AppColors.red,
                 accessibilitySummary: "Caravan weight limit exceeded."
+            )
+        case .towVehicleUnsuitable:
+            actionableWarningBanner(
+                title: "Tow vehicle not suitable",
+                lines: [
+                    "The 5% minimum nose weight meets or exceeds your tow ball limit",
+                    "Use a vehicle with a higher tow ball limit or a lighter caravan"
+                ],
+                background: AppColors.red,
+                accessibilitySummary: "Tow vehicle not suitable for this caravan."
             )
         case .towBallLimitExceeded(let reduceNoseByKg):
             actionableWarningBanner(
@@ -375,7 +389,7 @@ struct SummaryView: View {
                         Text(Formatters.kg(summary.estimatedNoseWeightKg))
                             .font(.largeTitle.weight(.bold))
                             .fontDesign(.rounded)
-                            .foregroundStyle(summary.isOverTowBallLimit ? AppColors.red : Color.accentColor)
+                            .foregroundStyle(summary.isOverTowBallLimit || summary.isTowVehicleUnsuitable ? AppColors.red : Color.accentColor)
                             .minimumScaleFactor(0.8)
                             .lineLimit(1)
                     }
