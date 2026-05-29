@@ -57,9 +57,10 @@ struct SettingsView: View {
                             }
                             .padding(.top, AppScreenMetrics.smallSpacing)
                         }
-                        .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                        .padding(.horizontal, AppLayout.usePadLayout ? 0 : AppScreenMetrics.horizontalPadding)
                         .padding(.top, AppScreenMetrics.verticalScreenPadding)
                         .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+                        .padReadableContent(maxWidth: PadContentLayout.settingsMaxWidth)
                     }
                     .scrollDismissesKeyboard(.interactively)
                 } else {
@@ -241,37 +242,60 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - iPad form layout
+
+    private var padSettingsColumns: [GridItem] {
+        [
+            GridItem(.flexible(minimum: 260), spacing: AppScreenMetrics.fieldSpacing),
+            GridItem(.flexible(minimum: 260), spacing: AppScreenMetrics.fieldSpacing),
+        ]
+    }
+
+    @ViewBuilder
+    private func padAdaptiveFieldStack<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        if AppLayout.usePadLayout {
+            LazyVGrid(columns: padSettingsColumns, alignment: .leading, spacing: AppScreenMetrics.fieldSpacing, content: content)
+        } else {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing, content: content)
+        }
+    }
+
+    @ViewBuilder
+    private func caravanPlateFields(_ profile: VehicleProfile) -> some View {
+        padAdaptiveFieldStack {
+            AppLabeledNumberField(
+                "MTPLM (kg)",
+                caption: "Maximum Technically Permissible Laden Mass",
+                value: binding(for: \.mtplmKg, on: profile),
+                fractionDigitsUpperBound: 0
+            )
+            AppLabeledNumberField(
+                "MIRO (kg)",
+                caption: "Mass in Running Order — used when no weighbridge weight is entered",
+                value: binding(for: \.baseWeightKg, on: profile),
+                fractionDigitsUpperBound: 0
+            )
+            AppLabeledNumberField(
+                "Weighbridge weight (kg)",
+                caption: "Actual caravan weight before trip items — used instead of MIRO when entered",
+                value: binding(for: \.weighbridgeWeightKg, on: profile),
+                fractionDigitsUpperBound: 0
+            )
+            AppLabeledNumberField(
+                "Caravan hitch limit (kg)",
+                caption: "Maximum nose weight on the caravan hitch",
+                value: binding(for: \.caravanMaxNoseKg, on: profile),
+                fractionDigitsUpperBound: 0
+            )
+        }
+    }
+
     // MARK: - Caravan
 
     @ViewBuilder
     private func caravanSettings(_ profile: VehicleProfile) -> some View {
         AppSettingsSection("Caravan", caption: "Weights from your caravan plate or handbook.") {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                AppLabeledNumberField(
-                    "MTPLM (kg)",
-                    caption: "Maximum Technically Permissible Laden Mass",
-                    value: binding(for: \.mtplmKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
-                AppLabeledNumberField(
-                    "MIRO (kg)",
-                    caption: "Mass in Running Order — used when no weighbridge weight is entered",
-                    value: binding(for: \.baseWeightKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
-                AppLabeledNumberField(
-                    "Weighbridge weight (kg)",
-                    caption: "Actual caravan weight before trip items — used instead of MIRO when entered",
-                    value: binding(for: \.weighbridgeWeightKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
-                AppLabeledNumberField(
-                    "Caravan hitch limit (kg)",
-                    caption: "Maximum nose weight on the caravan hitch",
-                    value: binding(for: \.caravanMaxNoseKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
-            }
+            caravanPlateFields(profile)
         }
 
         AppSettingsSection("Vehicle", caption: "Your car’s towing specification.") {
@@ -391,7 +415,7 @@ struct SettingsView: View {
     @ViewBuilder
     private func motorhomeSettings(_ profile: VehicleProfile) -> some View {
         AppSettingsSection("Motorhome", caption: "Limits from your vehicle plate (MAM and axle weights).") {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+            padAdaptiveFieldStack {
                 AppLabeledNumberField(
                     "MAM (kg)",
                     caption: "Maximum Authorised Mass (gross laden limit)",
@@ -417,7 +441,7 @@ struct SettingsView: View {
             "Axle weighbridge",
             caption: "For best accuracy, enter front and rear axle weights from your weighbridge ticket."
         ) {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+            padAdaptiveFieldStack {
                 AppLabeledNumberField(
                     "Front axle (kg)",
                     caption: "Measured front axle load at a known weight",

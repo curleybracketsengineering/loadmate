@@ -7,14 +7,22 @@ struct LoadPlacementPadView: View {
 
     var body: some View {
         NavigationStack {
-            HStack(alignment: .top, spacing: 0) {
-                LoadTabContent(showAddItem: $showAddItem)
-                    .frame(minWidth: 360, idealWidth: 400, maxWidth: 440)
+            HStack(spacing: 0) {
+                Spacer(minLength: PadContentLayout.horizontalGutter)
 
-                Divider()
+                HStack(alignment: .top, spacing: 0) {
+                    LoadTabContent(showAddItem: $showAddItem)
+                        .frame(width: PadContentLayout.loadColumnWidth)
 
-                PlacementPadPanel()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Divider()
+
+                    PlacementPadPanel()
+                        .frame(maxWidth: .infinity)
+                }
+                .frame(maxWidth: PadContentLayout.workspaceMaxWidth)
+                .frame(maxHeight: .infinity)
+
+                Spacer(minLength: PadContentLayout.horizontalGutter)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemGroupedBackground))

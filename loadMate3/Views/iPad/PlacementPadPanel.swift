@@ -104,6 +104,7 @@ struct PlacementPadPanel: View {
             }
             .padding(.horizontal, AppScreenMetrics.horizontalPadding)
             .padding(.vertical, AppScreenMetrics.verticalScreenPadding)
+            .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
     }

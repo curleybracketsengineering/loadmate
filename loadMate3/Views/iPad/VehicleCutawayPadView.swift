@@ -16,9 +16,10 @@ struct VehicleCutawayPadView: View {
             Image(vehicleKind.padCutawayAssetName)
                 .resizable()
                 .scaledToFit()
-                .frame(maxWidth: .infinity)
                 .accessibilityLabel(vehicleKind == .motorhome ? "Motorhome load zones" : "Caravan load zones")
         }
+        .frame(maxWidth: PadContentLayout.cutawayMaxWidth)
+        .frame(maxWidth: .infinity)
     }
 
     private var zoneChipRow: some View {
