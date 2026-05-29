@@ -34,11 +34,18 @@ struct MainTabView: View {
 
             LoadView()
                 .tag(AppTab.load)
-                .tabItem { Label("Load", systemImage: "shippingbox") }
+                .tabItem {
+                    Label(
+                        AppLayout.usePadLayout ? "Load & placement" : "Load",
+                        systemImage: "shippingbox"
+                    )
+                }
 
-            LocationView(onNavigateToLoad: { selectedTab = .load })
-                .tag(AppTab.locations)
-                .tabItem { Label("Locations", systemImage: "mappin.and.ellipse") }
+            if !AppLayout.usePadLayout {
+                LocationView(onNavigateToLoad: { selectedTab = .load })
+                    .tag(AppTab.locations)
+                    .tabItem { Label("Locations", systemImage: "mappin.and.ellipse") }
+            }
 
             ChecklistView()
                 .tag(AppTab.checklist)

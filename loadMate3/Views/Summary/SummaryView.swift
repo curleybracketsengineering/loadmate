@@ -34,6 +34,14 @@ struct SummaryView: View {
     }
 
     var body: some View {
+        if AppLayout.usePadLayout {
+            SummaryPadView()
+        } else {
+            phoneBody
+        }
+    }
+
+    private var phoneBody: some View {
         NavigationStack {
             Group {
                 if let profile = activeProfile, profile.isConfiguredForWeightCalculations {

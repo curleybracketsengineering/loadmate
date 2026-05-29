@@ -61,6 +61,14 @@ struct LocationView: View {
     }
 
     var body: some View {
+        if AppLayout.usePadLayout {
+            LocationPadRedirectView()
+        } else {
+            phoneBody
+        }
+    }
+
+    private var phoneBody: some View {
         NavigationStack {
             Group {
                 if !showsLocationWorkspace {

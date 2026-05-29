@@ -2,6 +2,22 @@ import SwiftUI
 import SwiftData
 
 struct LoadView: View {
+    var body: some View {
+        if AppLayout.usePadLayout {
+            LoadPlacementPadView()
+        } else {
+            LoadPhoneTabView()
+        }
+    }
+}
+
+struct LoadTabContent: View {
+    @Binding var showAddItem: Bool
+
+    init(showAddItem: Binding<Bool> = .constant(false)) {
+        _showAddItem = showAddItem
+    }
+
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\LibraryItem.name)]) private var libraryItems: [LibraryItem]
     @Query private var allLoadedItems: [LoadedItem]
@@ -9,7 +25,6 @@ struct LoadView: View {
     @Query private var appStates: [AppState]
 
     @StateObject private var viewModel = LoadViewModel()
-    @State private var showAddItem = false
     @State private var newName = ""
     @State private var newWeight = ""
     @State private var libraryItemEditSession: LibraryItemEditSession?
@@ -70,8 +85,7 @@ struct LoadView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
                     if showSetupBanner {
                         AppWarningBanner(message: setupBannerMessage)
                     }
@@ -211,21 +225,6 @@ struct LoadView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.systemGroupedBackground))
-            .appPrincipalTabTitle("Load")
-            .toolbar {
-                if libraryItems.isEmpty {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showAddItem = true
-                        } label: {
-                            Image(systemName: "plus.circle")
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(Color.accentColor)
-                        }
-                        .accessibilityLabel("Add item")
-                    }
-                }
-            }
             .task(id: profiles.map(\.id)) {
                 TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
             }
@@ -283,7 +282,6 @@ struct LoadView: View {
                     }
                 )
             }
-        }
     }
 
     private func commitAdd() {
@@ -342,6 +340,32 @@ struct LoadView: View {
             try modelContext.save()
         } catch {
             assertionFailure("SwiftData save failed: \(error.localizedDescription)")
+        }
+    }
+}
+
+private struct LoadPhoneTabView: View {
+    @Query(sort: [SortDescriptor(\LibraryItem.name)]) private var libraryItems: [LibraryItem]
+    @State private var showAddItem = false
+
+    var body: some View {
+        NavigationStack {
+            LoadTabContent(showAddItem: $showAddItem)
+                .appPrincipalTabTitle("Load")
+                .toolbar {
+                    if libraryItems.isEmpty {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                showAddItem = true
+                            } label: {
+                                Image(systemName: "plus.circle")
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                            .accessibilityLabel("Add item")
+                        }
+                    }
+                }
         }
     }
 }
