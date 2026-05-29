@@ -78,7 +78,7 @@ enum MotorhomeSummaryContent {
                     .font(.headline)
                     .foregroundStyle(Color.primary)
 
-                Text("Entered on the Load tab for this trip. Not estimated from item positions.")
+                Text("Entered on the Load tab for this trip. Included in rear axle and gross weight; not estimated from item positions.")
                     .font(.caption)
                     .foregroundStyle(AppColors.textSupporting)
                     .fixedSize(horizontal: false, vertical: true)

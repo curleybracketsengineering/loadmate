@@ -490,7 +490,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("I have a tow bar")
                             .font(.subheadline.weight(.medium))
-                        Text("Show a Tow bar field on the Load tab. Enter the measured downforce per trip — the app does not estimate it.")
+                        Text("Show a Tow bar field on the Load tab. Enter the measured downforce per trip — the app adds it to rear axle and gross weight; it does not estimate it.")
                             .font(.caption)
                             .foregroundStyle(AppColors.textSupporting)
                             .fixedSize(horizontal: false, vertical: true)
@@ -516,13 +516,12 @@ struct SettingsView: View {
     private func motorhomeWeightFactors(_ profile: VehicleProfile) -> some View {
         AppCollapsibleSettingsSection(
             "Axle load factors",
-            caption: "Kg added to each axle per kg of item. Front is above the front axle; Back above the rear; Garage and bike rack behind the rear.",
+            caption: "Kg added to each axle per kg of item. Cab ahead of the front axle; Middle between axles; Rear above the rear; Garage and bike rack behind the rear.",
             isExpanded: $isWeightFactorsExpanded
         ) {
             motorhomeFactorPair(profile, zone: "Cab (ahead of front axle)", front: \.mhFactorDriverFront, rear: \.mhFactorDriverRear)
-            motorhomeFactorPair(profile, zone: "Front (above front axle)", front: \.mhFactorFrontFront, rear: \.mhFactorFrontRear)
-            motorhomeFactorPair(profile, zone: "Central (between axles)", front: \.mhFactorCentralFront, rear: \.mhFactorCentralRear)
-            motorhomeFactorPair(profile, zone: "Back (above rear axle)", front: \.mhFactorBackFront, rear: \.mhFactorBackRear)
+            motorhomeFactorPair(profile, zone: "Middle (between axles)", front: \.mhFactorCentralFront, rear: \.mhFactorCentralRear)
+            motorhomeFactorPair(profile, zone: "Rear (above rear axle)", front: \.mhFactorBackFront, rear: \.mhFactorBackRear)
             motorhomeFactorPair(profile, zone: "Garage (behind rear axle)", front: \.mhFactorGarageFront, rear: \.mhFactorGarageRear)
             motorhomeFactorPair(profile, zone: "Bike rack (rear overhang)", front: \.mhFactorBikeRackFront, rear: \.mhFactorBikeRackRear)
 

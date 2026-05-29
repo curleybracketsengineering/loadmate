@@ -5,9 +5,12 @@ struct CaravanPositionMapView: View {
     let vehicleKind: VehicleKind
     let zoneWeightsKg: [LoadZone: Double]
     let onDropAssign: ((LoadZone, UUID) -> Void)?
-    /// Inline beside “Caravan Position Map” title; ignored for motorhome.
+    /// Inline beside “Caravan Position Map” title.
     var caravanEstimatedTowBarKg: Double? = nil
     var caravanTowBarUsesWarningColor: Bool = false
+    /// Shown on the motorhome map hitch column (trip value from Load tab).
+    var motorhomeTowBarLoadKg: Double? = nil
+    var motorhomeTowBarUsesWarningColor: Bool = false
 
     @State private var dropTargetZone: LoadZone?
 
@@ -40,7 +43,7 @@ struct CaravanPositionMapView: View {
 
             if vehicleKind == .motorhome {
                 motorhomeOutline
-                Text("Wheels under Front and Back show axle positions.")
+                Text("Wheels under Cab and Rear show axle positions.")
                     .font(.caption2)
                     .foregroundStyle(AppColors.textSupporting)
             } else {
@@ -61,14 +64,20 @@ struct CaravanPositionMapView: View {
 
     // MARK: - Motorhome
 
+    private var showsMotorhomeTowBarColumn: Bool {
+        vehicleKind == .motorhome && (motorhomeTowBarLoadKg ?? 0) > 0
+    }
+
     private var motorhomeOutline: some View {
         HStack(alignment: .top, spacing: 3) {
-            motorhomeColumn(zone: .driver)
-            motorhomeColumn(zone: .front, showFrontAxle: true)
+            motorhomeColumn(zone: .driver, showFrontAxle: true)
             motorhomeColumn(zone: .central)
             motorhomeColumn(zone: .back, showRearAxle: true)
             motorhomeColumn(zone: .garage)
             motorhomeColumn(zone: .bikeRack)
+            if showsMotorhomeTowBarColumn, let kg = motorhomeTowBarLoadKg {
+                motorhomeTowBarColumn(kg: kg)
+            }
         }
         .padding(10)
         .background(
@@ -85,6 +94,40 @@ struct CaravanPositionMapView: View {
         VStack(spacing: 4) {
             motorhomeZoneBox(zone)
             motorhomeAxleSlot(showFrontAxle: showFrontAxle, showRearAxle: showRearAxle)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func motorhomeTowBarColumn(kg: Double) -> some View {
+        VStack(spacing: 4) {
+            VStack(spacing: 2) {
+                Text("Tow bar")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.orange)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Text(Formatters.kg(kg))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(motorhomeTowBarUsesWarningColor ? AppColors.red : Color.primary)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.65)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: motorhomeZoneBoxHeight)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(AppColors.orange.opacity(0.32))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(AppColors.orange.opacity(0.55), lineWidth: 1)
+            }
+            .accessibilityLabel("Tow bar, \(Formatters.kg(kg))")
+
+            Color.clear
+                .frame(height: motorhomeAxleSlotHeight)
         }
         .frame(maxWidth: .infinity)
     }
@@ -254,7 +297,7 @@ struct CaravanPositionMapView: View {
         }
         .accessibilityLabel(
             vehicleKind == .motorhome
-                ? "Axle load impact scale. Front is above the front axle; Back above the rear; Gar. and Bike behind the rear axle."
+                ? "Axle load impact scale. Middle is between the axles; Rear above the rear axle; Gar. and Bike behind the rear axle."
                 : "Nose weight impact scale. Front zones increase nose weight; rear zones decrease it."
         )
     }

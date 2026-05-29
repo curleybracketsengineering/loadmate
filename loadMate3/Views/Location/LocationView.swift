@@ -41,17 +41,29 @@ struct LocationView: View {
 
     private var motorhomeSummary: MotorhomeWeightSummary? {
         guard let profile = activeProfile, profile.kind == .motorhome else { return nil }
-        return MotorhomeWeightCalculator.summary(profile: profile, loadedItems: loadedItems)
+        return MotorhomeWeightCalculator.summary(profile: profile, loadedItems: loadedItems, trip: activeTrip)
     }
 
     private var zoneWeightsKg: [LoadZone: Double] {
         LocationZoneWeights.totals(for: loadedItems, kind: activeProfile?.kind ?? .caravan)
     }
 
+    /// Tow bar is entered per trip on Load; it is not a `LoadedItem` but still belongs on the map.
+    private var hasMotorhomeTowBarLoad: Bool {
+        guard let profile = activeProfile,
+              profile.kind == .motorhome,
+              profile.usesManualTowBarLoad else { return false }
+        return (activeTrip?.manualTowBarLoadKg ?? 0) > 0
+    }
+
+    private var showsLocationWorkspace: Bool {
+        !loadedItems.isEmpty || hasMotorhomeTowBarLoad
+    }
+
     var body: some View {
         NavigationStack {
             Group {
-                if loadedItems.isEmpty {
+                if !showsLocationWorkspace {
                     LocationEmptyStateView(
                         tripName: activeTrip?.name,
                         onAddItems: onNavigateToLoad
@@ -79,7 +91,9 @@ struct LocationView: View {
                                     mapAndWeightSection(profile: profile)
                                 }
 
-                                assignItemsSection
+                                if !loadedItems.isEmpty {
+                                    assignItemsSection
+                                }
                             }
                             .padding(.horizontal, AppScreenMetrics.horizontalPadding)
                             .padding(.top, AppScreenMetrics.verticalScreenPadding)
@@ -143,7 +157,7 @@ struct LocationView: View {
 
     private var locationsHelpMessage: String {
         if activeProfile?.kind == .motorhome {
-            return "Front is above the front axle; Back above the rear; Garage and bike rack behind the rear. Stay within plated axle and garage limits."
+            return "Cab is ahead of the front axle; Middle between the axles; Rear above the rear; Garage and bike rack behind the rear. Stay within plated axle and garage limits."
         }
         return "Where you place each item shifts estimated tow bar (nose) weight. Front zones tend to increase it; rear zones tend to decrease it. Stay within your car’s tow ball limit."
     }
@@ -159,6 +173,7 @@ struct LocationView: View {
         let summary = caravanSummary
         let towBarWarning = summary.map { $0.isOverTowBallLimit || $0.isTowVehicleUnsuitable } ?? false
 
+        let mhSummary = motorhomeSummary
         let map = CaravanPositionMapView(
             vehicleKind: profile.kind,
             zoneWeightsKg: zoneWeightsKg,
@@ -167,7 +182,11 @@ struct LocationView: View {
                 viewModel.updateZone(for: loaded, to: zone, in: modelContext)
             },
             caravanEstimatedTowBarKg: profile.kind == .caravan ? summary?.estimatedNoseWeightKg : nil,
-            caravanTowBarUsesWarningColor: profile.kind == .caravan ? towBarWarning : false
+            caravanTowBarUsesWarningColor: profile.kind == .caravan ? towBarWarning : false,
+            motorhomeTowBarLoadKg: profile.kind == .motorhome && profile.usesManualTowBarLoad
+                ? mhSummary?.towBarLoadKg
+                : nil,
+            motorhomeTowBarUsesWarningColor: mhSummary?.isOverTowBarLimit ?? false
         )
 
         switch profile.kind {

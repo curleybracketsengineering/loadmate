@@ -70,7 +70,7 @@ enum MotorhomeWeightCalculator {
         let z = zone.calculationZone(for: .motorhome)
         switch z {
         case .driver: return (profile.mhFactorDriverFront, profile.mhFactorDriverRear)
-        case .front: return (profile.mhFactorFrontFront, profile.mhFactorFrontRear)
+        case .front: return (profile.mhFactorCentralFront, profile.mhFactorCentralRear)
         case .central: return (profile.mhFactorCentralFront, profile.mhFactorCentralRear)
         case .back: return (profile.mhFactorBackFront, profile.mhFactorBackRear)
         case .garage: return (profile.mhFactorGarageFront, profile.mhFactorGarageRear)
@@ -106,8 +106,6 @@ enum MotorhomeWeightCalculator {
             return sum + (weight * Double(max(loaded.quantity, 0)))
         }
 
-        let totalWeight = profile.calculationBaseWeightKg + loadedWeight
-        let availableGross = profile.mtplmKg - totalWeight
         let garageLoaded = garageLoadedMassKg(from: loadedItems, profile: profile)
 
         var frontImpact = 0.0
@@ -119,17 +117,28 @@ enum MotorhomeWeightCalculator {
             rearImpact += mass * factors.rear
         }
 
+        let monitorsTowBar = profile.usesManualTowBarLoad
+        let towBarLoad = monitorsTowBar ? max(0, trip?.manualTowBarLoadKg ?? 0) : 0
+        let towBarMissing = monitorsTowBar && towBarLoad <= 0
+        let overTowBar = profile.maxTowBarKg > 0 && towBarLoad > profile.maxTowBarKg
+
+        // Hitch downforce loads the rear axle and counts toward laden gross mass.
+        if towBarLoad > 0 {
+            rearImpact += towBarLoad
+        }
+
+        var totalWeight = profile.calculationBaseWeightKg + loadedWeight
+        if towBarLoad > 0 {
+            totalWeight += towBarLoad
+        }
+        let availableGross = profile.mtplmKg - totalWeight
+
         let frontBase = profile.baselineFrontAxleKg
         let rearBase = profile.baselineRearAxleKg
         let estimatedFront = frontBase + frontImpact
         let estimatedRear = rearBase + rearImpact
 
         let overGarage = profile.maxGarageKg > 0 && garageLoaded > profile.maxGarageKg
-
-        let monitorsTowBar = profile.usesManualTowBarLoad
-        let towBarLoad = monitorsTowBar ? max(0, trip?.manualTowBarLoadKg ?? 0) : 0
-        let towBarMissing = monitorsTowBar && towBarLoad <= 0
-        let overTowBar = profile.maxTowBarKg > 0 && towBarLoad > profile.maxTowBarKg
 
         return MotorhomeWeightSummary(
             loadedWeightKg: loadedWeight,

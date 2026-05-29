@@ -329,7 +329,7 @@ struct LoadView: View {
                     fractionDigitsUpperBound: 0
                 )
 
-                Text("Enter the measured tow bar downforce for this trip. The app uses this value for tow bar limit checks.")
+                Text("Enter the measured tow bar downforce for this trip. The app adds this to rear axle and gross weight estimates, and checks your tow bar limit.")
                     .font(.caption)
                     .foregroundStyle(AppColors.textSupporting)
                     .fixedSize(horizontal: false, vertical: true)

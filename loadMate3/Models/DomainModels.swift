@@ -195,7 +195,7 @@ final class VehicleProfile {
     }
 
     /// Per-kg factors: how much each kg in a zone adds to front vs rear axle estimates.
-    /// Front zone sits above the front axle; Back above the rear axle; Garage and bike rack behind the rear axle.
+    /// Cab ahead of the front axle; Middle between axles; Rear above the rear axle; Garage and bike rack behind the rear axle.
     static func applyMotorhomeFactorDefaults(to profile: VehicleProfile) {
         profile.mhFactorDriverFront = 0.75
         profile.mhFactorDriverRear = 0.15

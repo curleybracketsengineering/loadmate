@@ -342,6 +342,24 @@ struct AppBoundedNumberField: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Unsigned weight fields accept zero (unset) but not negatives; factors may be signed.
+    private func boundedNumericValue(from parsed: Double) -> Double {
+        let rounded: Double
+        if integerWeightsOnly {
+            rounded = parsed.rounded(.toNearestOrAwayFromZero)
+        } else {
+            rounded = parsed
+        }
+        guard !allowsSigned else { return rounded }
+        return max(0, rounded)
+    }
+
+    /// Drop minus signs from draft text for unsigned fields (paste / external keyboard).
+    private func unsignedDraftText(from raw: String) -> String {
+        guard !allowsSigned else { return raw }
+        return raw.replacingOccurrences(of: "-", with: "")
+    }
+
     /// Sync bound value while the user is editing (allows empty text → 0 for unset weights).
     private func applyTextToValue() {
         let compact = compactNumericString(text)
@@ -349,21 +367,20 @@ struct AppBoundedNumberField: View {
             value = 0
             return
         }
-        if compact == "-" || compact == "." || compact == "-." {
+        if allowsSigned, compact == "-" || compact == "." || compact == "-." {
+            return
+        }
+        if !allowsSigned, compact == "." {
             return
         }
         guard let parsed = Double(compact) else { return }
-        if integerWeightsOnly {
-            value = parsed.rounded(.toNearestOrAwayFromZero)
-        } else {
-            value = parsed
-        }
+        value = boundedNumericValue(from: parsed)
     }
 
     /// Normalize display when focus ends.
     private func commitEditing() {
         let compact = compactNumericString(text)
-        if compact.isEmpty || compact == "-" || compact == "." || compact == "-." {
+        if compact.isEmpty || compact == "." || (allowsSigned && (compact == "-" || compact == "-.")) {
             value = 0
             text = formatForDisplay(0)
             return
@@ -372,12 +389,7 @@ struct AppBoundedNumberField: View {
             text = formatForDisplay(value)
             return
         }
-        let finalValue: Double
-        if integerWeightsOnly {
-            finalValue = parsed.rounded(.toNearestOrAwayFromZero)
-        } else {
-            finalValue = parsed
-        }
+        let finalValue = boundedNumericValue(from: parsed)
         value = finalValue
         text = formatForDisplay(finalValue)
     }
@@ -400,14 +412,27 @@ struct AppBoundedNumberField: View {
             }
             .animation(.spring(response: 0.35), value: focused)
             .onAppear {
+                if !allowsSigned, value < 0 {
+                    value = 0
+                }
                 text = formatForDisplay(value)
             }
             .onChange(of: value) { _, newValue in
                 guard !focused else { return }
-                text = formatForDisplay(newValue)
+                let displayValue = allowsSigned ? newValue : max(0, newValue)
+                if displayValue != newValue {
+                    value = displayValue
+                    return
+                }
+                text = formatForDisplay(displayValue)
             }
-            .onChange(of: text) { _, _ in
+            .onChange(of: text) { _, newText in
                 guard focused else { return }
+                let sanitized = unsignedDraftText(from: newText)
+                if sanitized != newText {
+                    text = sanitized
+                    return
+                }
                 applyTextToValue()
             }
             .onChange(of: focused) { wasFocused, isFocused in
