@@ -98,6 +98,8 @@ final class VehicleProfile {
     var factorMiddle: Double
     var factorRear: Double
     var factorBikeRack: Double
+    /// Rear bike rack fitted — controls placement art and whether the bike rack zone is offered.
+    var hasBikeRack: Bool
 
     // MARK: Motorhome axle weighbridge & limits
 
@@ -158,6 +160,7 @@ final class VehicleProfile {
         self.factorMiddle = 0.0
         self.factorRear = -0.20
         self.factorBikeRack = -0.35
+        self.hasBikeRack = false
         self.weighbridgeFrontAxleKg = 0
         self.weighbridgeRearAxleKg = 0
         self.axleSplitFrontPercent = 45
@@ -213,6 +216,33 @@ final class VehicleProfile {
 }
 
 extension VehicleProfile {
+    /// iPad cutaway asset for the active vehicle configuration.
+    var padCutawayAssetName: String {
+        switch kind {
+        case .caravan:
+            return hasBikeRack ? "caravanAndBike" : "Caravan"
+        case .motorhome:
+            switch (usesManualTowBarLoad, hasBikeRack) {
+            case (true, true): return "MotorhomeTowBike"
+            case (true, false): return "MotorhomeTow"
+            case (false, true): return "MotorhomeBike"
+            case (false, false): return "Motorhome"
+            }
+        }
+    }
+
+    /// Zone chips left-to-right above the iPad cutaway (front/cab on the left, rear on the right).
+    var padZoneDisplayOrder: [LoadZone] {
+        switch kind {
+        case .caravan:
+            let zones: [LoadZone] = [.frontLocker, .front, .middle, .rear, .bikeRack]
+            return hasBikeRack ? zones : zones.filter { $0 != .bikeRack }
+        case .motorhome:
+            let zones: [LoadZone] = [.driver, .central, .back, .garage, .bikeRack]
+            return hasBikeRack ? zones : zones.filter { $0 != .bikeRack }
+        }
+    }
+
     /// Wording for garage limit UI when monitoring rear storage.
     var garageLimitSourcesLabel: String {
         garageLimitIncludesBikeRack ? "Garage and bike rack" : "Garage only"

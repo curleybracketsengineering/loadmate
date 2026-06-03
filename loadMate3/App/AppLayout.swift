@@ -43,26 +43,6 @@ extension View {
     }
 }
 
-extension VehicleKind {
-    /// Asset catalog name for the iPad cutaway illustration.
-    var padCutawayAssetName: String {
-        switch self {
-        case .caravan: return "Caravan"
-        case .motorhome: return "Motorhome"
-        }
-    }
-
-    /// Zone chips left-to-right above the cutaway (matches mockup artwork).
-    var padZoneDisplayOrder: [LoadZone] {
-        switch self {
-        case .caravan:
-            return [.bikeRack, .rear, .middle, .front, .frontLocker]
-        case .motorhome:
-            return [.bikeRack, .garage, .back, .central, .driver]
-        }
-    }
-}
-
 extension LoadZone {
     /// Short label on iPad zone chips (motorhome garage shown as “Boot” per mockup).
     func padChipTitle(for kind: VehicleKind) -> String {

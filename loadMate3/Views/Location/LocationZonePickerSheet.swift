@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LocationZonePickerSheet: View {
     let vehicleKind: VehicleKind
+    var profile: VehicleProfile?
     let itemTitle: String
     let selectedZone: LoadZone
     let onSelect: (LoadZone) -> Void
@@ -11,7 +12,7 @@ struct LocationZonePickerSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(LoadZone.pickerZones(for: vehicleKind)) { zone in
+                ForEach(LoadZone.pickerZones(for: vehicleKind, profile: profile)) { zone in
                     Button {
                         onSelect(zone)
                         dismiss()

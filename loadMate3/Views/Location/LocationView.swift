@@ -45,7 +45,7 @@ struct LocationView: View {
     }
 
     private var zoneWeightsKg: [LoadZone: Double] {
-        LocationZoneWeights.totals(for: loadedItems, kind: activeProfile?.kind ?? .caravan)
+        LocationZoneWeights.totals(for: loadedItems, kind: activeProfile?.kind ?? .caravan, profile: activeProfile)
     }
 
     /// Tow bar is entered per trip on Load; it is not a `LoadedItem` but still belongs on the map.
@@ -148,6 +148,7 @@ struct LocationView: View {
             .sheet(item: $zonePickerItem) { loaded in
                 LocationZonePickerSheet(
                     vehicleKind: activeProfile?.kind ?? .caravan,
+                    profile: activeProfile,
                     itemTitle: title(for: loaded),
                     selectedZone: loaded.zone,
                     onSelect: { zone in
@@ -184,6 +185,7 @@ struct LocationView: View {
         let mhSummary = motorhomeSummary
         let map = CaravanPositionMapView(
             vehicleKind: profile.kind,
+            profile: profile,
             zoneWeightsKg: zoneWeightsKg,
             onDropAssign: { zone, loadedItemID in
                 guard let loaded = loadedItems.first(where: { $0.id == loadedItemID }) else { return }

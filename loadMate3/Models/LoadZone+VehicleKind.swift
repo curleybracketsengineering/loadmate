@@ -9,8 +9,12 @@ extension LoadZone {
 
     static let motorhomePickerZones: [LoadZone] = [.driver, .central, .back, .garage, .bikeRack]
 
-    static func pickerZones(for kind: VehicleKind) -> [LoadZone] {
-        kind == .motorhome ? motorhomePickerZones : caravanPickerZones
+    static func pickerZones(for kind: VehicleKind, profile: VehicleProfile? = nil) -> [LoadZone] {
+        var zones = kind == .motorhome ? motorhomePickerZones : caravanPickerZones
+        if let profile, !profile.hasBikeRack {
+            zones = zones.filter { $0 != .bikeRack }
+        }
+        return zones
     }
 
     /// Zone used for weight distribution math when the user has not assigned a location.
@@ -114,12 +118,26 @@ extension LoadZone {
 
     var chipAccentColor: Color {
         switch self {
-        case .frontLocker, .driver: AppColors.blue
-        case .front: Color(red: 0.58, green: 0.29, blue: 0.91)
-        case .middle, .central: Color(red: 1.0, green: 0.27, blue: 0.45)
+        case .frontLocker, .driver: AppColors.pink
+        case .front: AppColors.orange
+        case .middle, .central: AppColors.blue
         case .rear, .back: AppColors.orange
-        case .bikeRack, .garage: AppColors.green
+        case .garage: AppColors.green
+        case .bikeRack: AppColors.purple
         case .unassigned: Color.secondary
+        }
+    }
+
+    /// Pastel fill behind zone labels (matches cutaway band colours on white).
+    var chipPastelFill: Color {
+        switch self {
+        case .frontLocker, .driver: AppColors.zonePastelPink
+        case .front: AppColors.zonePastelOrange
+        case .middle, .central: AppColors.zonePastelBlue
+        case .rear, .back: AppColors.zonePastelOrange
+        case .garage: AppColors.zonePastelGreen
+        case .bikeRack: AppColors.zonePastelPurple
+        case .unassigned: Color.secondary.opacity(0.12)
         }
     }
 }

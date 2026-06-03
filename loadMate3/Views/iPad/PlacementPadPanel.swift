@@ -25,7 +25,7 @@ struct PlacementPadPanel: View {
     }
 
     private var zoneWeightsKg: [LoadZone: Double] {
-        LocationZoneWeights.totals(for: loadedItems, kind: activeProfile?.kind ?? .caravan)
+        LocationZoneWeights.totals(for: loadedItems, kind: activeProfile?.kind ?? .caravan, profile: activeProfile)
     }
 
     private var motorhomeSummary: MotorhomeWeightSummary? {
@@ -63,6 +63,7 @@ struct PlacementPadPanel: View {
         .sheet(item: $zonePickerItem) { loaded in
             LocationZonePickerSheet(
                 vehicleKind: activeProfile?.kind ?? .caravan,
+                profile: activeProfile,
                 itemTitle: title(for: loaded),
                 selectedZone: loaded.zone,
                 onSelect: { zone in
@@ -95,7 +96,7 @@ struct PlacementPadPanel: View {
                 }
 
                 VehicleCutawayPadView(
-                    vehicleKind: profile.kind,
+                    profile: profile,
                     zoneWeightsKg: zoneWeightsKg,
                     overLimitZones: overLimitZones
                 )

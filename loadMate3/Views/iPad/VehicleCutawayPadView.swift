@@ -2,21 +2,21 @@ import SwiftUI
 
 /// iPad placement illustration with live zone weight chips (asset-backed cutaway).
 struct VehicleCutawayPadView: View {
-    let vehicleKind: VehicleKind
+    let profile: VehicleProfile
     let zoneWeightsKg: [LoadZone: Double]
     var overLimitZones: Set<LoadZone> = []
 
     private var displayZones: [LoadZone] {
-        vehicleKind.padZoneDisplayOrder
+        profile.padZoneDisplayOrder
     }
 
     var body: some View {
         VStack(spacing: AppScreenMetrics.fieldSpacing) {
             zoneChipRow
-            Image(vehicleKind.padCutawayAssetName)
+            Image(profile.padCutawayAssetName)
                 .resizable()
                 .scaledToFit()
-                .accessibilityLabel(vehicleKind == .motorhome ? "Motorhome load zones" : "Caravan load zones")
+                .accessibilityLabel(profile.kind == .motorhome ? "Motorhome load zones" : "Caravan load zones")
         }
         .frame(maxWidth: PadContentLayout.cutawayMaxWidth)
         .frame(maxWidth: .infinity)
@@ -26,9 +26,10 @@ struct VehicleCutawayPadView: View {
         HStack(spacing: AppScreenMetrics.controlSpacing) {
             ForEach(displayZones, id: \.self) { zone in
                 PadZoneChip(
-                    title: zone.padChipTitle(for: vehicleKind),
+                    title: zone.padChipTitle(for: profile.kind),
                     weightKg: zoneWeightsKg[zone] ?? 0,
                     accent: zone.chipAccentColor,
+                    fill: zone.chipPastelFill,
                     isOverLimit: overLimitZones.contains(zone)
                 )
                 .frame(maxWidth: .infinity)
@@ -41,6 +42,7 @@ private struct PadZoneChip: View {
     let title: String
     let weightKg: Double
     let accent: Color
+    let fill: Color
     let isOverLimit: Bool
 
     var body: some View {
@@ -63,7 +65,7 @@ private struct PadZoneChip: View {
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(accent.opacity(0.12))
+                .fill(fill)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)

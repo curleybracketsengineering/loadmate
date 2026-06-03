@@ -38,6 +38,14 @@ enum AppColors {
     static let indigo = Color(hex: 0x5856D6)
     static let teal = Color(hex: 0x5AC8FA)
     static let pink = Color(hex: 0xFF2D55)
+    static let purple = Color(hex: 0xAF52DE)
+
+    // Zone chip pastels (accent at 12% on white — matches iPad cutaway artwork)
+    static let zonePastelBlue = Color(hex: 0xE0EFFF)
+    static let zonePastelOrange = Color(hex: 0xFFEDE0)
+    static let zonePastelPink = Color(hex: 0xFFE5EA)
+    static let zonePastelPurple = Color(hex: 0xF7E9FF)
+    static let zonePastelGreen = Color(hex: 0xEDFAEB)
 
     // Inline notice (e.g. configure settings)
     static let warningBannerBackground = Color.dynamic(light: 0xFFF3CD, dark: 0x3D3500)

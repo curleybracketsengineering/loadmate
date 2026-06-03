@@ -295,7 +295,21 @@ struct SettingsView: View {
     @ViewBuilder
     private func caravanSettings(_ profile: VehicleProfile) -> some View {
         AppSettingsSection("Caravan", caption: "Weights from your caravan plate or handbook.") {
-            caravanPlateFields(profile)
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                caravanPlateFields(profile)
+                Toggle(isOn: boolBinding(for: \.hasBikeRack, on: profile)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Bike rack fitted")
+                            .font(.subheadline.weight(.medium))
+                        Text(profile.hasBikeRack
+                            ? "Shows the bike rack on the placement map and offers the bike rack location when assigning items."
+                            : "Shows your caravan without a rear rack. The bike rack location is hidden.")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                    }
+                }
+                .tint(Color.accentColor)
+            }
         }
 
         AppSettingsSection("Vehicle", caption: "Your car’s towing specification.") {
@@ -402,7 +416,9 @@ struct SettingsView: View {
             AppFactorField(accentTitle: "Front", caption: "Forward seating and storage", value: binding(for: \.factorFront, on: profile))
             AppFactorField(accentTitle: "Middle", caption: "Over or near the axle", value: binding(for: \.factorMiddle, on: profile))
             AppFactorField(accentTitle: "Back", caption: "Rear cupboards and under bed", value: binding(for: \.factorRear, on: profile))
-            AppFactorField(accentTitle: "Bike Rack", caption: "Bumper or rack behind axle", value: binding(for: \.factorBikeRack, on: profile))
+            if profile.hasBikeRack {
+                AppFactorField(accentTitle: "Bike Rack", caption: "Bumper or rack behind axle", value: binding(for: \.factorBikeRack, on: profile))
+            }
 
             AppSecondaryButton("Reset weight factors to defaults") {
                 viewModel.resetCaravanFactors(profile: profile, in: modelContext)
@@ -502,6 +518,19 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(AppColors.textSupporting)
                     .fixedSize(horizontal: false, vertical: true)
+
+                Toggle(isOn: boolBinding(for: \.hasBikeRack, on: profile)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Bike rack fitted")
+                            .font(.subheadline.weight(.medium))
+                        Text(profile.hasBikeRack
+                            ? "Shows the bike rack on the placement map and offers the bike rack location when assigning items."
+                            : "Shows your motorhome without a rear rack. The bike rack location is hidden.")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                    }
+                }
+                .tint(Color.accentColor)
             }
         }
 
@@ -547,7 +576,9 @@ struct SettingsView: View {
             motorhomeFactorPair(profile, zone: "Middle (between axles)", front: \.mhFactorCentralFront, rear: \.mhFactorCentralRear)
             motorhomeFactorPair(profile, zone: "Rear (above rear axle)", front: \.mhFactorBackFront, rear: \.mhFactorBackRear)
             motorhomeFactorPair(profile, zone: "Garage (behind rear axle)", front: \.mhFactorGarageFront, rear: \.mhFactorGarageRear)
-            motorhomeFactorPair(profile, zone: "Bike rack (rear overhang)", front: \.mhFactorBikeRackFront, rear: \.mhFactorBikeRackRear)
+            if profile.hasBikeRack {
+                motorhomeFactorPair(profile, zone: "Bike rack (rear overhang)", front: \.mhFactorBikeRackFront, rear: \.mhFactorBikeRackRear)
+            }
 
             AppSecondaryButton("Reset axle factors to defaults") {
                 viewModel.resetMotorhomeFactors(profile: profile, in: modelContext)

@@ -23,7 +23,7 @@ struct SummaryView: View {
     private var refreshToken: String {
         let tripSignature = activeTrip.map { "\($0.id)-\($0.name)-\($0.manualTowBarLoadKg)" } ?? "no-trip"
         let profileSignature = activeProfile.map { profile in
-            "\(profile.id)-\(profile.kindRaw)-\(profile.baseWeightKg)-\(profile.weighbridgeWeightKg)-\(profile.mtplmKg)-\(profile.maxFrontAxleKg)-\(profile.maxRearAxleKg)-\(profile.maxGarageKg)-\(profile.garageLimitIncludesBikeRack)-\(profile.usesManualTowBarLoad)-\(profile.maxTowBarKg)-\(profile.weighbridgeFrontAxleKg)-\(profile.weighbridgeRearAxleKg)"
+            "\(profile.id)-\(profile.kindRaw)-\(profile.baseWeightKg)-\(profile.weighbridgeWeightKg)-\(profile.mtplmKg)-\(profile.maxFrontAxleKg)-\(profile.maxRearAxleKg)-\(profile.maxGarageKg)-\(profile.garageLimitIncludesBikeRack)-\(profile.hasBikeRack)-\(profile.usesManualTowBarLoad)-\(profile.maxTowBarKg)-\(profile.weighbridgeFrontAxleKg)-\(profile.weighbridgeRearAxleKg)"
         } ?? "no-profile"
 
         let itemSignature = profileLoadedItems.map {

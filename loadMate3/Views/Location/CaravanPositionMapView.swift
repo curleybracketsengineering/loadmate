@@ -3,6 +3,7 @@ import SwiftUI
 /// Top-down vehicle zones and per-zone loaded mass.
 struct CaravanPositionMapView: View {
     let vehicleKind: VehicleKind
+    var profile: VehicleProfile?
     let zoneWeightsKg: [LoadZone: Double]
     let onDropAssign: ((LoadZone, UUID) -> Void)?
     /// Inline beside “Caravan Position Map” title.
@@ -15,7 +16,7 @@ struct CaravanPositionMapView: View {
     @State private var dropTargetZone: LoadZone?
 
     private var zones: [LoadZone] {
-        LoadZone.pickerZones(for: vehicleKind)
+        LoadZone.pickerZones(for: vehicleKind, profile: profile)
     }
 
     /// Equal zone box + axle slot so every column lines up.
@@ -68,13 +69,19 @@ struct CaravanPositionMapView: View {
         vehicleKind == .motorhome && (motorhomeTowBarLoadKg ?? 0) > 0
     }
 
+    private var motorhomeMapZones: [LoadZone] {
+        LoadZone.pickerZones(for: .motorhome, profile: profile)
+    }
+
     private var motorhomeOutline: some View {
         HStack(alignment: .top, spacing: 3) {
-            motorhomeColumn(zone: .driver, showFrontAxle: true)
-            motorhomeColumn(zone: .central)
-            motorhomeColumn(zone: .back, showRearAxle: true)
-            motorhomeColumn(zone: .garage)
-            motorhomeColumn(zone: .bikeRack)
+            ForEach(motorhomeMapZones) { zone in
+                motorhomeColumn(
+                    zone: zone,
+                    showFrontAxle: zone == .driver,
+                    showRearAxle: zone == .back
+                )
+            }
             if showsMotorhomeTowBarColumn, let kg = motorhomeTowBarLoadKg {
                 motorhomeTowBarColumn(kg: kg)
             }
@@ -304,8 +311,12 @@ struct CaravanPositionMapView: View {
 }
 
 enum LocationZoneWeights {
-    static func totals(for loadedItems: [LoadedItem], kind: VehicleKind) -> [LoadZone: Double] {
-        let zones = LoadZone.pickerZones(for: kind)
+    static func totals(
+        for loadedItems: [LoadedItem],
+        kind: VehicleKind,
+        profile: VehicleProfile? = nil
+    ) -> [LoadZone: Double] {
+        let zones = LoadZone.pickerZones(for: kind, profile: profile)
         var totals = Dictionary(uniqueKeysWithValues: zones.map { ($0, 0.0) })
         for loaded in loadedItems {
             let zone = loaded.zone.calculationZone(for: kind)
