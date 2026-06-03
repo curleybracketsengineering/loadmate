@@ -69,6 +69,22 @@ struct ChecklistView: View {
                     description: Text("Add a section to build your towing and pitching checklists. Each section can contain subgroups and checklist items.")
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if AppLayout.usePadLayout {
+                ChecklistPadLayout(
+                    sections: sections,
+                    viewModel: viewModel,
+                    showAddSection: $showAddSection,
+                    sectionPendingRename: $sectionPendingRename,
+                    renameField: $renameField,
+                    sectionPendingSubgroup: $sectionPendingSubgroup,
+                    newSubgroupTitle: $newSubgroupTitle,
+                    groupPendingRename: $groupPendingRename,
+                    subgroupRenameField: $subgroupRenameField,
+                    groupPendingItem: $groupPendingItem,
+                    newItemTitle: $newItemTitle,
+                    itemPendingRename: $itemPendingRename,
+                    itemRenameField: $itemRenameField
+                )
             } else {
                 ScrollView {
                     checklistSectionsList
@@ -76,8 +92,7 @@ struct ChecklistView: View {
             }
         }
         .appScreenBackground()
-        // Inline + principal title avoids scroll glitches with expanding checklist cards.
-        .appPrincipalTabTitle("Checklist")
+        .modifier(ChecklistNavigationTitleModifier(usePadLayout: AppLayout.usePadLayout))
         .alert("How to use the checklist", isPresented: $showChecklistHelp) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -406,6 +421,21 @@ struct ChecklistView: View {
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+        }
+    }
+}
+
+private struct ChecklistNavigationTitleModifier: ViewModifier {
+    let usePadLayout: Bool
+
+    func body(content: Content) -> some View {
+        if usePadLayout {
+            content
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
+        } else {
+            // Inline + principal title avoids scroll glitches with expanding checklist cards.
+            content.appPrincipalTabTitle("Checklist")
         }
     }
 }
