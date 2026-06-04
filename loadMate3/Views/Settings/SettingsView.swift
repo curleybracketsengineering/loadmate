@@ -154,6 +154,7 @@ struct SettingsView: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Vehicle list actions")
+                .pointerHelp("Options")
             }
 
             AppGroupedCard {
@@ -216,6 +217,7 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Options for \(profile.name)")
+            .pointerHelp("Options")
         }
         .contextMenu {
             profileManagementActions(profile)
@@ -457,38 +459,7 @@ struct SettingsView: View {
             "Axle weighbridge",
             caption: "For best accuracy, enter front and rear axle weights from your weighbridge ticket."
         ) {
-            padAdaptiveFieldStack {
-                AppLabeledNumberField(
-                    "Front axle (kg)",
-                    caption: "Measured front axle load at a known weight",
-                    value: binding(for: \.weighbridgeFrontAxleKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
-                AppLabeledNumberField(
-                    "Rear axle (kg)",
-                    caption: "Measured rear axle load at a known weight",
-                    value: binding(for: \.weighbridgeRearAxleKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
-                AppLabeledNumberField(
-                    "Front axle split (%)",
-                    caption: "Estimated front share when axle weights are not entered",
-                    value: binding(for: \.axleSplitFrontPercent, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
-                AppLabeledNumberField(
-                    "Max front axle (kg)",
-                    caption: "Plated front axle limit",
-                    value: binding(for: \.maxFrontAxleKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
-                AppLabeledNumberField(
-                    "Max rear axle (kg)",
-                    caption: "Plated rear axle limit",
-                    value: binding(for: \.maxRearAxleKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
-            }
+            motorhomeAxleWeighbridgeFields(profile)
         }
 
         AppSettingsSection(
@@ -584,6 +555,71 @@ struct SettingsView: View {
                 viewModel.resetMotorhomeFactors(profile: profile, in: modelContext)
             }
         }
+    }
+
+    private static let motorhomeAxleSplitFieldMaxWidth: CGFloat = 120
+
+    @ViewBuilder
+    private func motorhomeAxleWeighbridgeFields(_ profile: VehicleProfile) -> some View {
+        HStack(alignment: .top, spacing: AppScreenMetrics.fieldSpacing) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                AppLabeledNumberField(
+                    "Front axle (kg)",
+                    caption: "From your weighbridge ticket — baseline before trip items",
+                    value: binding(for: \.weighbridgeFrontAxleKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+                AppLabeledNumberField(
+                    "Max front axle (kg)",
+                    caption: "Plated front axle limit",
+                    value: binding(for: \.maxFrontAxleKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+                motorhomeSecondaryAxleNumberField(
+                    "Front axle split (%)",
+                    caption: "When axle weights are not entered",
+                    value: binding(for: \.axleSplitFrontPercent, on: profile),
+                    maxWidth: Self.motorhomeAxleSplitFieldMaxWidth
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                AppLabeledNumberField(
+                    "Rear axle (kg)",
+                    caption: "From your weighbridge ticket — baseline before trip items",
+                    value: binding(for: \.weighbridgeRearAxleKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+                AppLabeledNumberField(
+                    "Max rear axle (kg)",
+                    caption: "Plated rear axle limit",
+                    value: binding(for: \.maxRearAxleKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func motorhomeSecondaryAxleNumberField(
+        _ title: String,
+        caption: String,
+        value: Binding<Double>,
+        maxWidth: CGFloat
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.primary)
+            Text(caption)
+                .font(.caption2)
+                .foregroundStyle(AppColors.textSupporting)
+                .fixedSize(horizontal: false, vertical: true)
+            AppBoundedNumberField(value: value, fractionDigitsUpperBound: 0)
+        }
+        .frame(maxWidth: maxWidth, alignment: .leading)
     }
 
     @ViewBuilder

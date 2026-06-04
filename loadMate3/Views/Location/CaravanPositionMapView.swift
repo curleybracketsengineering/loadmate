@@ -143,7 +143,7 @@ struct CaravanPositionMapView: View {
         VStack(spacing: 2) {
             Text(zone.mapBadgeTitle(for: .motorhome))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(zone.chipAccentColor)
+                .foregroundStyle(zone.chipAccentColor(for: vehicleKind))
                 .multilineTextAlignment(.center)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
@@ -158,11 +158,11 @@ struct CaravanPositionMapView: View {
         .frame(height: motorhomeZoneBoxHeight)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(zone.chipAccentColor.opacity(0.32))
+                .fill(zone.chipAccentColor(for: vehicleKind).opacity(0.32))
         )
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(zone.chipAccentColor.opacity(0.55), lineWidth: 1)
+                .strokeBorder(zone.chipAccentColor(for: vehicleKind).opacity(0.55), lineWidth: 1)
             if dropTargetZone == zone {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(Color.accentColor.opacity(0.85), lineWidth: 2.5)
@@ -217,7 +217,7 @@ struct CaravanPositionMapView: View {
         VStack(spacing: 3) {
             Text(zone.locationBadgeTitle(for: vehicleKind))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(zone.chipAccentColor)
+                .foregroundStyle(zone.chipAccentColor(for: vehicleKind))
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.65)
@@ -233,11 +233,11 @@ struct CaravanPositionMapView: View {
         .padding(.horizontal, 3)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(zone.chipAccentColor.opacity(0.32))
+                .fill(zone.chipAccentColor(for: vehicleKind).opacity(0.32))
         )
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(zone.chipAccentColor.opacity(0.55), lineWidth: 1)
+                .strokeBorder(zone.chipAccentColor(for: vehicleKind).opacity(0.55), lineWidth: 1)
             if dropTargetZone == zone {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(Color.accentColor.opacity(0.85), lineWidth: 2.5)
@@ -259,7 +259,9 @@ struct CaravanPositionMapView: View {
     }
 
     private var impactScale: some View {
-        let neutralColor = vehicleKind == .motorhome ? LoadZone.central.chipAccentColor : LoadZone.middle.chipAccentColor
+        let neutralColor = vehicleKind == .motorhome
+            ? LoadZone.central.chipAccentColor(for: .motorhome)
+            : LoadZone.middle.chipAccentColor(for: .caravan)
 
         return VStack(spacing: 6) {
             LinearGradient(

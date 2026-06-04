@@ -116,28 +116,62 @@ extension LoadZone {
         }
     }
 
+    /// Zone accent for chips and badges (caravan defaults when kind is omitted).
     var chipAccentColor: Color {
-        switch self {
-        case .frontLocker, .driver: AppColors.pink
-        case .front: AppColors.orange
-        case .middle, .central: AppColors.blue
-        case .rear, .back: AppColors.orange
-        case .garage: AppColors.green
-        case .bikeRack: AppColors.purple
-        case .unassigned: Color.secondary
+        chipAccentColor(for: .caravan)
+    }
+
+    func chipAccentColor(for kind: VehicleKind) -> Color {
+        switch kind {
+        case .motorhome:
+            switch self {
+            case .driver: return AppColors.orange
+            case .central: return AppColors.blue
+            case .back: return AppColors.orange
+            case .garage: return AppColors.green
+            case .bikeRack: return AppColors.zonePurpleDeep
+            case .unassigned: return Color.secondary
+            default: return LoadZone.resolved(rawValue: rawValue, for: .motorhome).chipAccentColor(for: .motorhome)
+            }
+        case .caravan:
+            switch self {
+            case .frontLocker: return AppColors.blue
+            case .front: return AppColors.orange
+            case .middle: return AppColors.pink
+            case .rear: return AppColors.purple
+            case .bikeRack: return AppColors.green
+            case .unassigned: return Color.secondary
+            default: return LoadZone.resolved(rawValue: rawValue, for: .caravan).chipAccentColor(for: .caravan)
+            }
         }
     }
 
     /// Pastel fill behind zone labels (matches cutaway band colours on white).
     var chipPastelFill: Color {
-        switch self {
-        case .frontLocker, .driver: AppColors.zonePastelPink
-        case .front: AppColors.zonePastelOrange
-        case .middle, .central: AppColors.zonePastelBlue
-        case .rear, .back: AppColors.zonePastelOrange
-        case .garage: AppColors.zonePastelGreen
-        case .bikeRack: AppColors.zonePastelPurple
-        case .unassigned: Color.secondary.opacity(0.12)
+        chipPastelFill(for: .caravan)
+    }
+
+    func chipPastelFill(for kind: VehicleKind) -> Color {
+        switch kind {
+        case .motorhome:
+            switch self {
+            case .driver, .back: return AppColors.zonePastelOrange
+            case .central: return AppColors.zonePastelBlue
+            case .garage: return AppColors.zonePastelGreen
+            case .bikeRack: return AppColors.zonePastelPurpleDeep
+            case .unassigned: return Color.secondary.opacity(0.12)
+            default: return LoadZone.resolved(rawValue: rawValue, for: .motorhome).chipPastelFill(for: .motorhome)
+            }
+        case .caravan:
+            switch self {
+            case .frontLocker: return AppColors.zonePastelBlue
+            case .front: return AppColors.zonePastelOrange
+            case .middle: return AppColors.zonePastelPink
+            case .rear: return AppColors.zonePastelPurple
+            case .bikeRack: return AppColors.zonePastelGreen
+            case .unassigned: return Color.secondary.opacity(0.12)
+            default: return LoadZone.resolved(rawValue: rawValue, for: .caravan).chipPastelFill(for: .caravan)
+            }
         }
     }
 }

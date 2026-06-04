@@ -16,12 +16,22 @@ struct CaravanSummaryPadLayout: View {
     private var balance: CaravanBalanceEstimate { CaravanBalanceEstimate(summary: summary, loadedItems: loadedItems) }
     private var checks: [CaravanSummaryCheck] { CaravanSummaryCheck.build(summary: summary, profile: profile, loadedItems: loadedItems) }
 
+    /// Caravan hero graphic — 30% taller than the original 260pt cap for a stronger weight-tab focal point.
+    private static let heroImageMaxHeight: CGFloat = 338
+    private static let heroConnectorHeight: CGFloat = 26
+
     var body: some View {
-        VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacingLoose) {
+        VStack(alignment: .leading, spacing: 0) {
             headerSection
+                .padding(.bottom, AppScreenMetrics.fieldSpacing)
             heroSection
+                .padding(.bottom, AppScreenMetrics.sectionSpacingLoose)
             metricsRow
+                .padding(.top, AppScreenMetrics.smallSpacing)
+                .padding(.bottom, AppScreenMetrics.sectionSpacingLoose)
             checksSection
+                .padding(.top, AppScreenMetrics.smallSpacing)
+                .padding(.bottom, AppScreenMetrics.sectionSpacingLoose)
             CaravanSummaryDisclaimerBanner(showsTopDivider: false)
         }
         .sheet(item: $selectedCheck) { check in
@@ -101,19 +111,19 @@ struct CaravanSummaryPadLayout: View {
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: .infinity)
-                .frame(maxHeight: 260)
+                .frame(maxHeight: Self.heroImageMaxHeight)
                 .accessibilityHidden(true)
 
-            // Connector line from hitch area down to the nose weight callout.
             Rectangle()
                 .fill(AppColors.green.opacity(summary.isOverTowBallLimit || summary.isTowVehicleUnsuitable ? 0.35 : 0.55))
-                .frame(width: 2, height: 20)
+                .frame(width: 2, height: Self.heroConnectorHeight)
 
             noseWeightHeroCard
-                .frame(maxWidth: .infinity)
+                .padding(.top, AppScreenMetrics.tinySpacing)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, AppScreenMetrics.controlSpacing)
+        .padding(.top, AppScreenMetrics.tinySpacing)
+        .padding(.bottom, AppScreenMetrics.fieldSpacing)
     }
 
     private var noseWeightHeroCard: some View {

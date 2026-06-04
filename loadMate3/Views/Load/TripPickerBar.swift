@@ -36,6 +36,7 @@ struct TripPickerBar: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Add trip")
+                .pointerHelp("New trip")
             }
 
             ScrollView(.horizontal, showsIndicators: false) {

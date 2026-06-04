@@ -108,6 +108,7 @@ struct ChecklistView: View {
                         .foregroundStyle(Color.secondary)
                 }
                 .accessibilityLabel("Checklist help")
+                .pointerHelp("Help")
             }
 
             ToolbarItem(placement: .topBarTrailing) {

@@ -228,6 +228,7 @@ struct LocationView: View {
                         .accessibilityLabel("About locations")
                 }
                 .buttonStyle(.plain)
+                .pointerHelp("Help")
                 .padding(.top, 2)
             }
 
@@ -441,12 +442,12 @@ private struct LocationZoneBadge: View {
         } else {
             Text(zone.locationBadgeTitle(for: vehicleKind))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(zone.chipAccentColor)
+                .foregroundStyle(zone.chipAccentColor(for: vehicleKind))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(
                     Capsule()
-                        .fill(zone.chipAccentColor.opacity(0.14))
+                        .fill(zone.chipAccentColor(for: vehicleKind).opacity(0.14))
                 )
         }
     }

@@ -33,6 +33,7 @@ struct LoadTabContent: View {
     @State private var newTripName = ""
     @State private var tripPendingRename: Trip?
     @State private var tripRenameField = ""
+    @State private var showStarterKitConfirm = false
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
@@ -84,6 +85,20 @@ struct LoadTabContent: View {
         "Items (\(loadedUnitCount) loaded, \(Formatters.kg(loadedMassKg)))"
     }
 
+    private var showsStarterKit: Bool {
+        guard let kind = activeProfile?.kind else { return false }
+        return kind == .caravan || kind == .motorhome
+    }
+
+    private var starterKitVehicleLabel: String {
+        activeProfile?.kind == .motorhome ? "motorhome" : "caravan"
+    }
+
+    private var starterKitAlertMessage: String {
+        "Adds typical \(starterKitVehicleLabel) items to your library and loads any that are not on this trip yet. "
+            + "Your existing items and weights are kept."
+    }
+
     var body: some View {
         VStack(spacing: 0) {
                     if showSetupBanner {
@@ -111,8 +126,12 @@ struct LoadTabContent: View {
                     }
 
                     if libraryItems.isEmpty {
-                        LoadEmptyStateView()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        LoadEmptyStateView(
+                            vehicleKind: activeProfile?.kind,
+                            onLoadStarterKit: requestStarterKit,
+                            onAddItem: { showAddItem = true }
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         VStack(spacing: 0) {
                             AppSearchField(text: $searchText)
@@ -201,6 +220,19 @@ struct LoadTabContent: View {
                                     AppSectionHeading(itemsSectionTitle)
                                         .frame(maxWidth: .infinity, alignment: .leading)
 
+                                    if showsStarterKit {
+                                        Button(action: requestStarterKit) {
+                                            Image(systemName: "shippingbox")
+                                                .font(.body.weight(.medium))
+                                                .foregroundStyle(Color.accentColor)
+                                                .frame(minWidth: 44, minHeight: 44)
+                                                .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Add starter kit")
+                                        .pointerHelp("Starter kit")
+                                    }
+
                                     Button {
                                         showAddItem = true
                                     } label: {
@@ -212,6 +244,7 @@ struct LoadTabContent: View {
                                     }
                                     .buttonStyle(.plain)
                                     .accessibilityLabel("Add item")
+                                    .pointerHelp("Add item")
                                 }
                                 .textCase(nil)
                             }
@@ -239,6 +272,14 @@ struct LoadTabContent: View {
                     newTripName = ""
                     showAddTrip = false
                 }
+            }
+            .alert("Add starter kit?", isPresented: $showStarterKitConfirm) {
+                Button("Add items") {
+                    applyStarterKit()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(starterKitAlertMessage)
             }
             .alert("Rename trip", isPresented: Binding(
                 get: { tripPendingRename != nil },
@@ -282,6 +323,35 @@ struct LoadTabContent: View {
                     }
                 )
             }
+    }
+
+    private func requestStarterKit() {
+        guard showsStarterKit else { return }
+        if libraryItems.isEmpty {
+            applyStarterKit()
+        } else {
+            showStarterKitConfirm = true
+        }
+    }
+
+    private func applyStarterKit() {
+        guard let kind = activeProfile?.kind else { return }
+        switch kind {
+        case .caravan:
+            _ = viewModel.applyCaravanStarterKit(
+                trip: activeTrip,
+                libraryItems: libraryItems,
+                loadedItems: loadedItems,
+                in: modelContext
+            )
+        case .motorhome:
+            _ = viewModel.applyMotorhomeStarterKit(
+                trip: activeTrip,
+                libraryItems: libraryItems,
+                loadedItems: loadedItems,
+                in: modelContext
+            )
+        }
     }
 
     private func commitAdd() {
@@ -363,6 +433,7 @@ private struct LoadPhoneTabView: View {
                                     .foregroundStyle(Color.accentColor)
                             }
                             .accessibilityLabel("Add item")
+                            .pointerHelp("Add item")
                         }
                     }
                 }
@@ -373,17 +444,66 @@ private struct LoadPhoneTabView: View {
 // MARK: - Empty state
 
 private struct LoadEmptyStateView: View {
+    var vehicleKind: VehicleKind?
+    var onLoadStarterKit: () -> Void
+    var onAddItem: () -> Void
+
+    private var showsStarterKit: Bool {
+        vehicleKind == .caravan || vehicleKind == .motorhome
+    }
+
+    private var vehicleLabel: String {
+        vehicleKind == .motorhome ? "motorhome" : "caravan"
+    }
+
     var body: some View {
-        VStack(spacing: AppScreenMetrics.fieldSpacing) {
+        VStack(spacing: AppScreenMetrics.sectionSpacing) {
             Image(systemName: "shippingbox")
                 .font(.system(size: 64, weight: .light))
                 .foregroundStyle(Color.accentColor.opacity(0.45))
                 .symbolRenderingMode(.hierarchical)
                 .accessibilityHidden(true)
 
-            Text("No Items")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(Color.primary)
+            VStack(spacing: AppScreenMetrics.controlSpacing) {
+                Text("No Items")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(Color.primary)
+
+                Text(
+                    showsStarterKit
+                        ? "Add items you take on tour, or start from a typical \(vehicleLabel) list."
+                        : "Add items you take on tour."
+                )
+                .font(.subheadline)
+                .foregroundStyle(AppColors.textSupporting)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, AppScreenMetrics.sectionSpacing)
+            }
+
+            VStack(spacing: AppScreenMetrics.controlSpacing) {
+                if showsStarterKit {
+                    Button(action: onLoadStarterKit) {
+                        Text("Load starter kit")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityHint("Adds typical \(vehicleLabel) items with estimated weights")
+
+                    Button(action: onAddItem) {
+                        Text("Add your own item")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Button(action: onAddItem) {
+                        Text("Add your own item")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+            .padding(.horizontal, AppScreenMetrics.sectionSpacing)
+            .frame(maxWidth: 360)
         }
         .frame(maxWidth: .infinity)
     }

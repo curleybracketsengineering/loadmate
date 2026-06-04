@@ -126,7 +126,7 @@ struct MotorhomeSummaryPadLayout: View {
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity)
-                    .frame(maxHeight: 260)
+                    .frame(maxHeight: 338)
                     .accessibilityLabel("Motorhome weight zones")
 
                 heroCalloutRow

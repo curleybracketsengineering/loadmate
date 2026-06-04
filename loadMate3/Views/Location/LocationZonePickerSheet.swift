@@ -19,7 +19,7 @@ struct LocationZonePickerSheet: View {
                     } label: {
                         HStack(spacing: AppScreenMetrics.controlSpacing) {
                             Circle()
-                                .fill(zone.chipAccentColor)
+                                .fill(zone.chipAccentColor(for: vehicleKind))
                                 .frame(width: 14, height: 14)
                                 .accessibilityHidden(true)
 

@@ -5,21 +5,86 @@ struct VehicleCutawayPadView: View {
     let profile: VehicleProfile
     let zoneWeightsKg: [LoadZone: Double]
     var overLimitZones: Set<LoadZone> = []
+    var onDropAssign: ((LoadZone, UUID) -> Void)? = nil
 
     private var displayZones: [LoadZone] {
         profile.padZoneDisplayOrder
     }
 
+    private var dropRegions: [CutawayZoneDropLayout.Region] {
+        CutawayZoneDropLayout.regions(
+            assetName: profile.padCutawayAssetName,
+            zones: displayZones
+        )
+    }
+
     var body: some View {
         VStack(spacing: AppScreenMetrics.fieldSpacing) {
             zoneChipRow
-            Image(profile.padCutawayAssetName)
-                .resizable()
-                .scaledToFit()
-                .accessibilityLabel(profile.kind == .motorhome ? "Motorhome load zones" : "Caravan load zones")
+            cutawayWithDropTargets
         }
         .frame(maxWidth: PadContentLayout.cutawayMaxWidth)
         .frame(maxWidth: .infinity)
+    }
+
+    private var cutawayWithDropTargets: some View {
+        let assetName = profile.padCutawayAssetName
+        let label = profile.kind == .motorhome ? "Motorhome load zones" : "Caravan load zones"
+
+        return Group {
+            if let aspect = CutawayZoneDropLayout.imageAspectRatio(assetName: assetName),
+               onDropAssign != nil,
+               !dropRegions.isEmpty {
+                GeometryReader { geometry in
+                    let content = AspectFitGeometry.contentRect(
+                        imageAspect: aspect,
+                        in: geometry.size
+                    )
+
+                    Image(assetName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .accessibilityLabel(label)
+
+                    ForEach(dropRegions, id: \.zone) { region in
+                        cutawayDropTarget(region: region, contentRect: content)
+                    }
+                }
+                .aspectRatio(aspect, contentMode: .fit)
+            } else {
+                Image(assetName)
+                    .resizable()
+                    .scaledToFit()
+                    .accessibilityLabel(label)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func cutawayDropTarget(
+        region: CutawayZoneDropLayout.Region,
+        contentRect: CGRect
+    ) -> some View {
+        let hit = AspectFitGeometry.pixelRect(
+            normalized: region.hitRectNormalized(),
+            in: contentRect
+        )
+
+        Color.clear
+            .frame(width: hit.width, height: hit.height)
+            .position(x: hit.midX, y: hit.midY)
+            .contentShape(Rectangle())
+            .accessibilityLabel("\(region.zone.locationBadgeTitle(for: profile.kind)) drop zone")
+            .dropDestination(
+                for: LoadedItemDragPayload.self,
+                action: { payloads, _ in
+                    guard let onDropAssign else { return false }
+                    guard let payload = payloads.first else { return false }
+                    onDropAssign(region.zone, payload.loadedItemID)
+                    return true
+                }
+            )
     }
 
     private var zoneChipRow: some View {
@@ -28,8 +93,8 @@ struct VehicleCutawayPadView: View {
                 PadZoneChip(
                     title: zone.padChipTitle(for: profile.kind),
                     weightKg: zoneWeightsKg[zone] ?? 0,
-                    accent: zone.chipAccentColor,
-                    fill: zone.chipPastelFill,
+                    accent: zone.chipAccentColor(for: profile.kind),
+                    fill: zone.chipPastelFill(for: profile.kind),
                     isOverLimit: overLimitZones.contains(zone)
                 )
                 .frame(maxWidth: .infinity)

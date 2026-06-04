@@ -44,6 +44,11 @@ extension View {
     func appScreenBackground() -> some View {
         modifier(AppScreenBackgroundModifier())
     }
+
+    /// Short tooltip on pointer hover (iPad mouse/trackpad, Mac). Use with `accessibilityLabel` for VoiceOver.
+    func pointerHelp(_ text: String) -> some View {
+        help(text)
+    }
 }
 
 /// Inline navigation bar title centered in the bar, bold title text (matches Checklist tab styling).

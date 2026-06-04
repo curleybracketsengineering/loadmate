@@ -93,12 +93,17 @@ struct PlacementPadPanel: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("About locations")
+                    .pointerHelp("Help")
                 }
 
                 VehicleCutawayPadView(
                     profile: profile,
                     zoneWeightsKg: zoneWeightsKg,
-                    overLimitZones: overLimitZones
+                    overLimitZones: overLimitZones,
+                    onDropAssign: { zone, loadedItemID in
+                        guard let loaded = loadedItems.first(where: { $0.id == loadedItemID }) else { return }
+                        viewModel.updateZone(for: loaded, to: zone, in: modelContext)
+                    }
                 )
 
                 assignItemsList
@@ -198,10 +203,10 @@ private struct PlacementPadItemRow: View {
             Spacer(minLength: 0)
             Text(zone.padChipTitle(for: vehicleKind))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(zone.chipAccentColor)
+                .foregroundStyle(zone.chipAccentColor(for: vehicleKind))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(Capsule().fill(zone.chipAccentColor.opacity(0.14)))
+                .background(Capsule().fill(zone.chipAccentColor(for: vehicleKind).opacity(0.14)))
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color(.tertiaryLabel))
