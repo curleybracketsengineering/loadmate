@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct LocationView: View {
     var onNavigateToLoad: (() -> Void)?
 
+    @Environment(\.usePadLayout) private var usePadLayout
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\LoadedItem.loadedAt)]) private var allLoadedItems: [LoadedItem]
     @Query private var profiles: [VehicleProfile]
@@ -61,7 +62,7 @@ struct LocationView: View {
     }
 
     var body: some View {
-        if AppLayout.usePadLayout {
+        if usePadLayout {
             LocationPadRedirectView()
         } else {
             phoneBody

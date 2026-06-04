@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct SettingsView: View {
+    @Environment(\.usePadLayout) private var usePadLayout
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\VehicleProfile.sortOrder)]) private var profiles: [VehicleProfile]
     @Query private var appStates: [AppState]
@@ -57,7 +58,7 @@ struct SettingsView: View {
                             }
                             .padding(.top, AppScreenMetrics.smallSpacing)
                         }
-                        .padding(.horizontal, AppLayout.usePadLayout ? 0 : AppScreenMetrics.horizontalPadding)
+                        .padding(.horizontal, usePadLayout ? 0 : AppScreenMetrics.horizontalPadding)
                         .padding(.top, AppScreenMetrics.verticalScreenPadding)
                         .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
                         .padReadableContent(maxWidth: PadContentLayout.settingsMaxWidth)
@@ -255,7 +256,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func padAdaptiveFieldStack<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        if AppLayout.usePadLayout {
+        if usePadLayout {
             LazyVGrid(columns: padSettingsColumns, alignment: .leading, spacing: AppScreenMetrics.fieldSpacing, content: content)
         } else {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing, content: content)
@@ -350,7 +351,7 @@ struct SettingsView: View {
     }
 
     private static let noseSafeZoneHelpMessage = """
-        Choose what weight to use for the recommended 5%–7% nose weight band on the Weight tab.
+        Choose what weight to use for the recommended 5%–7% nose weight band on the Summary tab.
 
         MTPLM uses your caravan plate maximum laden mass. The band stays fixed (for example 75–105 kg when MTPLM is 1,500 kg), even if you travel lighter. This matches many manufacturer guides.
 
@@ -363,7 +364,7 @@ struct SettingsView: View {
     private func noseSafeZoneBasisSection(_ profile: VehicleProfile) -> some View {
         AppSettingsSection(
             "Nose weight safe zone",
-            caption: "How the 5%–7% recommended band is calculated on the Weight tab."
+            caption: "How the 5%–7% recommended band is calculated on the Summary tab."
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 HStack(alignment: .center, spacing: AppScreenMetrics.smallSpacing) {
@@ -671,7 +672,7 @@ struct SettingsView: View {
         )
     }
 
-    /// Enough caravan data to evaluate the 5% nose band used on the Weight tab (matches “Nose weight safe zone”).
+    /// Enough caravan data to evaluate the 5% nose band used on the Summary tab (matches “Nose weight safe zone”).
     private static func hasCaravanContextForFivePercentRule(_ profile: VehicleProfile) -> Bool {
         switch profile.noseSafeZoneBasis {
         case .mtplm:
@@ -693,9 +694,9 @@ struct SettingsView: View {
         let basis = profile.noseSafeZoneBasis == .mtplm ? "MTPLM" : "laden weight"
         let effective = profile.effectiveMaxTowBallKg
         if effective > 0 {
-            return "At your current inputs the recommended nose band is about \(minNose) to \(maxNose) (5%–7% of \(basis), same as the Weight tab). Your effective limit (\(Formatters.kg(effective))) is the lower of your car and hitch ratings—it is above the \(minNose) (5%) end of that band."
+            return "At your current inputs the recommended nose band is about \(minNose) to \(maxNose) (5%–7% of \(basis), same as the Summary tab). Your effective limit (\(Formatters.kg(effective))) is the lower of your car and hitch ratings—it is above the \(minNose) (5%) end of that band."
         }
-        return "At your current inputs the recommended nose band is about \(minNose) to \(maxNose) (5%–7% of \(basis), same as the Weight tab). Enter your tow ball and hitch limits so the app can warn you if those caps conflict with that 5% minimum."
+        return "At your current inputs the recommended nose band is about \(minNose) to \(maxNose) (5%–7% of \(basis), same as the Summary tab). Enter your tow ball and hitch limits so the app can warn you if those caps conflict with that 5% minimum."
     }
 
 }

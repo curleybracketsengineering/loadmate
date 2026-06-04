@@ -18,16 +18,19 @@ struct CaravanSummaryPadLayout: View {
 
     /// Caravan hero graphic — 30% taller than the original 260pt cap for a stronger weight-tab focal point.
     private static let heroImageMaxHeight: CGFloat = 338
-    private static let heroConnectorHeight: CGFloat = 26
+    /// Vertical centre of the nose-weight box in the hero (0 = top), placed in the white space above the vehicles.
+    private static let heroNoseWeightCenterYFraction: CGFloat = 0.20
+    private static let heroNoseWeightCenterXOffset: CGFloat = -15
+    private static let heroNoseWeightCenterYOffset: CGFloat = 55
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             headerSection
                 .padding(.bottom, AppScreenMetrics.fieldSpacing)
             heroSection
+            balanceScaleSection
                 .padding(.bottom, AppScreenMetrics.sectionSpacingLoose)
             metricsRow
-                .padding(.top, AppScreenMetrics.smallSpacing)
                 .padding(.bottom, AppScreenMetrics.sectionSpacingLoose)
             checksSection
                 .padding(.top, AppScreenMetrics.smallSpacing)
@@ -106,7 +109,7 @@ struct CaravanSummaryPadLayout: View {
     // MARK: - Hero
 
     private var heroSection: some View {
-        VStack(spacing: 0) {
+        ZStack {
             Image("CaravanSummary")
                 .resizable()
                 .scaledToFit()
@@ -114,30 +117,35 @@ struct CaravanSummaryPadLayout: View {
                 .frame(maxHeight: Self.heroImageMaxHeight)
                 .accessibilityHidden(true)
 
-            Rectangle()
-                .fill(AppColors.green.opacity(summary.isOverTowBallLimit || summary.isTowVehicleUnsuitable ? 0.35 : 0.55))
-                .frame(width: 2, height: Self.heroConnectorHeight)
-
-            noseWeightHeroCard
-                .padding(.top, AppScreenMetrics.tinySpacing)
+            GeometryReader { geo in
+                noseWeightHeroOverlay
+                    .position(
+                        x: geo.size.width * 0.5 + Self.heroNoseWeightCenterXOffset,
+                        y: geo.size.height * Self.heroNoseWeightCenterYFraction + Self.heroNoseWeightCenterYOffset
+                    )
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, AppScreenMetrics.tinySpacing)
-        .padding(.bottom, AppScreenMetrics.fieldSpacing)
     }
 
-    private var noseWeightHeroCard: some View {
+    private var balanceScaleSection: some View {
+        MotorhomeBalanceScaleView(
+            isWarning: balance.isWarning,
+            indicatorFraction: balance.indicatorFraction,
+            markerLabel: Self.signedKg(summary.locationImpactKg)
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var noseWeightHeroOverlay: some View {
         let limit = towBallLimitKg
         let value = summary.estimatedNoseWeightKg
         let spare = limit > 0 ? limit - value : 0
         let isOver = summary.isOverTowBallLimit || summary.isTowVehicleUnsuitable
         let accent = isOver ? AppColors.red : AppColors.green
 
-        return VStack(spacing: AppScreenMetrics.tinySpacing) {
-            Text("Towbar / Nose Weight")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppColors.blue)
-
+        return VStack(spacing: 2) {
             Text(Self.displayKg(value))
                 .font(.title.weight(.bold))
                 .fontDesign(.rounded)
@@ -146,21 +154,22 @@ struct CaravanSummaryPadLayout: View {
                 .lineLimit(1)
 
             if limit > 0 {
-                Text("Max \(Self.displayKg(limit))")
-                    .font(.caption2)
-                    .foregroundStyle(Color.secondary)
+                Text(Self.displayKgNumber(limit))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Color.primary.opacity(0.55))
+                    .underline()
             }
         }
+        .multilineTextAlignment(.center)
         .padding(.horizontal, AppScreenMetrics.fieldSpacing)
         .padding(.vertical, AppScreenMetrics.controlSpacing)
-        .frame(minWidth: 160)
         .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(accent.opacity(0.35), lineWidth: 1.5)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(accent.opacity(0.55), lineWidth: 2)
         )
-        .shadow(color: Color.black.opacity(0.06), radius: 8, y: 4)
+        .shadow(color: Color.black.opacity(0.12), radius: 10, y: 4)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Towbar nose weight \(Self.displayKg(value)). \(noseOverlayFooter(limit: limit, spare: spare, isOver: isOver))")
     }
@@ -178,7 +187,6 @@ struct CaravanSummaryPadLayout: View {
         HStack(alignment: .top, spacing: AppScreenMetrics.fieldSpacing) {
             caravanWeightMetricCard
             payloadMetricCard
-            balanceMetricCard
         }
     }
 
@@ -212,59 +220,6 @@ struct CaravanSummaryPadLayout: View {
             barColor: AppColors.purple,
             footer: payloadFooter(isOver: isOver)
         )
-    }
-
-    private var balanceMetricCard: some View {
-        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-            HStack(spacing: AppScreenMetrics.controlSpacing) {
-                metricIcon(systemName: "scalemass.fill", color: AppColors.orange)
-                Text("Balance Estimate")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.secondary)
-                Spacer(minLength: 0)
-            }
-
-            balanceScaleIcon
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, AppScreenMetrics.tinySpacing)
-
-            Text(balance.title)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(balance.isWarning ? AppColors.orange : AppColors.green)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(balance.detail)
-                .font(.caption)
-                .foregroundStyle(Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
-        }
-        .padding(AppScreenMetrics.cardInteriorPadding)
-        .frame(maxWidth: .infinity, minHeight: 168, alignment: .topLeading)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
-                .stroke(Color(.separator).opacity(0.25), lineWidth: 1)
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Balance estimate. \(balance.title). \(balance.detail)")
-    }
-
-    private var balanceScaleIcon: some View {
-        let tilt: Double = {
-            switch balance.tilt {
-            case .frontHeavy: return -18
-            case .rearHeavy: return 18
-            case .level: return 0
-            }
-        }()
-        return Image(systemName: "scale.3d")
-            .font(.system(size: 36))
-            .foregroundStyle(balance.isWarning ? AppColors.orange : AppColors.green)
-            .rotationEffect(.degrees(tilt))
-            .accessibilityHidden(true)
     }
 
     private func metricCard(
@@ -371,59 +326,52 @@ struct CaravanSummaryPadLayout: View {
 
     // MARK: - Formatting
 
-    private static func displayKg(_ value: Double) -> String {
+    private static func displayKgNumber(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = value.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 1
         formatter.minimumFractionDigits = 0
-        let number = formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
-        return "\(number) kg"
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
+    }
+
+    private static func displayKg(_ value: Double) -> String {
+        "\(displayKgNumber(value)) kg"
+    }
+
+    private static func signedKg(_ value: Double) -> String {
+        let formatted = Formatters.oneDecimal.string(from: NSNumber(value: abs(value))) ?? String(format: "%.1f", abs(value))
+        if value < 0 { return "-\(formatted) kg" }
+        if value > 0 { return "+\(formatted) kg" }
+        return "0.0 kg"
     }
 }
 
 // MARK: - Balance
 
 private struct CaravanBalanceEstimate {
-    enum Tilt {
-        case frontHeavy
-        case rearHeavy
-        case level
-    }
-
-    let title: String
-    let detail: String
     let isWarning: Bool
-    let tilt: Tilt
+    /// 0 = front-heavy, 0.5 = balanced, 1 = rear-heavy (for the balance scale marker).
+    let indicatorFraction: CGFloat
 
     init(summary: WeightSummary, loadedItems: [LoadedItem]) {
         let frontKg = Self.zoneWeight(in: [.frontLocker, .front], items: loadedItems)
         let rearKg = Self.zoneWeight(in: [.rear, .bikeRack], items: loadedItems)
 
         if summary.locationImpactKg > 8 || (frontKg > rearKg * 1.25 && frontKg > 15) {
-            title = "Slightly front-heavy"
-            detail = "Consider moving some load rearwards"
             isWarning = true
-            tilt = .frontHeavy
+            indicatorFraction = 0.18
         } else if summary.locationImpactKg < -8 || (rearKg > frontKg * 1.25 && rearKg > 15) {
-            title = "Slightly rear-heavy"
-            detail = "Consider moving some load forward for stability"
             isWarning = true
-            tilt = .rearHeavy
+            indicatorFraction = 0.82
         } else if summary.isNoseBelowRecommended {
-            title = "Nose weight low"
-            detail = "Move heavier items toward the front"
             isWarning = true
-            tilt = .frontHeavy
+            indicatorFraction = 0.22
         } else if summary.isNoseAboveRecommended {
-            title = "Nose weight high"
-            detail = "Move heavier items toward the rear"
             isWarning = true
-            tilt = .rearHeavy
+            indicatorFraction = 0.78
         } else {
-            title = "Well balanced"
-            detail = "Load is evenly distributed"
             isWarning = false
-            tilt = .level
+            indicatorFraction = 0.5
         }
     }
 

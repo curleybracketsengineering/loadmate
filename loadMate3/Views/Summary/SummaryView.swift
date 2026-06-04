@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct SummaryView: View {
+    @Environment(\.usePadLayout) private var usePadLayout
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [VehicleProfile]
     @Query private var appStates: [AppState]
@@ -34,7 +35,7 @@ struct SummaryView: View {
     }
 
     var body: some View {
-        if AppLayout.usePadLayout {
+        if usePadLayout {
             SummaryPadView()
         } else {
             phoneBody

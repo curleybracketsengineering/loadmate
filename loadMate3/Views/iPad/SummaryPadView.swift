@@ -122,7 +122,7 @@ struct SummaryPadView: View {
             .padding(AppScreenMetrics.horizontalPadding)
             .padding(.vertical, AppScreenMetrics.verticalScreenPadding)
             .frame(maxWidth: .infinity)
-            .padReadableContent(maxWidth: 1_120)
+            .padReadableContent(maxWidth: PadContentLayout.workspaceMaxWidth)
         }
         .scrollDismissesKeyboard(.interactively)
     }

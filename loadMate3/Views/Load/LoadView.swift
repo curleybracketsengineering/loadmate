@@ -2,8 +2,10 @@ import SwiftUI
 import SwiftData
 
 struct LoadView: View {
+    @Environment(\.usePadLayout) private var usePadLayout
+
     var body: some View {
-        if AppLayout.usePadLayout {
+        if usePadLayout {
             LoadPlacementPadView()
         } else {
             LoadPhoneTabView()

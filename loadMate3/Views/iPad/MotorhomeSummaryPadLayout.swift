@@ -178,7 +178,6 @@ struct MotorhomeSummaryPadLayout: View {
 
     private var balanceScaleSection: some View {
         MotorhomeBalanceScaleView(
-            title: balance.title,
             isWarning: balance.isWarning,
             indicatorFraction: balance.indicatorFraction
         )
@@ -474,7 +473,6 @@ private struct MetricColumnWidthPreferenceKey: PreferenceKey {
 // MARK: - Balance
 
 private struct MotorhomeBalanceEstimate {
-    let title: String
     let isWarning: Bool
     /// 0 = front-heavy, 0.5 = balanced, 1 = rear-heavy (for the balance scale marker).
     let indicatorFraction: CGFloat
@@ -484,15 +482,12 @@ private struct MotorhomeBalanceEstimate {
         let rearKg = Self.zoneWeight(in: [.back, .garage, .bikeRack], items: loadedItems)
 
         if summary.frontAxleImpactKg > summary.rearAxleImpactKg + 80, frontKg > rearKg {
-            title = "Front-heavy"
             isWarning = true
             indicatorFraction = 0.14
         } else if summary.rearAxleImpactKg > summary.frontAxleImpactKg + 80, rearKg > frontKg {
-            title = "Rear-heavy"
             isWarning = true
             indicatorFraction = 0.86
         } else {
-            title = "Well balanced"
             isWarning = false
             indicatorFraction = 0.5
         }

@@ -57,7 +57,7 @@ struct ChecklistPadLayout: View {
                 detailPanel
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .frame(maxWidth: 1_120, maxHeight: .infinity, alignment: .topLeading)
+            .frame(maxWidth: PadContentLayout.workspaceMaxWidth, maxHeight: .infinity, alignment: .topLeading)
 
             Spacer(minLength: PadContentLayout.horizontalGutter)
         }

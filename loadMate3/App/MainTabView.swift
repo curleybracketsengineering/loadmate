@@ -27,25 +27,74 @@ struct MainTabView: View {
     }
 
     var body: some View {
+        GeometryReader { geometry in
+            let usePadLayout = AppLayout.usePadLayout(availableWidth: geometry.size.width)
+
+            Group {
+                if usePadLayout {
+                    padTabRoot(availableWidth: geometry.size.width)
+                } else {
+                    phoneTabRoot
+                }
+            }
+            .environment(\.usePadLayout, usePadLayout)
+            .onAppear {
+                presentSetupPromptIfNeeded()
+            }
+            .onChange(of: needsSetup) { _, _ in
+                presentSetupPromptIfNeeded()
+            }
+            .alert(setupAlertTitle, isPresented: $showSetupAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(setupAlertMessage)
+            }
+        }
+    }
+
+    // MARK: - iPad
+
+    private func padTabRoot(availableWidth: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            PadTabBar(selection: $selectedTab, availableWidth: availableWidth)
+
+            padTabContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+
+    @ViewBuilder
+    private var padTabContent: some View {
+        switch selectedTab {
+        case .weight:
+            SummaryView()
+        case .load:
+            LoadView()
+        case .locations:
+            LocationView(onNavigateToLoad: { selectedTab = .load })
+        case .checklist:
+            ChecklistView()
+        case .settings:
+            SettingsView()
+        }
+    }
+
+    // MARK: - iPhone
+
+    private var phoneTabRoot: some View {
         TabView(selection: $selectedTab) {
             SummaryView()
                 .tag(AppTab.weight)
-                .tabItem { Label("Weight", systemImage: "plus.forwardslash.minus") }
+                .tabItem { Label("Summary", systemImage: "plus.forwardslash.minus") }
 
             LoadView()
                 .tag(AppTab.load)
-                .tabItem {
-                    Label(
-                        AppLayout.usePadLayout ? "Load & placement" : "Load",
-                        systemImage: "shippingbox"
-                    )
-                }
+                .tabItem { Label("Load", systemImage: "shippingbox") }
 
-            if !AppLayout.usePadLayout {
-                LocationView(onNavigateToLoad: { selectedTab = .load })
-                    .tag(AppTab.locations)
-                    .tabItem { Label("Locations", systemImage: "mappin.and.ellipse") }
-            }
+            LocationView(onNavigateToLoad: { selectedTab = .load })
+                .tag(AppTab.locations)
+                .tabItem { Label("Locations", systemImage: "mappin.and.ellipse") }
 
             ChecklistView()
                 .tag(AppTab.checklist)
@@ -54,17 +103,6 @@ struct MainTabView: View {
             SettingsView()
                 .tag(AppTab.settings)
                 .tabItem { Label("Settings", systemImage: "gearshape") }
-        }
-        .onAppear {
-            presentSetupPromptIfNeeded()
-        }
-        .onChange(of: needsSetup) { _, _ in
-            presentSetupPromptIfNeeded()
-        }
-        .alert(setupAlertTitle, isPresented: $showSetupAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(setupAlertMessage)
         }
     }
 

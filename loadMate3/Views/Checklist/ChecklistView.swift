@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct ChecklistView: View {
+    @Environment(\.usePadLayout) private var usePadLayout
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \ChecklistSection.sortOrder) private var sections: [ChecklistSection]
 
@@ -69,7 +70,7 @@ struct ChecklistView: View {
                     description: Text("Add a section to build your towing and pitching checklists. Each section can contain subgroups and checklist items.")
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if AppLayout.usePadLayout {
+            } else if usePadLayout {
                 ChecklistPadLayout(
                     sections: sections,
                     viewModel: viewModel,
@@ -92,7 +93,7 @@ struct ChecklistView: View {
             }
         }
         .appScreenBackground()
-        .modifier(ChecklistNavigationTitleModifier(usePadLayout: AppLayout.usePadLayout))
+        .modifier(ChecklistNavigationTitleModifier())
         .alert("How to use the checklist", isPresented: $showChecklistHelp) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -427,7 +428,7 @@ struct ChecklistView: View {
 }
 
 private struct ChecklistNavigationTitleModifier: ViewModifier {
-    let usePadLayout: Bool
+    @Environment(\.usePadLayout) private var usePadLayout
 
     func body(content: Content) -> some View {
         if usePadLayout {

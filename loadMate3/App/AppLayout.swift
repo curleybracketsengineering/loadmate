@@ -3,29 +3,83 @@ import UIKit
 
 /// Chooses between phone and iPad presentation. iPhone UI stays on compact phone idiom only.
 enum AppLayout {
-    static var usePadLayout: Bool {
-        UIDevice.current.userInterfaceIdiom == .pad
+    /// Portrait width of 11″ iPad class devices (Air / Pro 11″, 10.9″ iPad).
+    static let iPad11ReferenceWidth: CGFloat = 820
+
+    /// Minimum container width to use iPad layouts (matches 11″ portrait short side).
+    static let padLayoutMinimumWidth: CGFloat = iPad11ReferenceWidth
+
+    /// Fallback before layout geometry is measured (full-screen iPad).
+    static var defaultUsePadLayout: Bool {
+        guard UIDevice.current.userInterfaceIdiom == .pad else { return false }
+        let bounds = UIScreen.main.bounds
+        return max(bounds.width, bounds.height) >= padLayoutMinimumWidth
+    }
+
+    static func usePadLayout(availableWidth: CGFloat) -> Bool {
+        guard UIDevice.current.userInterfaceIdiom == .pad else { return false }
+        return availableWidth >= padLayoutMinimumWidth
     }
 }
 
-/// Max widths and gutters so iPad screens do not stretch edge-to-edge.
+private struct UsePadLayoutKey: EnvironmentKey {
+    static let defaultValue: Bool = AppLayout.defaultUsePadLayout
+}
+
+extension EnvironmentValues {
+    var usePadLayout: Bool {
+        get { self[UsePadLayoutKey.self] }
+        set { self[UsePadLayoutKey.self] = newValue }
+    }
+}
+
+/// Max widths and gutters tuned for 11″ iPad; scales down on narrower containers.
 enum PadContentLayout {
     /// Single-column forms (Settings, etc.).
     static let settingsMaxWidth: CGFloat = 640
-    static let readableMaxWidth: CGFloat = 720
-    /// Combined load + placement workspace.
-    static let workspaceMaxWidth: CGFloat = 1_120
+    static let readableMaxWidth: CGFloat = 680
+    /// Combined load + placement workspace (fits 11″ landscape with gutters).
+    static let workspaceMaxWidth: CGFloat = 960
     /// Cutaway illustration and zone chips.
-    static let cutawayMaxWidth: CGFloat = 820
-    static let loadColumnWidth: CGFloat = 400
-    static let horizontalGutter: CGFloat = 40
+    static let cutawayMaxWidth: CGFloat = 700
+    static let loadColumnWidth: CGFloat = 340
+    static let horizontalGutter: CGFloat = 24
+
+    /// Floating pill tab bar — compact on 13″, nearly full width on 11″.
+    static let tabBarOuterHorizontalPadding: CGFloat = 16
+    static let tabBarTopPadding: CGFloat = 10
+    static let tabBarBottomPadding: CGFloat = 8
+    static let tabBarPillInnerPadding: CGFloat = 6
+    static let tabBarPillVerticalPadding: CGFloat = 6
+    static let tabBarItemSpacing: CGFloat = 4
+    static let tabBarItemHorizontalPadding: CGFloat = 12
+    static let tabBarItemVerticalPadding: CGFloat = 10
+    static let tabBarIconSize: CGFloat = 22
+    static let tabBarShadowRadius: CGFloat = 10
+    static let tabBarShadowYOffset: CGFloat = 3
+    /// 13″ iPad landscape width and wider — keep the compact centred pill.
+    static let tabBarCompactPillThreshold: CGFloat = 1_280
+    static let tabBarCompactPillMaxWidth: CGFloat = 780
+
+    static func tabBarPillWidth(for availableWidth: CGFloat) -> CGFloat {
+        let margins = tabBarOuterHorizontalPadding * 2
+        if availableWidth >= tabBarCompactPillThreshold {
+            return min(tabBarCompactPillMaxWidth, availableWidth - margins)
+        }
+        return availableWidth - margins
+    }
+
+    static func tabBarFont(for availableWidth: CGFloat) -> Font {
+        availableWidth >= tabBarCompactPillThreshold ? .subheadline : .callout
+    }
 }
 
 private struct PadReadableContentModifier: ViewModifier {
+    @Environment(\.usePadLayout) private var usePadLayout
     var maxWidth: CGFloat = PadContentLayout.readableMaxWidth
 
     func body(content: Content) -> some View {
-        if AppLayout.usePadLayout {
+        if usePadLayout {
             content
                 .frame(maxWidth: maxWidth, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .center)
