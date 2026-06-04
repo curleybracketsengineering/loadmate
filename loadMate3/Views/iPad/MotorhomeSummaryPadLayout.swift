@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// iPad motorhome weight summary — matches the Motorhome Summary mockup.
-/// Hero image and metric cards adapt to profile settings (garage limit, bike rack, tow bar).
+/// iPad motorhome weight summary — cutaway illustration and metric cards adapt to profile settings.
 struct MotorhomeSummaryPadLayout: View {
     let profile: VehicleProfile
     let trip: Trip?
@@ -12,7 +11,7 @@ struct MotorhomeSummaryPadLayout: View {
     private var payloadLimitKg: Double { max(0, profile.mtplmKg - profile.calculationBaseWeightKg) }
     private var balance: MotorhomeBalanceEstimate { MotorhomeBalanceEstimate(summary: summary, loadedItems: loadedItems) }
     private var checks: [MotorhomeSummaryCheck] {
-        MotorhomeSummaryCheck.build(summary: summary, profile: profile, loadedItems: loadedItems)
+        MotorhomeSummaryCheck.build(summary: summary, profile: profile)
     }
 
     private var showsGarageMetrics: Bool { profile.monitorsGarageLimit }
@@ -42,14 +41,50 @@ struct MotorhomeSummaryPadLayout: View {
         Self.zoneWeight(in: [.bikeRack], items: loadedItems)
     }
 
+    private static let heroImageMaxHeight: CGFloat = 338
+    private static let metricCardHeight: CGFloat = 176
+
+    @State private var metricColumnWidth: CGFloat = 148
+    @State private var selectedCheck: MotorhomeSummaryCheck?
+
+    private var metricsColumnCount: Int {
+        var count = 3
+        if showsGarageMetrics { count += 1 }
+        if showsBikeMetrics { count += 1 }
+        return count
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 48) {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacingLoose) {
             headerSection
-            heroSection
-            metricsRow
+            if let message = profile.motorhomeWeighbridgeValidation.bannerMessage {
+                weighbridgeValidationBanner(message)
+            }
+            heroBlock
+            metricsGrid
             checksSection
         }
         .padding(.top, AppScreenMetrics.sectionSpacing)
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: MetricColumnWidthPreferenceKey.self,
+                    value: Self.metricColumnWidth(
+                        availableWidth: geo.size.width,
+                        columnCount: metricsColumnCount
+                    )
+                )
+            }
+        )
+        .onPreferenceChange(MetricColumnWidthPreferenceKey.self) { metricColumnWidth = $0 }
+        .sheet(item: $selectedCheck) { check in
+            SummaryCheckDetailSheet(check: check)
+        }
+    }
+
+    private func weighbridgeValidationBanner(_ message: String) -> some View {
+        AppWarningBanner(message: message)
+            .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
     }
 
     // MARK: - Header
@@ -119,134 +154,65 @@ struct MotorhomeSummaryPadLayout: View {
 
     // MARK: - Hero
 
-    private var heroSection: some View {
-        VStack(spacing: 0) {
-            ZStack(alignment: .bottom) {
-                Image(profile.padCutawayAssetName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity)
-                    .frame(maxHeight: 338)
-                    .accessibilityLabel("Motorhome weight zones")
-
-                heroCalloutRow
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 4)
-            }
-            .frame(maxWidth: .infinity)
+    private var heroBlock: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+            heroSection
+            balanceScaleSection
         }
         .padding(.top, AppScreenMetrics.sectionSpacing)
-        .padding(.bottom, AppScreenMetrics.fieldSpacing)
     }
 
-    private var heroCalloutRow: some View {
-        HStack(alignment: .bottom, spacing: AppScreenMetrics.fieldSpacing) {
-            heroCallout(
-                title: "Front Axle",
-                valueKg: summary.estimatedFrontAxleKg,
-                limitKg: profile.maxFrontAxleKg,
-                accent: AppColors.blue,
-                isOver: summary.isOverFrontAxle
-            )
-            heroCallout(
-                title: "Rear Axle",
-                valueKg: summary.estimatedRearAxleKg,
-                limitKg: profile.maxRearAxleKg,
-                accent: AppColors.blue,
-                isOver: summary.isOverRearAxle
-            )
-            if showsGarageMetrics {
-                heroCallout(
-                    title: garageTitle,
-                    valueKg: garageValueKg,
-                    limitKg: profile.maxGarageKg,
-                    accent: AppColors.purple,
-                    isOver: garageIsOverLimit
-                )
-            }
-            if showsBikeMetrics {
-                heroCallout(
-                    title: "Bike Load",
-                    valueKg: bikeValueKg,
-                    limitKg: 0,
-                    accent: AppColors.purple,
-                    isOver: false
-                )
-            }
+    private var heroSection: some View {
+        HStack(alignment: .top, spacing: AppScreenMetrics.fieldSpacing) {
+            payloadMetricCard
+                .frame(width: metricColumnWidth, height: Self.metricCardHeight)
+
+            heroImage
+
             if showsTowBarMetrics {
-                heroCallout(
-                    title: "Tow Bar",
-                    valueKg: summary.isTowBarMeasurementMissing ? 0 : summary.towBarLoadKg,
-                    limitKg: profile.maxTowBarKg,
-                    accent: AppColors.green,
-                    isOver: summary.isOverTowBarLimit || summary.isTowBarMeasurementMissing,
-                    valuePlaceholder: summary.isTowBarMeasurementMissing ? "Not set" : nil
-                )
+                towBarMetricCard
+                    .frame(width: metricColumnWidth, height: Self.metricCardHeight)
             }
         }
     }
 
-    private func heroCallout(
-        title: String,
-        valueKg: Double,
-        limitKg: Double,
-        accent: Color,
-        isOver: Bool,
-        valuePlaceholder: String? = nil
-    ) -> some View {
-        VStack(spacing: 4) {
-            Rectangle()
-                .fill(accent.opacity(0.45))
-                .frame(width: 1.5, height: 28)
+    private var balanceScaleSection: some View {
+        MotorhomeBalanceScaleView(
+            title: balance.title,
+            isWarning: balance.isWarning,
+            indicatorFraction: balance.indicatorFraction
+        )
+        .padding(.leading, metricColumnWidth + AppScreenMetrics.fieldSpacing)
+        .padding(.trailing, showsTowBarMetrics
+            ? metricColumnWidth + AppScreenMetrics.fieldSpacing
+            : 0)
+    }
 
-            VStack(spacing: AppScreenMetrics.tinySpacing) {
-                Text(title)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(accent)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-
-                Text(valuePlaceholder ?? Self.displayKg(valueKg))
-                    .font(.subheadline.weight(.bold))
-                    .fontDesign(.rounded)
-                    .foregroundStyle(isOver ? AppColors.red : accent)
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-
-                if limitKg > 0 {
-                    Text("Max \(Self.displayKg(limitKg))")
-                        .font(.caption2)
-                        .foregroundStyle(Color.secondary)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+    private var heroImage: some View {
+        Image(profile.padCutawayAssetName)
+            .resizable()
+            .scaledToFit()
             .frame(maxWidth: .infinity)
-            .background(Color(.systemBackground).opacity(0.94))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(accent.opacity(0.3), lineWidth: 1)
-            )
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title). \(valuePlaceholder ?? Self.displayKg(valueKg)).")
+            .frame(maxHeight: Self.heroImageMaxHeight)
+            .accessibilityLabel("Motorhome weight zones")
     }
 
     // MARK: - Metrics
 
-    private var metricsRow: some View {
-        HStack(alignment: .top, spacing: AppScreenMetrics.sectionSpacing) {
+    private var metricsGrid: some View {
+        LazyVGrid(
+            columns: Array(
+                repeating: GridItem(.flexible(), spacing: AppScreenMetrics.fieldSpacing),
+                count: metricsColumnCount
+            ),
+            alignment: .leading,
+            spacing: AppScreenMetrics.fieldSpacing
+        ) {
             totalWeightMetricCard
             frontAxleMetricCard
             rearAxleMetricCard
             if showsGarageMetrics { garageMetricCard }
             if showsBikeMetrics { bikeMetricCard }
-            if showsTowBarMetrics { towBarMetricCard }
-            payloadMetricCard
-            balanceMetricCard
         }
     }
 
@@ -370,43 +336,6 @@ struct MotorhomeSummaryPadLayout: View {
         )
     }
 
-    private var balanceMetricCard: some View {
-        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-            HStack(spacing: AppScreenMetrics.controlSpacing) {
-                metricIcon(systemName: "scalemass.fill", color: AppColors.orange)
-                Text("Balance")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.secondary)
-                Spacer(minLength: 0)
-            }
-
-            Image(systemName: "scale.3d")
-                .font(.system(size: 36))
-                .foregroundStyle(balance.isWarning ? AppColors.orange : AppColors.green)
-                .rotationEffect(.degrees(balance.tiltDegrees))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, AppScreenMetrics.tinySpacing)
-                .accessibilityHidden(true)
-
-            Text(balance.title)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(balance.isWarning ? AppColors.orange : AppColors.green)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
-        }
-        .padding(AppScreenMetrics.cardInteriorPadding)
-        .frame(maxWidth: .infinity, minHeight: 168, alignment: .topLeading)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
-                .stroke(Color(.separator).opacity(0.25), lineWidth: 1)
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Balance. \(balance.title).")
-    }
-
     private func metricCard(
         icon: String,
         iconColor: Color,
@@ -420,13 +349,15 @@ struct MotorhomeSummaryPadLayout: View {
         footer: String
     ) -> some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-            HStack(spacing: AppScreenMetrics.controlSpacing) {
-                metricIcon(systemName: icon, color: iconColor)
+            metricIcon(systemName: icon, color: iconColor)
+
+            if !title.isEmpty {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.85)
+                    .multilineTextAlignment(.leading)
             }
 
             Text(Self.displayKg(value))
@@ -436,18 +367,26 @@ struct MotorhomeSummaryPadLayout: View {
                 .minimumScaleFactor(0.75)
                 .lineLimit(1)
 
-            Text(limitLabel)
-                .font(.caption)
-                .foregroundStyle(Color.secondary)
+            if !limitLabel.isEmpty {
+                Text(limitLabel)
+                    .font(.caption)
+                    .foregroundStyle(Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
 
             motorhomeSummaryProgressBar(fill: fill, color: isOverLimit ? AppColors.red : barColor)
 
             Text(footer)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(isOverLimit ? AppColors.red : iconColor)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(2)
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .frame(maxWidth: .infinity, minHeight: 168, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: Self.metricCardHeight, alignment: .topLeading)
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
         .overlay(
@@ -469,74 +408,30 @@ struct MotorhomeSummaryPadLayout: View {
     // MARK: - Checks
 
     private var checksSection: some View {
-        HStack(alignment: .top, spacing: AppScreenMetrics.sectionSpacing) {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                Text("Checks & Recommendations")
-                    .font(.headline.weight(.bold))
+        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+            Text("Checks & Recommendations")
+                .font(.headline.weight(.bold))
 
-                LazyVGrid(
-                    columns: [GridItem(.flexible()), GridItem(.flexible())],
-                    alignment: .leading,
-                    spacing: AppScreenMetrics.controlSpacing
-                ) {
-                    ForEach(checks) { check in
-                        checkRow(check)
+            LazyVGrid(
+                columns: [GridItem(.flexible()), GridItem(.flexible())],
+                alignment: .leading,
+                spacing: AppScreenMetrics.controlSpacing
+            ) {
+                ForEach(checks) { check in
+                    SummaryCheckRow(check: check) {
+                        selectedCheck = check
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(AppScreenMetrics.cardInteriorPadding)
-            .background(Color(.systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
-                    .stroke(Color(.separator).opacity(0.25), lineWidth: 1)
-            )
-
-            disclaimerBox
         }
-    }
-
-    private func checkRow(_ check: MotorhomeSummaryCheck) -> some View {
-        HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
-            Image(systemName: check.isPositive ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                .font(.subheadline)
-                .foregroundStyle(check.isPositive ? AppColors.green : AppColors.orange)
-                .accessibilityHidden(true)
-            Text(check.message)
-                .font(.subheadline)
-                .foregroundStyle(Color.primary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(check.message)
-    }
-
-    private var disclaimerBox: some View {
-        HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
-            Image(systemName: "scalemass")
-                .font(.title3)
-                .foregroundStyle(AppColors.blue)
-                .accessibilityHidden(true)
-
-            Text("MAM (\(Self.displayKg(profile.mtplmKg))) and axle limits must be observed at all times.")
-                .font(.subheadline)
-                .foregroundStyle(Color.primary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
-
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.secondary)
-                .accessibilityHidden(true)
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .frame(maxWidth: 320, alignment: .leading)
-        .background(AppColors.blue.opacity(0.08))
+        .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Reminder. MAM and axle limits must be observed at all times.")
+        .overlay(
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
+                .stroke(Color(.separator).opacity(0.25), lineWidth: 1)
+        )
     }
 
     // MARK: - Helpers
@@ -549,6 +444,13 @@ struct MotorhomeSummaryPadLayout: View {
         }
     }
 
+    private static func metricColumnWidth(availableWidth: CGFloat, columnCount: Int) -> CGFloat {
+        guard columnCount > 0 else { return 148 }
+        let spacing = AppScreenMetrics.fieldSpacing
+        let totalSpacing = spacing * CGFloat(max(0, columnCount - 1))
+        return (availableWidth - totalSpacing) / CGFloat(columnCount)
+    }
+
     private static func displayKg(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -559,12 +461,23 @@ struct MotorhomeSummaryPadLayout: View {
     }
 }
 
+// MARK: - Layout
+
+private struct MetricColumnWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat { 148 }
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 // MARK: - Balance
 
 private struct MotorhomeBalanceEstimate {
     let title: String
     let isWarning: Bool
-    let tiltDegrees: Double
+    /// 0 = front-heavy, 0.5 = balanced, 1 = rear-heavy (for the balance scale marker).
+    let indicatorFraction: CGFloat
 
     init(summary: MotorhomeWeightSummary, loadedItems: [LoadedItem]) {
         let frontKg = Self.zoneWeight(in: [.driver, .central], items: loadedItems)
@@ -573,15 +486,15 @@ private struct MotorhomeBalanceEstimate {
         if summary.frontAxleImpactKg > summary.rearAxleImpactKg + 80, frontKg > rearKg {
             title = "Front-heavy"
             isWarning = true
-            tiltDegrees = -18
+            indicatorFraction = 0.14
         } else if summary.rearAxleImpactKg > summary.frontAxleImpactKg + 80, rearKg > frontKg {
             title = "Rear-heavy"
             isWarning = true
-            tiltDegrees = 18
+            indicatorFraction = 0.86
         } else {
             title = "Well balanced"
             isWarning = false
-            tiltDegrees = 0
+            indicatorFraction = 0.5
         }
     }
 
@@ -591,73 +504,6 @@ private struct MotorhomeBalanceEstimate {
             let weight = loaded.item?.weightKg ?? 0
             return sum + weight * Double(max(loaded.quantity, 0))
         }
-    }
-}
-
-// MARK: - Checks
-
-private struct MotorhomeSummaryCheck: Identifiable {
-    let id: String
-    let message: String
-    let isPositive: Bool
-
-    static func build(
-        summary: MotorhomeWeightSummary,
-        profile: VehicleProfile,
-        loadedItems: [LoadedItem]
-    ) -> [MotorhomeSummaryCheck] {
-        var checks: [MotorhomeSummaryCheck] = [
-            MotorhomeSummaryCheck(
-                id: "front",
-                message: summary.isOverFrontAxle
-                    ? "Front axle load exceeds the limit"
-                    : "Front axle load is within the limit",
-                isPositive: !summary.isOverFrontAxle
-            ),
-            MotorhomeSummaryCheck(
-                id: "rear",
-                message: summary.isOverRearAxle
-                    ? "Rear axle load exceeds the limit"
-                    : "Rear axle load is within the limit",
-                isPositive: !summary.isOverRearAxle
-            ),
-        ]
-
-        if profile.monitorsGarageLimit {
-            checks.append(
-                MotorhomeSummaryCheck(
-                    id: "garage",
-                    message: summary.isOverGarageLimit
-                        ? "Garage load exceeds the limit"
-                        : "Garage load is within the limit",
-                    isPositive: !summary.isOverGarageLimit
-                )
-            )
-        }
-
-        if summary.monitorsTowBar {
-            checks.append(
-                MotorhomeSummaryCheck(
-                    id: "towbar",
-                    message: summary.isOverTowBarLimit || summary.isTowBarMeasurementMissing
-                        ? "Tow bar load is not within the limit"
-                        : "Tow bar load is within the limit",
-                    isPositive: !summary.isOverTowBarLimit && !summary.isTowBarMeasurementMissing
-                )
-            )
-        }
-
-        checks.append(
-            MotorhomeSummaryCheck(
-                id: "payload",
-                message: summary.isOverMAM
-                    ? "Payload exceeds your available limit"
-                    : "Payload is within your limit",
-                isPositive: !summary.isOverMAM
-            )
-        )
-
-        return checks
     }
 }
 

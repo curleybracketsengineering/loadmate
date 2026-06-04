@@ -457,9 +457,12 @@ struct SettingsView: View {
 
         AppSettingsSection(
             "Axle weighbridge",
-            caption: "For best accuracy, enter front and rear axle weights from your weighbridge ticket."
+            caption: "For best accuracy, enter front and rear axle weights from your weighbridge ticket. Front plus rear should match weighbridge gross on the same ticket."
         ) {
-            motorhomeAxleWeighbridgeFields(profile)
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                motorhomeAxleWeighbridgeFields(profile)
+                MotorhomeWeighbridgeValidationMessages(profile: profile)
+            }
         }
 
         AppSettingsSection(

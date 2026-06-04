@@ -24,6 +24,8 @@ struct CutawayZoneDropLayout {
         switch assetName {
         case "caravanAndBike": return 1536.0 / 1024.0
         case "Caravan": return 1774.0 / 887.0
+        case "Motorhome", "MotorhomeBike", "MotorhomeTow", "MotorhomeTowBike":
+            return MotorhomeSummaryHeroLayout.imageAspectRatio
         default: return nil
         }
     }

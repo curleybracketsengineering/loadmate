@@ -587,8 +587,9 @@ private struct EditLibraryItemSheet: View {
                 weightText = initialWeightText
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.height(AppScreenMetrics.compactTwoFieldSheetHeight), .large])
         .presentationDragIndicator(.visible)
+        .presentationContentInteraction(.scrolls)
     }
 }
 
@@ -645,7 +646,8 @@ private struct AddLibraryItemSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.height(AppScreenMetrics.compactTwoFieldSheetHeight), .large])
         .presentationDragIndicator(.visible)
+        .presentationContentInteraction(.scrolls)
     }
 }

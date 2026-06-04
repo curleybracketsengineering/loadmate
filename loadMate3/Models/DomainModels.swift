@@ -271,18 +271,29 @@ extension VehicleProfile {
     var calculationBaseWeightKg: Double {
         if kind == .motorhome {
             let axleSum = weighbridgeFrontAxleKg + weighbridgeRearAxleKg
+            if MotorhomeWeighbridgeValidation.shouldUseAxleSumForBaseWeight(profile: self) {
+                return axleSum
+            }
+            if weighbridgeWeightKg > 0 { return weighbridgeWeightKg }
             if axleSum > 0 { return axleSum }
         }
         return weighbridgeWeightKg > 0 ? weighbridgeWeightKg : baseWeightKg
     }
 
     var baselineFrontAxleKg: Double {
+        if kind == .motorhome, motorhomeHasConflictingWeighbridgeEntries {
+            let pct = axleSplitFrontPercent > 0 ? axleSplitFrontPercent : 45
+            return calculationBaseWeightKg * (pct / 100.0)
+        }
         if weighbridgeFrontAxleKg > 0 { return weighbridgeFrontAxleKg }
         let pct = axleSplitFrontPercent > 0 ? axleSplitFrontPercent : 45
         return calculationBaseWeightKg * (pct / 100.0)
     }
 
     var baselineRearAxleKg: Double {
+        if kind == .motorhome, motorhomeHasConflictingWeighbridgeEntries {
+            return calculationBaseWeightKg - baselineFrontAxleKg
+        }
         if weighbridgeRearAxleKg > 0 { return weighbridgeRearAxleKg }
         return calculationBaseWeightKg - baselineFrontAxleKg
     }

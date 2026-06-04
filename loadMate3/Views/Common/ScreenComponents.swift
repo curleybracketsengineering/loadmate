@@ -30,6 +30,9 @@ enum AppScreenMetrics {
 
     static let inputMinHeight: CGFloat = 50
     static let heroIconSize: CGFloat = 56
+
+    /// Nav bar + two labeled fields + primary button + bottom inset (Add/Edit item sheets).
+    static let compactTwoFieldSheetHeight: CGFloat = 420
 }
 
 /// Standard screen background: system grouped surface.

@@ -1,7 +1,9 @@
 import SwiftUI
 
-struct CaravanSummaryCheckRow: View {
-    let check: CaravanSummaryCheck
+// MARK: - Check row
+
+struct SummaryCheckRow<Check: SummaryCheckGuidance>: View {
+    let check: Check
     let onShowDetails: () -> Void
 
     var body: some View {
@@ -34,8 +36,10 @@ struct CaravanSummaryCheckRow: View {
     }
 }
 
-struct CaravanSummaryCheckDetailSheet: View {
-    let check: CaravanSummaryCheck
+// MARK: - Detail sheet
+
+struct SummaryCheckDetailSheet<Check: SummaryCheckGuidance>: View {
+    let check: Check
     @Environment(\.dismiss) private var dismiss
     @State private var sheetDetent: PresentationDetent = .fraction(0.92)
 
@@ -115,3 +119,22 @@ struct CaravanSummaryCheckDetailSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
     }
 }
+
+// MARK: - Guidance protocol
+
+protocol SummaryCheckGuidance {
+    var id: String { get }
+    var title: String { get }
+    var message: String { get }
+    var isPositive: Bool { get }
+    var whyItMatters: String { get }
+    var actionSteps: [String] { get }
+}
+
+extension CaravanSummaryCheck: SummaryCheckGuidance {}
+extension MotorhomeSummaryCheck: SummaryCheckGuidance {}
+
+// MARK: - Legacy aliases
+
+typealias CaravanSummaryCheckRow = SummaryCheckRow<CaravanSummaryCheck>
+typealias CaravanSummaryCheckDetailSheet = SummaryCheckDetailSheet<CaravanSummaryCheck>

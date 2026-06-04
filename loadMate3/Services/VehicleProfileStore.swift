@@ -43,11 +43,26 @@ enum VehicleProfileStore {
         }
 
         if profiles.isEmpty {
+            #if DEBUG
+            let caravan = VehicleProfile(name: "My Caravan", kind: .caravan, sortOrder: 0)
+            DevelopmentProfileDefaults.apply(to: caravan)
+            context.insert(caravan)
+            _ = TripStore.ensureDefaultTrip(for: caravan, in: context)
+
+            let motorhome = VehicleProfile(name: "My Motorhome", kind: .motorhome, sortOrder: 1)
+            DevelopmentProfileDefaults.apply(to: motorhome)
+            context.insert(motorhome)
+            _ = TripStore.ensureDefaultTrip(for: motorhome, in: context)
+
+            setActive(motorhome, appState: state, in: context)
+            return ([caravan, motorhome], state)
+            #else
             let caravan = VehicleProfile(name: "My Caravan", kind: .caravan, sortOrder: 0)
             context.insert(caravan)
             _ = TripStore.ensureDefaultTrip(for: caravan, in: context)
             setActive(caravan, appState: state, in: context)
             return ([caravan], state)
+            #endif
         }
 
         if state.activeProfileID == nil, let first = sortedProfiles(profiles).first {
@@ -75,6 +90,9 @@ enum VehicleProfileStore {
             sortOrder: nextOrder
         )
         context.insert(profile)
+        #if DEBUG
+        DevelopmentProfileDefaults.apply(to: profile)
+        #endif
         _ = TripStore.ensureDefaultTrip(for: profile, in: context)
         setActive(profile, appState: appState, in: context)
         return profile

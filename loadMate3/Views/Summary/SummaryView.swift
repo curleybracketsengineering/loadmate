@@ -92,6 +92,9 @@ struct SummaryView: View {
                 case .motorhome:
                     if let summary = viewModel.motorhomeSummary {
                         motorhomeStatusBanner(summary: summary, profile: profile)
+                        if let message = profile.motorhomeWeighbridgeValidation.bannerMessage {
+                            AppWarningBanner(message: message)
+                        }
                         MotorhomeSummaryContent.grossWeightCard(summary: summary, profile: profile)
                         MotorhomeSummaryContent.axleCard(
                             title: "Front Axle",
