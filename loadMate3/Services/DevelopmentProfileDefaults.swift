@@ -1,7 +1,8 @@
 import Foundation
 
 #if DEBUG
-/// Pre-filled vehicle limits for local testing (Debug builds only). Values match `docs/manual-testing-script.md`.
+/// Pre-filled vehicle limits for unit tests and manual QA only — not used on app startup.
+/// Values match `docs/manual-testing-script.md`.
 enum DevelopmentProfileDefaults {
     static func apply(to profile: VehicleProfile) {
         switch profile.kind {

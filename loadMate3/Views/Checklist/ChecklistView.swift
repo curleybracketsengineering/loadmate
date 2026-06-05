@@ -563,10 +563,9 @@ private struct ChecklistDialogsModifier: ViewModifier {
     }
 }
 
+#if DEBUG
 #Preview("Checklist") {
-    let schema = Schema([ChecklistSection.self, ChecklistGroup.self, ChecklistItem.self])
-    let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: schema, configurations: [configuration])
-    return ChecklistView()
-        .modelContainer(container)
+    ChecklistView()
+        .previewModelContainer()
 }
+#endif

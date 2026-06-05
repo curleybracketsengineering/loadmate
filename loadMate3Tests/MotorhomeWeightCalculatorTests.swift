@@ -12,7 +12,7 @@ struct MotorhomeWeightCalculatorTests {
         let (context, profile, trip) = try TestSupport.makeMotorhome(baseWeightKg: 3000, axleSplitFrontPercent: 45)
         TestSupport.addLoadedItem(weightKg: 1, zone: .central, trip: trip, in: context)
 
-        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems, trip: trip)
+        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems ?? [], trip: trip)
 
         #expect(abs(summary.baselineFrontAxleKg - 1350) < tolerance)
         #expect(abs(summary.baselineRearAxleKg - 1650) < tolerance)
@@ -23,7 +23,7 @@ struct MotorhomeWeightCalculatorTests {
         let (context, profile, trip) = try TestSupport.makeMotorhome()
         TestSupport.addLoadedItem(weightKg: 100, zone: .garage, trip: trip, in: context)
 
-        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems, trip: trip)
+        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems ?? [], trip: trip)
 
         // garage factors: front 0.02, rear 0.98
         #expect(abs(summary.frontAxleImpactKg - 2) < tolerance)
@@ -37,7 +37,7 @@ struct MotorhomeWeightCalculatorTests {
         let (context, profile, trip) = try TestSupport.makeMotorhome(mamKg: 3500)
         TestSupport.addLoadedItem(weightKg: 100, zone: .garage, trip: trip, in: context)
 
-        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems, trip: trip)
+        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems ?? [], trip: trip)
 
         #expect(abs(summary.totalWeightKg - 3100) < tolerance)
         #expect(abs(summary.availableGrossKg - 400) < tolerance)
@@ -49,7 +49,7 @@ struct MotorhomeWeightCalculatorTests {
         let (ctxA, profileA, tripA) = try TestSupport.makeMotorhome(maxGarageKg: 150, hasBikeRack: true)
         TestSupport.addLoadedItem(weightKg: 40, zone: .garage, trip: tripA, in: ctxA)
         TestSupport.addLoadedItem(weightKg: 30, zone: .bikeRack, trip: tripA, in: ctxA)
-        let a = MotorhomeWeightCalculator.summary(profile: profileA, loadedItems: tripA.loadedItems, trip: tripA)
+        let a = MotorhomeWeightCalculator.summary(profile: profileA, loadedItems: tripA.loadedItems ?? [], trip: tripA)
         #expect(abs(a.garageLoadedKg - 40) < tolerance)
         #expect(!a.isOverGarageLimit)
 
@@ -61,7 +61,7 @@ struct MotorhomeWeightCalculatorTests {
         )
         TestSupport.addLoadedItem(weightKg: 40, zone: .garage, trip: tripB, in: ctxB)
         TestSupport.addLoadedItem(weightKg: 30, zone: .bikeRack, trip: tripB, in: ctxB)
-        let b = MotorhomeWeightCalculator.summary(profile: profileB, loadedItems: tripB.loadedItems, trip: tripB)
+        let b = MotorhomeWeightCalculator.summary(profile: profileB, loadedItems: tripB.loadedItems ?? [], trip: tripB)
         #expect(abs(b.garageLoadedKg - 70) < tolerance)
         #expect(b.isOverGarageLimit) // 70 > 60
     }
@@ -75,7 +75,7 @@ struct MotorhomeWeightCalculatorTests {
         trip.manualTowBarLoadKg = 80
         TestSupport.addLoadedItem(weightKg: 100, zone: .central, trip: trip, in: context)
 
-        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems, trip: trip)
+        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems ?? [], trip: trip)
 
         #expect(summary.monitorsTowBar)
         #expect(abs(summary.towBarLoadKg - 80) < tolerance)
@@ -96,7 +96,7 @@ struct MotorhomeWeightCalculatorTests {
         // No manualTowBarLoadKg entered.
         TestSupport.addLoadedItem(weightKg: 10, zone: .central, trip: trip, in: context)
 
-        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems, trip: trip)
+        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems ?? [], trip: trip)
 
         #expect(summary.isTowBarMeasurementMissing)
         #expect(!summary.isOverallSafe)
@@ -111,7 +111,7 @@ struct MotorhomeWeightCalculatorTests {
         trip.manualTowBarLoadKg = 130
         TestSupport.addLoadedItem(weightKg: 10, zone: .central, trip: trip, in: context)
 
-        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems, trip: trip)
+        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems ?? [], trip: trip)
 
         #expect(summary.isOverTowBarLimit)
         #expect(!summary.isOverallSafe)
@@ -128,7 +128,7 @@ struct MotorhomeWeightCalculatorTests {
         )
         TestSupport.addLoadedItem(weightKg: 200, zone: .garage, trip: trip, in: context)
 
-        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems, trip: trip)
+        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems ?? [], trip: trip)
 
         #expect(summary.isOverMAM)       // 3600 > 3450
         #expect(summary.isOverRearAxle)  // 1870 baseline + 196 impact = 2066 > 1900
@@ -140,7 +140,7 @@ struct MotorhomeWeightCalculatorTests {
         let (context, profile, trip) = try TestSupport.makeMotorhome()
         TestSupport.addLoadedItem(weightKg: 50, zone: .central, trip: trip, in: context)
 
-        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems, trip: trip)
+        let summary = MotorhomeWeightCalculator.summary(profile: profile, loadedItems: trip.loadedItems ?? [], trip: trip)
 
         #expect(summary.isOverallSafe)
     }
