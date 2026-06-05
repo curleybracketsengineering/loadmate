@@ -21,9 +21,11 @@ struct DisclaimerView: View {
                         paragraph(
                             "LoadMate helps estimate caravan loading, nose weight impact, and key limit checks before you travel."
                         )
-                        paragraph("Your data stays on your device.")
                         paragraph(
-                            "LoadMate does not require an account, does not use a backend server, and does not upload your caravan, vehicle, or loading data."
+                            "Your data is stored on your device. If you use iCloud, LoadMate can sync your vehicles, trips, and checklists between your iPhone and iPad signed into the same Apple ID."
+                        )
+                        paragraph(
+                            "LoadMate does not require an account and does not use a LoadMate backend server. With iCloud enabled, Apple syncs your app data through your iCloud account."
                         )
                         paragraph(
                             "Calculations are estimates only. Always physically check your actual weights before towing."

@@ -4,20 +4,12 @@ import SwiftData
 
 @MainActor
 final class SettingsViewModel: ObservableObject {
-    func ensureAppState(in context: ModelContext, existing: AppState?) -> AppState {
-        if let existing { return existing }
-        let state = AppState()
-        context.insert(state)
-        save(context)
-        return state
-    }
-
     func bootstrap(
         in context: ModelContext,
         profiles: [VehicleProfile],
         appState: AppState?
     ) -> (profiles: [VehicleProfile], appState: AppState) {
-        let state = ensureAppState(in: context, existing: appState)
+        let state = AppStateStore.ensure(in: context, existing: appState)
         return VehicleProfileStore.ensureInitialData(in: context, profiles: profiles, appState: state)
     }
 

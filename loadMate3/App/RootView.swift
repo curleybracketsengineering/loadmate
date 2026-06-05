@@ -5,7 +5,6 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var appStates: [AppState]
 
-    @StateObject private var disclaimerVM = DisclaimerViewModel()
     @ObservedObject private var errorCenter = AppErrorCenter.shared
     @State private var resolvedState: AppState?
 
@@ -22,7 +21,7 @@ struct RootView: View {
             }
         }
         .task(id: appStates.count) {
-            resolvedState = disclaimerVM.ensureAppState(in: modelContext, existing: appStates.first)
+            resolvedState = AppStateStore.ensure(in: modelContext, existing: appStates.first)
         }
         .alert(
             "Something went wrong",

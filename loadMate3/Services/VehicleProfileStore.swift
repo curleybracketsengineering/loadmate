@@ -33,14 +33,7 @@ enum VehicleProfileStore {
         profiles: [VehicleProfile],
         appState: AppState?
     ) -> (profiles: [VehicleProfile], appState: AppState) {
-        let state: AppState
-        if let appState {
-            state = appState
-        } else {
-            let newState = AppState()
-            context.insert(newState)
-            state = newState
-        }
+        let state = AppStateStore.ensure(in: context, existing: appState)
 
         if profiles.isEmpty {
             let caravan = VehicleProfile(name: "My Caravan", kind: .caravan, sortOrder: 0)
