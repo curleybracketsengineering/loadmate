@@ -4,15 +4,6 @@ import SwiftData
 
 @MainActor
 final class SettingsViewModel: ObservableObject {
-    func bootstrap(
-        in context: ModelContext,
-        profiles: [VehicleProfile],
-        appState: AppState?
-    ) -> (profiles: [VehicleProfile], appState: AppState) {
-        let state = AppStateStore.ensure(in: context, existing: appState)
-        return VehicleProfileStore.ensureInitialData(in: context, profiles: profiles, appState: state)
-    }
-
     func setActiveProfile(_ profile: VehicleProfile, appState: AppState, in context: ModelContext) {
         VehicleProfileStore.setActive(profile, appState: appState, in: context)
     }
@@ -53,6 +44,12 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func save(_ context: ModelContext) {
-        context.saveChanges("Saving your settings")
+        context.persistPendingChanges("Saving your settings")
+    }
+
+    /// Flushes any in-progress numeric fields, then persists the store.
+    func saveConfiguration(_ context: ModelContext) {
+        FormFieldCommit.commitPendingEdits()
+        context.persistPendingChanges("Saving your settings")
     }
 }

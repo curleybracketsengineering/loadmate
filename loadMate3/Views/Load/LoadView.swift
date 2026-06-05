@@ -36,9 +36,27 @@ struct LoadTabContent: View {
     @State private var tripPendingRename: Trip?
     @State private var tripRenameField = ""
     @State private var showStarterKitConfirm = false
+    @State private var starterKitErrorMessage: String?
+    @State private var resolvedProfiles: [VehicleProfile] = []
+    @State private var resolvedLibraryItems: [LibraryItem] = []
+
+    /// Falls back to bootstrapped results until `@Query` catches up (same pattern as Settings).
+    private var displayedProfiles: [VehicleProfile] {
+        profiles.isEmpty ? resolvedProfiles : profiles
+    }
+
+    /// `@Query` can lag behind inserts from starter kit or manual adds; read the store when needed.
+    private var displayedLibraryItems: [LibraryItem] {
+        libraryItems.isEmpty ? resolvedLibraryItems : libraryItems
+    }
 
     private var active: ActiveLoadContext {
-        ActiveLoadContext(profiles: profiles, appState: appStates.first, allLoadedItems: allLoadedItems)
+        ActiveLoadContext(
+            profiles: displayedProfiles,
+            modelContext: modelContext,
+            appStates: appStates,
+            allLoadedItems: allLoadedItems
+        )
     }
 
     private var activeProfile: VehicleProfile? { active.profile }
@@ -51,8 +69,8 @@ struct LoadTabContent: View {
 
     private var filteredLibraryItems: [LibraryItem] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return libraryItems }
-        return libraryItems.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        guard !query.isEmpty else { return displayedLibraryItems }
+        return displayedLibraryItems.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
 
     private var showSetupBanner: Bool {
@@ -84,8 +102,10 @@ struct LoadTabContent: View {
     }
 
     private var showsStarterKit: Bool {
-        guard let kind = activeProfile?.kind else { return false }
-        return kind == .caravan || kind == .motorhome
+        switch activeProfile?.kind {
+        case .caravan, .motorhome: return true
+        case .none: return true
+        }
     }
 
     private var starterKitVehicleLabel: String {
@@ -123,7 +143,7 @@ struct LoadTabContent: View {
                             .padding(.bottom, AppScreenMetrics.controlSpacing)
                     }
 
-                    if libraryItems.isEmpty {
+                    if displayedLibraryItems.isEmpty {
                         LoadEmptyStateView(
                             vehicleKind: activeProfile?.kind,
                             onLoadStarterKit: requestStarterKit,
@@ -257,7 +277,10 @@ struct LoadTabContent: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.systemGroupedBackground))
             .task(id: profiles.map(\.id)) {
-                TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
+                syncLoadContext()
+            }
+            .onAppear {
+                syncLoadContext()
             }
             .sheet(isPresented: $showAddTrip, onDismiss: {
                 newTripName = ""
@@ -278,6 +301,18 @@ struct LoadTabContent: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text(starterKitAlertMessage)
+            }
+            .alert(
+                "Couldn't add starter kit",
+                isPresented: Binding(
+                    get: { starterKitErrorMessage != nil },
+                    set: { if !$0 { starterKitErrorMessage = nil } }
+                ),
+                presenting: starterKitErrorMessage
+            ) { _ in
+                Button("OK", role: .cancel) { starterKitErrorMessage = nil }
+            } message: { message in
+                Text(message)
             }
             .alert("Rename trip", isPresented: Binding(
                 get: { tripPendingRename != nil },
@@ -311,7 +346,7 @@ struct LoadTabContent: View {
                     initialName: session.name,
                     initialWeightText: session.weightText,
                     onSave: { name, weightKg in
-                        if let item = libraryItems.first(where: { $0.id == session.id }) {
+                        if let item = displayedLibraryItems.first(where: { $0.id == session.id }) {
                             viewModel.updateLibraryItem(item, name: name, weightKg: weightKg, in: modelContext)
                         }
                         libraryItemEditSession = nil
@@ -325,30 +360,82 @@ struct LoadTabContent: View {
 
     private func requestStarterKit() {
         guard showsStarterKit else { return }
-        if libraryItems.isEmpty {
+        if displayedLibraryItems.isEmpty {
             applyStarterKit()
         } else {
             showStarterKitConfirm = true
         }
     }
 
+    private func syncLoadContext() {
+        let boot = VehicleProfileStore.bootstrapForUse(
+            in: modelContext,
+            profiles: profiles,
+            appStates: appStates
+        )
+        resolvedProfiles = boot.profiles
+        resolvedLibraryItems = fetchLibraryItems()
+        TripStore.ensureTripsMigrated(in: modelContext, profiles: boot.profiles)
+    }
+
+    private func fetchLibraryItems() -> [LibraryItem] {
+        (try? modelContext.fetch(
+            FetchDescriptor<LibraryItem>(sortBy: [SortDescriptor(\LibraryItem.name)])
+        )) ?? []
+    }
+
     private func applyStarterKit() {
-        guard let kind = activeProfile?.kind else { return }
-        switch kind {
+        starterKitErrorMessage = nil
+
+        let boot = VehicleProfileStore.bootstrapForUse(
+            in: modelContext,
+            profiles: displayedProfiles,
+            appStates: appStates
+        )
+        resolvedProfiles = boot.profiles
+        TripStore.ensureTripsMigrated(in: modelContext, profiles: boot.profiles)
+
+        guard let profile = VehicleProfileStore.activeProfile(profiles: boot.profiles, appState: boot.appState) else {
+            starterKitErrorMessage = "No vehicle is available yet. Open Settings once, then try again."
+            return
+        }
+
+        guard let trip = TripStore.activeTrip(for: profile) else {
+            starterKitErrorMessage = "This vehicle has no trip yet. Add a trip from the bar above, then try again."
+            return
+        }
+
+        guard trip.profile?.id == profile.id else {
+            starterKitErrorMessage = "This trip is not linked to your vehicle. Open Settings, then try again."
+            return
+        }
+
+        let currentLibrary = fetchLibraryItems()
+        let tripItems = TripStore.loadedItems(for: trip, from: allLoadedItems)
+        let added: Int
+        switch profile.kind {
         case .caravan:
-            _ = viewModel.applyCaravanStarterKit(
-                trip: activeTrip,
-                libraryItems: libraryItems,
-                loadedItems: loadedItems,
+            added = viewModel.applyCaravanStarterKit(
+                trip: trip,
+                libraryItems: currentLibrary,
+                loadedItems: tripItems,
                 in: modelContext
             )
         case .motorhome:
-            _ = viewModel.applyMotorhomeStarterKit(
-                trip: activeTrip,
-                libraryItems: libraryItems,
-                loadedItems: loadedItems,
+            added = viewModel.applyMotorhomeStarterKit(
+                trip: trip,
+                libraryItems: currentLibrary,
+                loadedItems: tripItems,
                 in: modelContext
             )
+        }
+
+        resolvedLibraryItems = fetchLibraryItems()
+
+        if added == 0 {
+            starterKitErrorMessage = resolvedLibraryItems.isEmpty
+                ? "Starter kit could not be loaded. Check Settings and try again."
+                : "Starter kit items are already on this trip."
         }
     }
 
@@ -359,6 +446,7 @@ struct LoadTabContent: View {
             return
         }
         viewModel.addLibraryItem(name: newName, weightKg: weight, in: modelContext)
+        resolvedLibraryItems = fetchLibraryItems()
         newName = ""
         newWeight = ""
         showAddItem = false
@@ -443,7 +531,9 @@ private struct LoadEmptyStateView: View {
     var onAddItem: () -> Void
 
     private var showsStarterKit: Bool {
-        vehicleKind == .caravan || vehicleKind == .motorhome
+        switch vehicleKind {
+        case .caravan, .motorhome, .none: return true
+        }
     }
 
     private var vehicleLabel: String {

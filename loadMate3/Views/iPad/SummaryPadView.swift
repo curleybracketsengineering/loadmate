@@ -11,7 +11,12 @@ struct SummaryPadView: View {
     @State private var tripRenameField = ""
 
     private var active: ActiveLoadContext {
-        ActiveLoadContext(profiles: profiles, appState: appStates.first, allLoadedItems: allLoadedItems)
+        ActiveLoadContext(
+            profiles: profiles,
+            modelContext: modelContext,
+            appStates: appStates,
+            allLoadedItems: allLoadedItems
+        )
     }
 
     private var activeProfile: VehicleProfile? { active.profile }

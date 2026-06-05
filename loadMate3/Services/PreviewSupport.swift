@@ -7,14 +7,12 @@ enum PreviewSupport {
     @MainActor
     static func seedIfEmpty(in context: ModelContext) throws {
         let profiles = try context.fetch(FetchDescriptor<VehicleProfile>())
-        var appStateDescriptor = FetchDescriptor<AppState>()
-        appStateDescriptor.fetchLimit = 1
-        let existingAppState = try context.fetch(appStateDescriptor).first
+        let appState = AppStateStore.ensure(in: context)
 
         let boot = VehicleProfileStore.ensureInitialData(
             in: context,
             profiles: profiles,
-            appState: existingAppState
+            appState: appState
         )
 
         if !boot.appState.disclaimerAccepted {

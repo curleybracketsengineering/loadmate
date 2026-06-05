@@ -138,6 +138,10 @@ final class VehicleProfile {
     @Relationship(deleteRule: .cascade, inverse: \Trip.profile)
     var trips: [Trip]? = []
 
+    /// Legacy link from pre-trip loaded items; kept for SwiftData migration.
+    @Relationship(inverse: \LoadedItem.profile)
+    var legacyLoadedItems: [LoadedItem]? = []
+
     init(
         id: UUID = UUID(),
         name: String = "My vehicle",
@@ -346,6 +350,9 @@ final class LibraryItem {
     var name: String
     var weightKg: Double
     var defaultZoneRaw: String?
+
+    @Relationship(inverse: \LoadedItem.item)
+    var loadedInstances: [LoadedItem]? = []
 
     init(id: UUID = UUID(), name: String, weightKg: Double, defaultZoneRaw: String? = nil) {
         self.id = id

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 /// Resolves the active vehicle, its active trip, and that trip's loaded items from the
 /// `@Query`-backed arrays a view holds.
@@ -11,8 +12,16 @@ struct ActiveLoadContext {
     let trip: Trip?
     let loadedItems: [LoadedItem]
 
-    init(profiles: [VehicleProfile], appState: AppState?, allLoadedItems: [LoadedItem]) {
-        let resolvedProfile = VehicleProfileStore.activeProfile(profiles: profiles, appState: appState)
+    @MainActor
+    init(
+        profiles: [VehicleProfile],
+        modelContext: ModelContext,
+        appStates: [AppState],
+        allLoadedItems: [LoadedItem]
+    ) {
+        let appState = AppStateStore.ensure(in: modelContext, queried: appStates)
+        let orderedProfiles = VehicleProfileStore.resolvedProfiles(queried: profiles, in: modelContext)
+        let resolvedProfile = VehicleProfileStore.activeProfile(profiles: orderedProfiles, appState: appState)
         let resolvedTrip = TripStore.activeTrip(for: resolvedProfile)
         self.profile = resolvedProfile
         self.trip = resolvedTrip

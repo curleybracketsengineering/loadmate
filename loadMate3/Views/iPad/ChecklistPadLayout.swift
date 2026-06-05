@@ -26,7 +26,8 @@ struct ChecklistPadLayout: View {
     @State private var expandedGroupIDs: Set<UUID> = []
 
     private var activeProfile: VehicleProfile? {
-        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+        let state = AppStateStore.ensure(in: modelContext, queried: appStates)
+        return VehicleProfileStore.activeProfile(profiles: profiles, appState: state)
     }
 
     private var profileTrips: [Trip] {

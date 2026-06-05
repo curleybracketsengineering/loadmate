@@ -9,6 +9,7 @@ struct SettingsView: View {
 
     @StateObject private var viewModel = SettingsViewModel()
     @State private var appState: AppState?
+    @State private var resolvedProfiles: [VehicleProfile] = []
     @State private var editingProfile: VehicleProfile?
     @State private var isWeightFactorsExpanded = false
     @State private var showAddVehicle = false
@@ -18,18 +19,29 @@ struct SettingsView: View {
     @State private var profileRenameField = ""
     @State private var showNoseSafeZoneHelp = false
 
+    /// Falls back to bootstrap results until `@Query` catches up after first insert.
+    private var displayedProfiles: [VehicleProfile] {
+        profiles.isEmpty ? resolvedProfiles : profiles
+    }
+
     private var sortedProfiles: [VehicleProfile] {
-        VehicleProfileStore.sortedProfiles(profiles)
+        VehicleProfileStore.sortedProfiles(displayedProfiles)
     }
 
     private var activeProfile: VehicleProfile? {
-        VehicleProfileStore.activeProfile(profiles: profiles, appState: appState)
+        VehicleProfileStore.activeProfile(profiles: displayedProfiles, appState: appState)
+    }
+
+    /// Prefer the explicit edit target; fall back to the active vehicle so the form is never
+    /// stuck on "Loading…" when bootstrap has already seeded profiles but `@Query` lags.
+    private var formProfile: VehicleProfile? {
+        editingProfile ?? activeProfile
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if let profile = editingProfile {
+                if let profile = formProfile {
                     ScrollView {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
                             AppHeroSection(
@@ -38,7 +50,7 @@ struct SettingsView: View {
                                 subtitle: profileSubtitle(profile)
                             )
 
-                            vehicleProfilesSection(active: profile)
+                            vehicleProfilesSection(editing: profile)
 
                             if profile.kind == .caravan {
                                 caravanSettings(profile)
@@ -53,7 +65,7 @@ struct SettingsView: View {
 
                             VStack(spacing: AppScreenMetrics.controlSpacing) {
                                 AppPrimaryButton("Save Configuration", systemImage: "checkmark.circle.fill") {
-                                    viewModel.save(modelContext)
+                                    viewModel.saveConfiguration(modelContext)
                                 }
                             }
                             .padding(.top, AppScreenMetrics.smallSpacing)
@@ -63,6 +75,7 @@ struct SettingsView: View {
                         .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
                         .padReadableContent(maxWidth: PadContentLayout.settingsMaxWidth)
                     }
+                    .id(profile.id)
                     .scrollDismissesKeyboard(.interactively)
                 } else {
                     ProgressView("Loading...")
@@ -72,10 +85,20 @@ struct SettingsView: View {
             .appScreenBackground()
             .appPrincipalTabTitle("Settings")
         }
-        .task(id: profiles.count) {
-            let boot = viewModel.bootstrap(in: modelContext, profiles: profiles, appState: appStates.first)
-            appState = boot.appState
-            editingProfile = VehicleProfileStore.activeProfile(profiles: boot.profiles, appState: boot.appState)
+        .task {
+            syncSettingsStore()
+        }
+        .onAppear {
+            syncSettingsStore()
+        }
+        .onChange(of: profiles.count) { _, _ in
+            refreshEditingProfileReference()
+        }
+        .onChange(of: resolvedProfiles.count) { _, _ in
+            refreshEditingProfileReference()
+        }
+        .onDisappear {
+            viewModel.saveConfiguration(modelContext)
         }
         .sheet(isPresented: $showAddVehicle) {
             AddVehicleSheet(
@@ -86,7 +109,7 @@ struct SettingsView: View {
                     let created = viewModel.addProfile(
                         name: newVehicleName,
                         kind: newVehicleKind,
-                        profiles: profiles,
+                        profiles: displayedProfiles,
                         appState: state,
                         in: modelContext
                     )
@@ -129,10 +152,45 @@ struct SettingsView: View {
         "\(profile.kind.displayName) — \(profile.name)"
     }
 
+    private func syncSettingsStore() {
+        let boot = VehicleProfileStore.bootstrapForUse(
+            in: modelContext,
+            profiles: profiles,
+            appStates: appStates
+        )
+        appState = boot.appState
+        resolvedProfiles = boot.profiles
+        refreshEditingProfileReference()
+    }
+
+    /// Keep the same vehicle selected in the form; refresh the SwiftData instance from the store.
+    private func refreshEditingProfileReference() {
+        let state = appState ?? AppStateStore.ensure(in: modelContext, queried: appStates)
+        if appState == nil {
+            appState = state
+        }
+
+        let storeProfiles = VehicleProfileStore.resolvedProfiles(queried: profiles, in: modelContext)
+        if !storeProfiles.isEmpty {
+            resolvedProfiles = storeProfiles
+        }
+
+        if let current = editingProfile,
+           let fresh = displayedProfiles.first(where: { $0.id == current.id }) {
+            editingProfile = fresh
+            return
+        }
+
+        if let selected = VehicleProfileStore.activeProfile(profiles: displayedProfiles, appState: state) {
+            editingProfile = displayedProfiles.first(where: { $0.id == selected.id }) ?? selected
+        }
+    }
+
     // MARK: - Profiles
 
     @ViewBuilder
-    private func vehicleProfilesSection(active: VehicleProfile) -> some View {
+    private func vehicleProfilesSection(editing: VehicleProfile) -> some View {
+        let selected = activeProfile ?? editing
         VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
             HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
                 AppSectionHeading(
@@ -164,7 +222,7 @@ struct SettingsView: View {
                         if index > 0 {
                             Divider()
                         }
-                        vehicleProfileRow(profile, active: active)
+                        vehicleProfileRow(profile, selected: selected)
                     }
                 }
             }
@@ -172,17 +230,18 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
-    private func vehicleProfileRow(_ profile: VehicleProfile, active: VehicleProfile) -> some View {
+    private func vehicleProfileRow(_ profile: VehicleProfile, selected: VehicleProfile) -> some View {
         HStack(alignment: .center, spacing: AppScreenMetrics.controlSpacing) {
             Button {
                 guard let state = appState else { return }
+                viewModel.saveConfiguration(modelContext)
                 viewModel.setActiveProfile(profile, appState: state, in: modelContext)
-                editingProfile = profile
+                editingProfile = displayedProfiles.first(where: { $0.id == profile.id }) ?? profile
             } label: {
                 HStack(spacing: AppScreenMetrics.controlSpacing) {
                     Image(systemName: profile.kind.systemImage)
                         .font(.body)
-                        .foregroundStyle(profile.id == active.id ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(profile.id == selected.id ? Color.accentColor : Color.secondary)
                         .frame(width: 28)
 
                     VStack(alignment: .leading, spacing: 2) {
@@ -196,7 +255,7 @@ struct SettingsView: View {
 
                     Spacer(minLength: 0)
 
-                    if profile.id == active.id {
+                    if profile.id == selected.id {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(Color.accentColor)
                             .accessibilityLabel("Selected")
@@ -237,8 +296,8 @@ struct SettingsView: View {
         if sortedProfiles.count > 1 {
             Button(role: .destructive) {
                 guard let state = appState else { return }
-                viewModel.deleteProfile(profile, profiles: profiles, appState: state, in: modelContext)
-                editingProfile = VehicleProfileStore.activeProfile(profiles: profiles, appState: state)
+                viewModel.deleteProfile(profile, profiles: displayedProfiles, appState: state, in: modelContext)
+                editingProfile = VehicleProfileStore.activeProfile(profiles: displayedProfiles, appState: state)
             } label: {
                 Label("Remove vehicle", systemImage: "trash")
             }

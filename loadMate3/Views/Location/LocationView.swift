@@ -20,7 +20,12 @@ struct LocationView: View {
     @State private var tripRenameField = ""
 
     private var active: ActiveLoadContext {
-        ActiveLoadContext(profiles: profiles, appState: appStates.first, allLoadedItems: allLoadedItems)
+        ActiveLoadContext(
+            profiles: profiles,
+            modelContext: modelContext,
+            appStates: appStates,
+            allLoadedItems: allLoadedItems
+        )
     }
 
     private var activeProfile: VehicleProfile? { active.profile }
@@ -462,5 +467,6 @@ struct LoadedItemDragPayload: Transferable, Hashable, Codable {
 }
 
 private extension UTType {
-    static let loadedItem: UTType = UTType(exportedAs: "com.loadmate.loaded-item")
+    /// App-internal drag payload only — not exported to other apps, so no Info.plist entry is required.
+    static let loadedItem = UTType(importedAs: "com.loadmate.loaded-item", conformingTo: .data)
 }

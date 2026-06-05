@@ -2,6 +2,8 @@ import Foundation
 import SwiftData
 
 enum VehicleProfileStore {
+    private static let seedLock = NSLock()
+
     static func sortedProfiles(_ profiles: [VehicleProfile]) -> [VehicleProfile] {
         profiles.sorted { lhs, rhs in
             if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
@@ -27,30 +29,60 @@ enum VehicleProfileStore {
         save(context)
     }
 
+    /// Ensures `appState.activeProfileID` points at a real profile; defaults to the caravan when unset or stale.
+    @MainActor
+    static func ensureValidActiveProfile(
+        profiles: [VehicleProfile],
+        appState: AppState,
+        in context: ModelContext
+    ) {
+        let ordered = sortedProfiles(profiles)
+        guard !ordered.isEmpty else { return }
+
+        if let activeID = appState.activeProfileID,
+           ordered.contains(where: { $0.id == activeID }) {
+            return
+        }
+
+        let defaultProfile = ordered.first(where: { $0.kind == .caravan }) ?? ordered[0]
+        setActive(defaultProfile, appState: appState, in: context)
+    }
+
     @MainActor
     static func ensureInitialData(
         in context: ModelContext,
-        profiles: [VehicleProfile],
+        profiles queried: [VehicleProfile],
         appState: AppState?
     ) -> (profiles: [VehicleProfile], appState: AppState) {
-        let state = AppStateStore.ensure(in: context, existing: appState)
+        let state = appState ?? AppStateStore.ensure(in: context)
+
+        // @Query can lag behind inserts from another tab; read the store before seeding defaults.
+        var profiles = queried.isEmpty ? fetchProfiles(in: context) : queried
 
         if profiles.isEmpty {
-            let caravan = VehicleProfile(name: "My Caravan", kind: .caravan, sortOrder: 0)
-            context.insert(caravan)
-            _ = TripStore.ensureDefaultTrip(for: caravan, in: context)
-
-            let motorhome = VehicleProfile(name: "My Motorhome", kind: .motorhome, sortOrder: 1)
-            context.insert(motorhome)
-            _ = TripStore.ensureDefaultTrip(for: motorhome, in: context)
-
-            setActive(caravan, appState: state, in: context)
-            return ([caravan, motorhome], state)
+            profiles = fetchProfiles(in: context)
         }
 
-        if state.activeProfileID == nil, let first = sortedProfiles(profiles).first {
-            setActive(first, appState: state, in: context)
+        if profiles.isEmpty {
+            seedLock.lock()
+            defer { seedLock.unlock() }
+
+            profiles = fetchProfiles(in: context)
+            if profiles.isEmpty {
+                let caravan = VehicleProfile(name: "My Caravan", kind: .caravan, sortOrder: 0)
+                context.insert(caravan)
+                _ = TripStore.ensureDefaultTrip(for: caravan, in: context)
+
+                let motorhome = VehicleProfile(name: "My Motorhome", kind: .motorhome, sortOrder: 1)
+                context.insert(motorhome)
+                _ = TripStore.ensureDefaultTrip(for: motorhome, in: context)
+
+                setActive(caravan, appState: state, in: context)
+                return ([caravan, motorhome], state)
+            }
         }
+
+        ensureValidActiveProfile(profiles: profiles, appState: state, in: context)
 
         TripStore.ensureTripsMigrated(in: context, profiles: profiles)
 
@@ -101,6 +133,28 @@ enum VehicleProfileStore {
 
     static func loadedItems(for profile: VehicleProfile?, from all: [LoadedItem]) -> [LoadedItem] {
         TripStore.loadedItems(for: TripStore.activeTrip(for: profile), from: all)
+    }
+
+    /// `@Query` can lag behind the store; read persisted rows when the query array is still empty.
+    static func resolvedProfiles(queried: [VehicleProfile], in context: ModelContext) -> [VehicleProfile] {
+        sortedProfiles(queried.isEmpty ? fetchProfiles(in: context) : queried)
+    }
+
+    /// Ensures vehicles exist, repairs the active selection, and returns data safe for Load/Summary tabs.
+    @MainActor
+    static func bootstrapForUse(
+        in context: ModelContext,
+        profiles queried: [VehicleProfile],
+        appStates: [AppState]
+    ) -> (profiles: [VehicleProfile], appState: AppState) {
+        let state = AppStateStore.ensure(in: context, queried: appStates)
+        let boot = ensureInitialData(in: context, profiles: queried, appState: state)
+        ensureValidActiveProfile(profiles: boot.profiles, appState: state, in: context)
+        return (boot.profiles, state)
+    }
+
+    private static func fetchProfiles(in context: ModelContext) -> [VehicleProfile] {
+        (try? context.fetch(FetchDescriptor<VehicleProfile>())) ?? []
     }
 
     private static func save(_ context: ModelContext) {

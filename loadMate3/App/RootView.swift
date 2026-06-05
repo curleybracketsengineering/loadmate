@@ -21,7 +21,7 @@ struct RootView: View {
             }
         }
         .task(id: appStates.count) {
-            resolvedState = AppStateStore.ensure(in: modelContext, existing: appStates.first)
+            resolvedState = AppStateStore.ensure(in: modelContext, queried: appStates)
         }
         .alert(
             "Something went wrong",

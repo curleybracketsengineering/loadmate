@@ -11,6 +11,12 @@ extension ModelContext {
     @MainActor
     func saveChanges(_ operation: String = "Saving your changes") {
         guard hasChanges else { return }
+        persistPendingChanges(operation)
+    }
+
+    /// Writes the current context to disk even when `hasChanges` is false (e.g. after flushing form drafts).
+    @MainActor
+    func persistPendingChanges(_ operation: String = "Saving your changes") {
         do {
             try save()
         } catch {

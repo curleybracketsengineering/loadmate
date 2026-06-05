@@ -402,11 +402,11 @@ struct AppBoundedNumberField: View {
         return raw.replacingOccurrences(of: "-", with: "")
     }
 
-    /// Sync bound value while the user is editing (allows empty text → 0 for unset weights).
+    /// Sync bound value while the user is editing. Empty draft text is left alone so clearing
+    /// a field to retype does not wipe the stored value until focus ends.
     private func applyTextToValue() {
         let compact = compactNumericString(text)
         if compact.isEmpty {
-            value = 0
             return
         }
         if allowsSigned, compact == "-" || compact == "." || compact == "-." {
@@ -485,6 +485,12 @@ struct AppBoundedNumberField: View {
                 }
                 if wasFocused && !isFocused {
                     commitEditing()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .commitPendingNumericFieldEdits)) { _ in
+                if focused {
+                    commitEditing()
+                    focused = false
                 }
             }
     }

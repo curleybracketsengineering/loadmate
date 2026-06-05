@@ -10,15 +10,22 @@ enum AppTab: Hashable {
 }
 
 struct MainTabView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [VehicleProfile]
     @Query private var appStates: [AppState]
 
     @State private var selectedTab: AppTab = .weight
     @State private var showSetupAlert = false
     @State private var didPresentSetupPrompt = false
+    @State private var resolvedProfiles: [VehicleProfile] = []
+
+    private var displayedProfiles: [VehicleProfile] {
+        profiles.isEmpty ? resolvedProfiles : profiles
+    }
 
     private var activeProfile: VehicleProfile? {
-        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+        let state = AppStateStore.ensure(in: modelContext, queried: appStates)
+        return VehicleProfileStore.activeProfile(profiles: displayedProfiles, appState: state)
     }
 
     private var needsSetup: Bool {
@@ -38,6 +45,14 @@ struct MainTabView: View {
                 }
             }
             .environment(\.usePadLayout, usePadLayout)
+            .task {
+                let boot = VehicleProfileStore.bootstrapForUse(
+                    in: modelContext,
+                    profiles: profiles,
+                    appStates: appStates
+                )
+                resolvedProfiles = boot.profiles
+            }
             .onAppear {
                 presentSetupPromptIfNeeded()
             }
