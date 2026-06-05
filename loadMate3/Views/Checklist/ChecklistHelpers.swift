@@ -2,8 +2,8 @@ import SwiftUI
 
 enum ChecklistProgress {
     static func items(in section: ChecklistSection) -> [ChecklistItem] {
-        let grouped = section.groups.flatMap(\.items)
-        let legacy = section.items.filter { $0.group == nil }
+        let grouped = (section.groups ?? []).flatMap { $0.items ?? [] }
+        let legacy = (section.items ?? []).filter { $0.group == nil }
         return (grouped + legacy).sorted { $0.sortOrder < $1.sortOrder }
     }
 
@@ -13,7 +13,7 @@ enum ChecklistProgress {
     }
 
     static func counts(in group: ChecklistGroup) -> (completed: Int, total: Int) {
-        let items = group.items.sorted { $0.sortOrder < $1.sortOrder }
+        let items = (group.items ?? []).sorted { $0.sortOrder < $1.sortOrder }
         return (items.filter(\.isChecked).count, items.count)
     }
 

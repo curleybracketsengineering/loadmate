@@ -6,7 +6,8 @@ enum TripStore {
 
     static func sortedTrips(for profile: VehicleProfile?) -> [Trip] {
         guard let profile else { return [] }
-        return profile.trips.sorted { lhs, rhs in
+        let trips = profile.trips ?? []
+        return trips.sorted { lhs, rhs in
             if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
             return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
@@ -40,7 +41,7 @@ enum TripStore {
 
         for profile in profiles {
             let defaultTrip: Trip
-            if profile.trips.isEmpty {
+            if (profile.trips ?? []).isEmpty {
                 let trip = Trip(name: defaultTripName, sortOrder: 0, profile: profile)
                 context.insert(trip)
                 profile.activeTripID = trip.id
@@ -72,7 +73,7 @@ enum TripStore {
         to profile: VehicleProfile,
         in context: ModelContext
     ) -> Trip {
-        let nextOrder = (profile.trips.map(\.sortOrder).max() ?? -1) + 1
+        let nextOrder = ((profile.trips ?? []).map(\.sortOrder).max() ?? -1) + 1
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trip = Trip(
             name: trimmed.isEmpty ? "New trip" : trimmed,
@@ -118,10 +119,6 @@ enum TripStore {
     }
 
     private static func save(_ context: ModelContext) {
-        do {
-            try context.save()
-        } catch {
-            assertionFailure("SwiftData save failed: \(error.localizedDescription)")
-        }
+        context.saveChanges("Saving your trip")
     }
 }

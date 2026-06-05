@@ -249,17 +249,46 @@ struct AppSearchField: View {
 
 // MARK: - Numeric fields
 
+/// Chooses compact numeric pads on phone and the standard docked keyboard on iPad large layout.
+enum AppKeyboard {
+    static func numeric(
+        padLayout: Bool,
+        integerOnly: Bool,
+        allowsSigned: Bool = false
+    ) -> UIKeyboardType {
+        if padLayout { return .default }
+        if allowsSigned { return .numbersAndPunctuation }
+        return integerOnly ? .numberPad : .decimalPad
+    }
+
+    static func layoutAware(padLayout: Bool, keyboard: UIKeyboardType) -> UIKeyboardType {
+        guard padLayout else { return keyboard }
+        switch keyboard {
+        case .numberPad, .decimalPad, .numbersAndPunctuation:
+            return .default
+        default:
+            return keyboard
+        }
+    }
+}
+
 /// Single-line text input matching bordered numeric fields (Load tab, etc.).
 struct AppBoundedTextField: View {
+    @Environment(\.usePadLayout) private var usePadLayout
+
     let placeholder: String
     @Binding var text: String
     var keyboard: UIKeyboardType = .default
 
     @FocusState private var focused: Bool
 
+    private var effectiveKeyboard: UIKeyboardType {
+        AppKeyboard.layoutAware(padLayout: usePadLayout, keyboard: keyboard)
+    }
+
     var body: some View {
         TextField(placeholder, text: $text)
-            .keyboardType(keyboard)
+            .keyboardType(effectiveKeyboard)
             .textInputAutocapitalization(.sentences)
             .autocorrectionDisabled()
             .font(.body.weight(.medium))
@@ -323,6 +352,8 @@ struct AppLabeledTextField: View {
 /// Uses a string draft while editing so the field can be fully cleared; `TextField(value:format:)`
 /// with `Double` snaps back because an empty string is not a stable `Double` state.
 struct AppBoundedNumberField: View {
+    @Environment(\.usePadLayout) private var usePadLayout
+
     @Binding var value: Double
     var fractionDigitsUpperBound: Int
     /// Zone factors can be negative; caravan weights are unsigned.
@@ -334,8 +365,11 @@ struct AppBoundedNumberField: View {
     private var integerWeightsOnly: Bool { fractionDigitsUpperBound == 0 }
 
     private var keyboard: UIKeyboardType {
-        if allowsSigned { return .numbersAndPunctuation }
-        return integerWeightsOnly ? .numberPad : .decimalPad
+        AppKeyboard.numeric(
+            padLayout: usePadLayout,
+            integerOnly: integerWeightsOnly,
+            allowsSigned: allowsSigned
+        )
     }
 
     private func formatForDisplay(_ v: Double) -> String {
@@ -444,6 +478,11 @@ struct AppBoundedNumberField: View {
                 applyTextToValue()
             }
             .onChange(of: focused) { wasFocused, isFocused in
+                if !wasFocused && isFocused {
+                    if !allowsSigned, value == 0 {
+                        text = ""
+                    }
+                }
                 if wasFocused && !isFocused {
                     commitEditing()
                 }

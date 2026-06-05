@@ -60,9 +60,9 @@ struct PadTabBar: View {
         return Button {
             selection = tab.tab
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Image(systemName: tab.systemImage)
-                    .font(.body.weight(.semibold))
+                    .font(.callout.weight(.semibold))
                     .symbolRenderingMode(.hierarchical)
                     .frame(width: PadContentLayout.tabBarIconSize, height: PadContentLayout.tabBarIconSize)
 

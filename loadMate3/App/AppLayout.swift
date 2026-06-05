@@ -46,20 +46,20 @@ enum PadContentLayout {
     static let horizontalGutter: CGFloat = 24
 
     /// Floating pill tab bar — compact on 13″, nearly full width on 11″.
-    static let tabBarOuterHorizontalPadding: CGFloat = 16
-    static let tabBarTopPadding: CGFloat = 10
-    static let tabBarBottomPadding: CGFloat = 8
-    static let tabBarPillInnerPadding: CGFloat = 6
-    static let tabBarPillVerticalPadding: CGFloat = 6
-    static let tabBarItemSpacing: CGFloat = 4
-    static let tabBarItemHorizontalPadding: CGFloat = 12
-    static let tabBarItemVerticalPadding: CGFloat = 10
-    static let tabBarIconSize: CGFloat = 22
-    static let tabBarShadowRadius: CGFloat = 10
+    static let tabBarOuterHorizontalPadding: CGFloat = 14
+    static let tabBarTopPadding: CGFloat = 9
+    static let tabBarBottomPadding: CGFloat = 7
+    static let tabBarPillInnerPadding: CGFloat = 5
+    static let tabBarPillVerticalPadding: CGFloat = 5
+    static let tabBarItemSpacing: CGFloat = 3
+    static let tabBarItemHorizontalPadding: CGFloat = 10
+    static let tabBarItemVerticalPadding: CGFloat = 9
+    static let tabBarIconSize: CGFloat = 19
+    static let tabBarShadowRadius: CGFloat = 9
     static let tabBarShadowYOffset: CGFloat = 3
     /// 13″ iPad landscape width and wider — keep the compact centred pill.
     static let tabBarCompactPillThreshold: CGFloat = 1_280
-    static let tabBarCompactPillMaxWidth: CGFloat = 780
+    static let tabBarCompactPillMaxWidth: CGFloat = 663
 
     static func tabBarPillWidth(for availableWidth: CGFloat) -> CGFloat {
         let margins = tabBarOuterHorizontalPadding * 2

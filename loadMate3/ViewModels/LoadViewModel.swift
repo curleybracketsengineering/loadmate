@@ -136,10 +136,6 @@ final class LoadViewModel: ObservableObject {
     }
 
     private func save(_ context: ModelContext) {
-        do {
-            try context.save()
-        } catch {
-            assertionFailure("SwiftData save failed: \(error.localizedDescription)")
-        }
+        context.saveChanges("Saving your load")
     }
 }

@@ -6,32 +6,42 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		4AB0000000000000000000A8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4ACAFC822F75A56E0027E7CE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4ACAFC892F75A56E0027E7CE;
+			remoteInfo = loadMate3;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		4AB0000000000000000000A1 /* loadMate3Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = loadMate3Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4ACAFC8A2F75A56E0027E7CE /* loadMate3.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = loadMate3.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		4A1E2A192FC7524B00ED52AA /* Exceptions for "loadMate3" folder in "loadMate3" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 4ACAFC892F75A56E0027E7CE /* loadMate3 */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		4AB0000000000000000000A6 /* loadMate3Tests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = loadMate3Tests;
+			sourceTree = "<group>";
+		};
 		4ACAFC8C2F75A56E0027E7CE /* loadMate3 */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				4A1E2A192FC7524B00ED52AA /* Exceptions for "loadMate3" folder in "loadMate3" target */,
-			);
 			path = loadMate3;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		4AB0000000000000000000A4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4ACAFC872F75A56E0027E7CE /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -46,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				4ACAFC8C2F75A56E0027E7CE /* loadMate3 */,
+				4AB0000000000000000000A6 /* loadMate3Tests */,
 				4ACAFC8B2F75A56E0027E7CE /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				4ACAFC8A2F75A56E0027E7CE /* loadMate3.app */,
+				4AB0000000000000000000A1 /* loadMate3Tests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -61,6 +73,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		4AB0000000000000000000A2 /* loadMate3Tests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4AB0000000000000000000AB /* Build configuration list for PBXNativeTarget "loadMate3Tests" */;
+			buildPhases = (
+				4AB0000000000000000000A3 /* Sources */,
+				4AB0000000000000000000A4 /* Frameworks */,
+				4AB0000000000000000000A5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4AB0000000000000000000A7 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				4AB0000000000000000000A6 /* loadMate3Tests */,
+			);
+			name = loadMate3Tests;
+			packageProductDependencies = (
+			);
+			productName = loadMate3Tests;
+			productReference = 4AB0000000000000000000A1 /* loadMate3Tests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		4ACAFC892F75A56E0027E7CE /* loadMate3 */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 4ACAFC952F75A56F0027E7CE /* Build configuration list for PBXNativeTarget "loadMate3" */;
@@ -93,6 +128,10 @@
 				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
+					4AB0000000000000000000A2 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 4ACAFC892F75A56E0027E7CE;
+					};
 					4ACAFC892F75A56E0027E7CE = {
 						CreatedOnToolsVersion = 26.4;
 					};
@@ -113,11 +152,19 @@
 			projectRoot = "";
 			targets = (
 				4ACAFC892F75A56E0027E7CE /* loadMate3 */,
+				4AB0000000000000000000A2 /* loadMate3Tests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		4AB0000000000000000000A5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4ACAFC882F75A56E0027E7CE /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -128,6 +175,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		4AB0000000000000000000A3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4ACAFC862F75A56E0027E7CE /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -137,7 +191,55 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		4AB0000000000000000000A7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4ACAFC892F75A56E0027E7CE /* loadMate3 */;
+			targetProxy = 4AB0000000000000000000A8 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		4AB0000000000000000000A9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = HH2SVYXX2D;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.curleybracketsengineering.loadMate3Tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/loadMate3.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/loadMate3";
+			};
+			name = Debug;
+		};
+		4AB0000000000000000000AA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = HH2SVYXX2D;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.curleybracketsengineering.loadMate3Tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/loadMate3.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/loadMate3";
+			};
+			name = Release;
+		};
 		4ACAFC932F75A56F0027E7CE /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -267,17 +369,18 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = loadMate3/loadMate3.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = HH2SVYXX2D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = loadMate3/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Load Mate";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -309,17 +412,18 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = loadMate3/loadMate3.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = HH2SVYXX2D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = loadMate3/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Load Mate";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -348,6 +452,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		4AB0000000000000000000AB /* Build configuration list for PBXNativeTarget "loadMate3Tests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4AB0000000000000000000A9 /* Debug */,
+				4AB0000000000000000000AA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		4ACAFC852F75A56E0027E7CE /* Build configuration list for PBXProject "loadMate3" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

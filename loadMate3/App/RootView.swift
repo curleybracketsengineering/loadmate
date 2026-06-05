@@ -6,6 +6,7 @@ struct RootView: View {
     @Query private var appStates: [AppState]
 
     @StateObject private var disclaimerVM = DisclaimerViewModel()
+    @StateObject private var errorCenter = AppErrorCenter.shared
     @State private var resolvedState: AppState?
 
     var body: some View {
@@ -22,6 +23,18 @@ struct RootView: View {
         }
         .task(id: appStates.count) {
             resolvedState = disclaimerVM.ensureAppState(in: modelContext, existing: appStates.first)
+        }
+        .alert(
+            "Something went wrong",
+            isPresented: Binding(
+                get: { errorCenter.message != nil },
+                set: { if !$0 { errorCenter.clear() } }
+            ),
+            presenting: errorCenter.message
+        ) { _ in
+            Button("OK", role: .cancel) { errorCenter.clear() }
+        } message: { message in
+            Text(message)
         }
     }
 }

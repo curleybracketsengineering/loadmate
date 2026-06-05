@@ -72,7 +72,7 @@ enum LoadZone: String, Codable, CaseIterable, Identifiable {
 
 @Model
 final class VehicleProfile {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var name: String
     var kindRaw: String
     var sortOrder: Int
@@ -136,7 +136,7 @@ final class VehicleProfile {
     var activeTripID: UUID?
 
     @Relationship(deleteRule: .cascade, inverse: \Trip.profile)
-    var trips: [Trip] = []
+    var trips: [Trip]? = []
 
     init(
         id: UUID = UUID(),
@@ -314,7 +314,7 @@ extension VehicleProfile {
 
 @Model
 final class Trip {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var name: String
     var sortOrder: Int
     /// Manually entered tow bar (nose) load for this trip (kg).
@@ -323,7 +323,7 @@ final class Trip {
     var profile: VehicleProfile?
 
     @Relationship(deleteRule: .cascade, inverse: \LoadedItem.trip)
-    var loadedItems: [LoadedItem] = []
+    var loadedItems: [LoadedItem]? = []
 
     init(
         id: UUID = UUID(),
@@ -342,7 +342,7 @@ final class Trip {
 
 @Model
 final class LibraryItem {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var name: String
     var weightKg: Double
     var defaultZoneRaw: String?
@@ -362,7 +362,7 @@ final class LibraryItem {
 
 @Model
 final class LoadedItem {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var quantity: Int
     var zoneRaw: String
     var loadedAt: Date = Date()
@@ -413,15 +413,15 @@ final class AppState {
 
 @Model
 final class ChecklistSection {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var title: String
     var sortOrder: Int
 
     @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.section)
-    var items: [ChecklistItem] = []
+    var items: [ChecklistItem]? = []
 
     @Relationship(deleteRule: .cascade, inverse: \ChecklistGroup.section)
-    var groups: [ChecklistGroup] = []
+    var groups: [ChecklistGroup]? = []
 
     init(id: UUID = UUID(), title: String, sortOrder: Int = 0) {
         self.id = id
@@ -432,14 +432,14 @@ final class ChecklistSection {
 
 @Model
 final class ChecklistGroup {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var title: String
     var sortOrder: Int
 
     var section: ChecklistSection?
 
     @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.group)
-    var items: [ChecklistItem] = []
+    var items: [ChecklistItem]? = []
 
     init(id: UUID = UUID(), title: String, sortOrder: Int = 0, section: ChecklistSection? = nil) {
         self.id = id
@@ -451,7 +451,7 @@ final class ChecklistGroup {
 
 @Model
 final class ChecklistItem {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var title: String
     var isChecked: Bool
     var sortOrder: Int

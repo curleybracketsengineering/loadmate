@@ -14,11 +14,11 @@ final class ChecklistViewModel: ObservableObject {
 
         var didChange = false
         for section in allSections {
-            let legacy = section.items.filter { $0.group == nil }
+            let legacy = (section.items ?? []).filter { $0.group == nil }
             guard !legacy.isEmpty else { continue }
             didChange = true
 
-            if section.groups.isEmpty {
+            if (section.groups ?? []).isEmpty {
                 let group = ChecklistGroup(title: "Checklist", sortOrder: 0, section: section)
                 context.insert(group)
                 for (idx, item) in legacy.enumerated() {
@@ -27,7 +27,7 @@ final class ChecklistViewModel: ObservableObject {
                     item.sortOrder = idx
                 }
             } else {
-                let nextOrder = (section.groups.map(\.sortOrder).max() ?? -1) + 1
+                let nextOrder = ((section.groups ?? []).map(\.sortOrder).max() ?? -1) + 1
                 let group = ChecklistGroup(title: "Imported", sortOrder: nextOrder, section: section)
                 context.insert(group)
                 for (idx, item) in legacy.enumerated() {
@@ -273,7 +273,7 @@ final class ChecklistViewModel: ObservableObject {
     func addGroup(to section: ChecklistSection, title: String, in context: ModelContext) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let next = (section.groups.map(\.sortOrder).max() ?? -1) + 1
+        let next = ((section.groups ?? []).map(\.sortOrder).max() ?? -1) + 1
         let group = ChecklistGroup(title: trimmed, sortOrder: next, section: section)
         context.insert(group)
         save(context)
@@ -294,7 +294,7 @@ final class ChecklistViewModel: ObservableObject {
     func addItem(to group: ChecklistGroup, title: String, in context: ModelContext) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let next = (group.items.map(\.sortOrder).max() ?? -1) + 1
+        let next = ((group.items ?? []).map(\.sortOrder).max() ?? -1) + 1
         let item = ChecklistItem(title: trimmed, isChecked: false, sortOrder: next, group: group)
         context.insert(item)
         save(context)
@@ -318,12 +318,12 @@ final class ChecklistViewModel: ObservableObject {
     }
 
     func resetSection(_ section: ChecklistSection, in context: ModelContext) {
-        for group in section.groups {
-            for item in group.items {
+        for group in section.groups ?? [] {
+            for item in group.items ?? [] {
                 item.isChecked = false
             }
         }
-        for item in section.items {
+        for item in section.items ?? [] {
             item.isChecked = false
         }
         save(context)
@@ -331,12 +331,12 @@ final class ChecklistViewModel: ObservableObject {
 
     func resetAll(sections: [ChecklistSection], in context: ModelContext) {
         for section in sections {
-            for group in section.groups {
-                for item in group.items {
+            for group in section.groups ?? [] {
+                for item in group.items ?? [] {
                     item.isChecked = false
                 }
             }
-            for item in section.items {
+            for item in section.items ?? [] {
                 item.isChecked = false
             }
         }
@@ -344,10 +344,6 @@ final class ChecklistViewModel: ObservableObject {
     }
 
     func save(_ context: ModelContext) {
-        do {
-            try context.save()
-        } catch {
-            assertionFailure("SwiftData save failed: \(error.localizedDescription)")
-        }
+        context.saveChanges("Saving your checklist")
     }
 }

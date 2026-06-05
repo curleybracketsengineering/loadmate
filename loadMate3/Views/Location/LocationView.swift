@@ -19,20 +19,16 @@ struct LocationView: View {
     @State private var tripPendingRename: Trip?
     @State private var tripRenameField = ""
 
-    private var activeProfile: VehicleProfile? {
-        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+    private var active: ActiveLoadContext {
+        ActiveLoadContext(profiles: profiles, appState: appStates.first, allLoadedItems: allLoadedItems)
     }
 
-    private var activeTrip: Trip? {
-        TripStore.activeTrip(for: activeProfile)
-    }
+    private var activeProfile: VehicleProfile? { active.profile }
+    private var activeTrip: Trip? { active.trip }
+    private var loadedItems: [LoadedItem] { active.loadedItems }
 
     private var profileTrips: [Trip] {
         TripStore.sortedTrips(for: activeProfile)
-    }
-
-    private var loadedItems: [LoadedItem] {
-        TripStore.loadedItems(for: activeTrip, from: allLoadedItems)
     }
 
     private var caravanSummary: WeightSummary? {

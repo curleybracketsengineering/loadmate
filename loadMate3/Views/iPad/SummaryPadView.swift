@@ -7,31 +7,26 @@ struct SummaryPadView: View {
     @Query private var profiles: [VehicleProfile]
     @Query private var appStates: [AppState]
     @Query private var allLoadedItems: [LoadedItem]
-    @StateObject private var viewModel = SummaryViewModel()
     @State private var tripPendingRename: Trip?
     @State private var tripRenameField = ""
 
-    private var activeProfile: VehicleProfile? {
-        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+    private var active: ActiveLoadContext {
+        ActiveLoadContext(profiles: profiles, appState: appStates.first, allLoadedItems: allLoadedItems)
     }
 
-    private var activeTrip: Trip? {
-        TripStore.activeTrip(for: activeProfile)
+    private var activeProfile: VehicleProfile? { active.profile }
+    private var activeTrip: Trip? { active.trip }
+    private var profileLoadedItems: [LoadedItem] { active.loadedItems }
+
+    // Derived inline so SwiftData observation recomputes on any input change (see SummaryView).
+    private var caravanSummary: WeightSummary? {
+        guard let profile = activeProfile, profile.kind == .caravan else { return nil }
+        return WeightCalculator.summary(profile: profile, loadedItems: profileLoadedItems)
     }
 
-    private var profileLoadedItems: [LoadedItem] {
-        TripStore.loadedItems(for: activeTrip, from: allLoadedItems)
-    }
-
-    private var refreshToken: String {
-        let tripSignature = activeTrip.map { "\($0.id)-\($0.name)-\($0.manualTowBarLoadKg)" } ?? "no-trip"
-        let profileSignature = activeProfile.map { profile in
-            "\(profile.id)-\(profile.kindRaw)-\(profile.baseWeightKg)-\(profile.weighbridgeWeightKg)-\(profile.mtplmKg)-\(profile.maxFrontAxleKg)-\(profile.maxRearAxleKg)-\(profile.maxGarageKg)-\(profile.garageLimitIncludesBikeRack)-\(profile.hasBikeRack)-\(profile.usesManualTowBarLoad)-\(profile.maxTowBarKg)-\(profile.weighbridgeFrontAxleKg)-\(profile.weighbridgeRearAxleKg)"
-        } ?? "no-profile"
-        let itemSignature = profileLoadedItems.map {
-            "\($0.id.uuidString)-\($0.quantity)-\($0.zoneRaw)-\($0.item?.weightKg ?? 0)"
-        }.joined(separator: "|")
-        return "\(tripSignature)|\(profileSignature)|\(itemSignature)"
+    private var motorhomeSummary: MotorhomeWeightSummary? {
+        guard let profile = activeProfile, profile.kind == .motorhome else { return nil }
+        return MotorhomeWeightCalculator.summary(profile: profile, loadedItems: profileLoadedItems, trip: activeTrip)
     }
 
     var body: some View {
@@ -50,9 +45,6 @@ struct SummaryPadView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemGroupedBackground))
             .toolbar(.hidden, for: .navigationBar)
-            .task(id: refreshToken) {
-                viewModel.refresh(profile: activeProfile, trip: activeTrip, loadedItems: profileLoadedItems)
-            }
             .task(id: profiles.map(\.id)) {
                 TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
             }
@@ -90,7 +82,7 @@ struct SummaryPadView: View {
             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
                 switch profile.kind {
                 case .caravan:
-                    if let summary = viewModel.caravanSummary {
+                    if let summary = caravanSummary {
                         CaravanSummaryPadLayout(
                             profile: profile,
                             trip: activeTrip,
@@ -104,7 +96,7 @@ struct SummaryPadView: View {
                         )
                     }
                 case .motorhome:
-                    if let summary = viewModel.motorhomeSummary {
+                    if let summary = motorhomeSummary {
                         MotorhomeSummaryPadLayout(
                             profile: profile,
                             trip: activeTrip,
