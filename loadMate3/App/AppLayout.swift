@@ -60,13 +60,18 @@ enum PadContentLayout {
     /// 13″ iPad landscape width and wider — keep the compact centred pill.
     static let tabBarCompactPillThreshold: CGFloat = 1_280
     static let tabBarCompactPillMaxWidth: CGFloat = 780
+    /// Horizontal scale applied to the pill width (0.85 = 15% narrower).
+    static let tabBarPillWidthScale: CGFloat = 0.85
 
     static func tabBarPillWidth(for availableWidth: CGFloat) -> CGFloat {
         let margins = tabBarOuterHorizontalPadding * 2
+        let baseWidth: CGFloat
         if availableWidth >= tabBarCompactPillThreshold {
-            return min(tabBarCompactPillMaxWidth, availableWidth - margins)
+            baseWidth = min(tabBarCompactPillMaxWidth, availableWidth - margins)
+        } else {
+            baseWidth = availableWidth - margins
         }
-        return availableWidth - margins
+        return baseWidth * tabBarPillWidthScale
     }
 
     static func tabBarFont(for availableWidth: CGFloat) -> Font {

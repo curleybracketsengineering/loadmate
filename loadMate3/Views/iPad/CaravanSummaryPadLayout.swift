@@ -192,7 +192,7 @@ struct CaravanSummaryPadLayout: View {
 
     private var caravanWeightMetricCard: some View {
         metricCard(
-            icon: "caravan.fill",
+            icon: "tow.hitch.fill",
             iconColor: AppColors.blue,
             title: "Caravan Weight",
             value: summary.totalWeightKg,
