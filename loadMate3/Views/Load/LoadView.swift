@@ -528,6 +528,8 @@ private struct LibraryItemEditSession: Identifiable, Hashable {
 // MARK: - Edit item sheet
 
 private struct EditLibraryItemSheet: View {
+    @Environment(\.usePadLayout) private var usePadLayout
+
     let initialName: String
     let initialWeightText: String
     let onSave: (String, Double) -> Void
@@ -550,7 +552,7 @@ private struct EditLibraryItemSheet: View {
                         "Weight (kg)",
                         placeholder: "e.g., 5.5",
                         text: $weightText,
-                        keyboard: .decimalPad
+                        keyboard: AppKeyboard.numeric(usePadLayout: usePadLayout)
                     )
 
                     AppPrimaryButton("Save Changes") {
@@ -599,6 +601,7 @@ private struct EditLibraryItemSheet: View {
 
 private struct AddLibraryItemSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.usePadLayout) private var usePadLayout
 
     @Binding var name: String
     @Binding var weightText: String
@@ -618,7 +621,7 @@ private struct AddLibraryItemSheet: View {
                         "Weight (kg)",
                         placeholder: "e.g., 5.5",
                         text: $weightText,
-                        keyboard: .decimalPad
+                        keyboard: AppKeyboard.numeric(usePadLayout: usePadLayout)
                     )
 
                     AppPrimaryButton("Add Item") {

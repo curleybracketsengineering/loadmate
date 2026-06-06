@@ -249,6 +249,19 @@ struct AppSearchField: View {
 
 // MARK: - Numeric fields
 
+enum AppKeyboard {
+    /// Numeric pad on iPhone; full keyboard on iPad / wide layouts.
+    static func numeric(
+        usePadLayout: Bool,
+        integerOnly: Bool = false,
+        allowsSigned: Bool = false
+    ) -> UIKeyboardType {
+        if usePadLayout { return .default }
+        if allowsSigned { return .numbersAndPunctuation }
+        return integerOnly ? .numberPad : .decimalPad
+    }
+}
+
 /// Single-line text input matching bordered numeric fields (Load tab, etc.).
 struct AppBoundedTextField: View {
     let placeholder: String
@@ -322,7 +335,12 @@ struct AppLabeledTextField: View {
 ///
 /// Uses a string draft while editing so the field can be fully cleared; `TextField(value:format:)`
 /// with `Double` snaps back because an empty string is not a stable `Double` state.
+///
+/// Unsigned weight fields (integer kg) clear on first focus when the value is zero so the user
+/// can type without deleting a placeholder `0`. After that visit, zero displays normally.
 struct AppBoundedNumberField: View {
+    @Environment(\.usePadLayout) private var usePadLayout
+
     @Binding var value: Double
     var fractionDigitsUpperBound: Int
     /// Zone factors can be negative; caravan weights are unsigned.
@@ -330,12 +348,20 @@ struct AppBoundedNumberField: View {
 
     @FocusState private var focused: Bool
     @State private var text: String = ""
+    /// Whether the one-time blank-on-focus for an unset zero has already been used.
+    @State private var zeroClearConsumed = false
 
     private var integerWeightsOnly: Bool { fractionDigitsUpperBound == 0 }
 
+    /// Weight fields treat zero as unset; signed factors keep zero visible on focus.
+    private var clearsZeroOnFirstFocus: Bool { integerWeightsOnly && !allowsSigned }
+
     private var keyboard: UIKeyboardType {
-        if allowsSigned { return .numbersAndPunctuation }
-        return integerWeightsOnly ? .numberPad : .decimalPad
+        AppKeyboard.numeric(
+            usePadLayout: usePadLayout,
+            integerOnly: integerWeightsOnly,
+            allowsSigned: allowsSigned
+        )
     }
 
     private func formatForDisplay(_ v: Double) -> String {
@@ -383,6 +409,15 @@ struct AppBoundedNumberField: View {
         }
         guard let parsed = Double(compact) else { return }
         value = boundedNumericValue(from: parsed)
+    }
+
+    /// Prepare draft text when editing begins.
+    private func beginEditing() {
+        if clearsZeroOnFirstFocus, value == 0, !zeroClearConsumed {
+            text = ""
+        } else {
+            text = formatForDisplay(value)
+        }
     }
 
     /// Normalize display when focus ends.
@@ -433,6 +468,9 @@ struct AppBoundedNumberField: View {
                     return
                 }
                 text = formatForDisplay(displayValue)
+                if clearsZeroOnFirstFocus {
+                    zeroClearConsumed = false
+                }
             }
             .onChange(of: text) { _, newText in
                 guard focused else { return }
@@ -444,8 +482,13 @@ struct AppBoundedNumberField: View {
                 applyTextToValue()
             }
             .onChange(of: focused) { wasFocused, isFocused in
-                if wasFocused && !isFocused {
+                if !wasFocused, isFocused {
+                    beginEditing()
+                } else if wasFocused, !isFocused {
                     commitEditing()
+                    if clearsZeroOnFirstFocus {
+                        zeroClearConsumed = value == 0
+                    }
                 }
             }
     }
