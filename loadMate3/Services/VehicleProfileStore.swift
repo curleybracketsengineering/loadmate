@@ -2,8 +2,6 @@ import Foundation
 import SwiftData
 
 enum VehicleProfileStore {
-    private static let seedLock = NSLock()
-
     static func sortedProfiles(_ profiles: [VehicleProfile]) -> [VehicleProfile] {
         profiles.sorted { lhs, rhs in
             if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
@@ -60,13 +58,6 @@ enum VehicleProfileStore {
         var profiles = queried.isEmpty ? fetchProfiles(in: context) : queried
 
         if profiles.isEmpty {
-            profiles = fetchProfiles(in: context)
-        }
-
-        if profiles.isEmpty {
-            seedLock.lock()
-            defer { seedLock.unlock() }
-
             profiles = fetchProfiles(in: context)
             if profiles.isEmpty {
                 let caravan = VehicleProfile(name: "My Caravan", kind: .caravan, sortOrder: 0)

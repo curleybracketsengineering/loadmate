@@ -39,30 +39,17 @@ enum PreviewSupport {
     }
 }
 
-/// Seeds preview data after SwiftUI attaches an in-memory model container.
+/// Seeds the in-memory preview store on first appear (after SwiftUI attaches the container).
 private struct PreviewSeedModifier: ViewModifier {
     @Environment(\.modelContext) private var modelContext
     @State private var didSeed = false
-    @State private var seedError: String?
 
     func body(content: Content) -> some View {
         content
-            .task {
+            .onAppear {
                 guard !didSeed else { return }
                 didSeed = true
-                do {
-                    try PreviewSupport.seedIfEmpty(in: modelContext)
-                } catch {
-                    seedError = error.localizedDescription
-                }
-            }
-            .alert("Preview seed failed", isPresented: Binding(
-                get: { seedError != nil },
-                set: { if !$0 { seedError = nil } }
-            )) {
-                Button("OK", role: .cancel) { seedError = nil }
-            } message: {
-                Text(seedError ?? "")
+                try? PreviewSupport.seedIfEmpty(in: modelContext)
             }
     }
 }

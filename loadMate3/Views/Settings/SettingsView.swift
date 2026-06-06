@@ -757,7 +757,6 @@ struct SettingsView: View {
         }
         return "At your current inputs the recommended nose band is about \(minNose) to \(maxNose) (5%–7% of \(basis), same as the Summary tab). Enter your tow ball and hitch limits so the app can warn you if those caps conflict with that 5% minimum."
     }
-
 }
 
 // MARK: - Add vehicle sheet
@@ -805,3 +804,10 @@ private struct AddVehicleSheet: View {
         .presentationDragIndicator(.visible)
     }
 }
+
+#if DEBUG
+#Preview("Settings — Caravan") {
+    SettingsView()
+        .previewModelContainer()
+}
+#endif

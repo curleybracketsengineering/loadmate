@@ -462,11 +462,6 @@ struct LoadedItemDragPayload: Transferable, Hashable, Codable {
     let loadedItemID: UUID
 
     static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .loadedItem)
+        CodableRepresentation(contentType: .json)
     }
-}
-
-private extension UTType {
-    /// App-internal drag payload only — not exported to other apps, so no Info.plist entry is required.
-    static let loadedItem = UTType(importedAs: "com.loadmate.loaded-item", conformingTo: .data)
 }

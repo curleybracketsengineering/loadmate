@@ -20,7 +20,10 @@ struct RootView: View {
                 ProgressView("Loading...")
             }
         }
-        .task(id: appStates.count) {
+        .task {
+            resolvedState = AppStateStore.ensure(in: modelContext, queried: appStates)
+        }
+        .onChange(of: appStates.count) { _, _ in
             resolvedState = AppStateStore.ensure(in: modelContext, queried: appStates)
         }
         .alert(
@@ -39,8 +42,8 @@ struct RootView: View {
 }
 
 #if DEBUG
-#Preview("App Preview") {
-    RootView()
+#Preview("App — Main tabs") {
+    MainTabView()
         .previewModelContainer()
 }
 #endif

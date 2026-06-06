@@ -64,7 +64,7 @@ enum ChecklistPresentation {
             )
         case "Departure":
             return SectionStyle(
-                systemImage: "caravan.fill",
+                systemImage: VehicleKind.caravan.systemImage,
                 tint: AppColors.purple,
                 summary: "Break camp and prepare to leave."
             )
