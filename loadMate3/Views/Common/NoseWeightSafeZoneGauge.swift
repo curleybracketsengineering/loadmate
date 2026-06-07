@@ -18,6 +18,7 @@ struct NoseWeightSafeZoneGauge: View {
   let carMaxTowBallKg: Double
   let estimatedNoseKg: Double
   var displayStyle: NoseWeightGaugeDisplayStyle = .full
+  var showsTitle: Bool = true
 
   private static let amberFill = Color(red: 0.97, green: 0.73, blue: 0.12)
   private static let barHeight: CGFloat = 12
@@ -140,7 +141,7 @@ struct NoseWeightSafeZoneGauge: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      if displayStyle == .full {
+      if displayStyle == .full, showsTitle {
         Text("Safe zone")
           .font(.system(size: Self.captionPointSize, weight: .semibold))
           .foregroundStyle(Color.secondary)
@@ -251,7 +252,7 @@ struct NoseWeightSafeZoneGauge: View {
 
   private func carMaxTowBallPointer() -> some View {
     VStack(spacing: 2) {
-      Text("Max tow")
+      Text("Car max")
         .font(.system(size: Self.caption2PointSize, weight: .semibold))
         .foregroundStyle(Color.secondary)
       Text(stripKgGauge(Formatters.kg(carMaxTowBallKg)))

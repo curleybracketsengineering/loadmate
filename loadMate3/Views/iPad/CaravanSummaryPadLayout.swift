@@ -22,6 +22,10 @@ struct CaravanSummaryPadLayout: View {
     private static let heroNoseWeightCenterYFraction: CGFloat = 0.20
     private static let heroNoseWeightCenterXOffset: CGFloat = -15
     private static let heroNoseWeightCenterYOffset: CGFloat = 55
+    /// Side limit labels sit under the tow ball (car) and hitch (caravan) in the hero illustration.
+    private static let heroCarTowBallLimitCenterXFraction: CGFloat = 0.37
+    private static let heroCaravanHitchLimitCenterXFraction: CGFloat = 0.54
+    private static let heroSideLimitCenterYFraction: CGFloat = 0.82
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -123,6 +127,29 @@ struct CaravanSummaryPadLayout: View {
                         x: geo.size.width * 0.5 + Self.heroNoseWeightCenterXOffset,
                         y: geo.size.height * Self.heroNoseWeightCenterYFraction + Self.heroNoseWeightCenterYOffset
                     )
+
+                if profile.carMaxTowBallKg > 0 {
+                    heroSideLimitLabel(
+                        limitKg: profile.carMaxTowBallKg,
+                        accessibilityPrefix: "Car tow ball maximum"
+                    )
+                    .position(
+                        x: geo.size.width * Self.heroCarTowBallLimitCenterXFraction,
+                        y: geo.size.height * Self.heroSideLimitCenterYFraction
+                    )
+                }
+
+                if profile.caravanMaxNoseKg > 0 {
+                    heroSideLimitLabel(
+                        limitKg: profile.caravanMaxNoseKg,
+                        accessibilityPrefix: "Caravan hitch maximum",
+                        offsetLeftByOwnWidth: true
+                    )
+                    .position(
+                        x: geo.size.width * Self.heroCaravanHitchLimitCenterXFraction,
+                        y: geo.size.height * Self.heroSideLimitCenterYFraction
+                    )
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -145,22 +172,13 @@ struct CaravanSummaryPadLayout: View {
         let isOver = summary.isOverTowBallLimit || summary.isTowVehicleUnsuitable
         let accent = isOver ? AppColors.red : AppColors.green
 
-        return VStack(spacing: 2) {
-            Text(Self.displayKg(value))
-                .font(.title.weight(.bold))
-                .fontDesign(.rounded)
-                .foregroundStyle(accent)
-                .minimumScaleFactor(0.75)
-                .lineLimit(1)
-
-            if limit > 0 {
-                Text(Self.displayKgNumber(limit))
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Color.primary.opacity(0.55))
-                    .underline()
-            }
-        }
-        .multilineTextAlignment(.center)
+        return Text(Self.displayKg(value))
+            .font(.title.weight(.bold))
+            .fontDesign(.rounded)
+            .foregroundStyle(accent)
+            .minimumScaleFactor(0.75)
+            .lineLimit(1)
+            .multilineTextAlignment(.center)
         .padding(.horizontal, AppScreenMetrics.fieldSpacing)
         .padding(.vertical, AppScreenMetrics.controlSpacing)
         .background(Color(.systemBackground))
@@ -172,6 +190,18 @@ struct CaravanSummaryPadLayout: View {
         .shadow(color: Color.black.opacity(0.12), radius: 10, y: 4)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Towbar nose weight \(Self.displayKg(value)). \(noseOverlayFooter(limit: limit, spare: spare, isOver: isOver))")
+    }
+
+    private func heroSideLimitLabel(
+        limitKg: Double,
+        accessibilityPrefix: String,
+        offsetLeftByOwnWidth: Bool = false
+    ) -> some View {
+        HeroSideLimitLabel(
+            text: Self.displayKg(limitKg),
+            accessibilityLabel: "\(accessibilityPrefix) \(Self.displayKg(limitKg))",
+            offsetLeftByOwnWidth: offsetLeftByOwnWidth
+        )
     }
 
     private func noseOverlayFooter(limit: Double, spare: Double, isOver: Bool) -> String {
@@ -413,6 +443,34 @@ struct CaravanSummaryDisclaimerBanner: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Disclaimer. These figures are estimates. Always confirm with a nose weight gauge before travelling.")
         }
+    }
+}
+
+// MARK: - Hero side limit label
+
+private struct HeroSideLimitLabel: View {
+    let text: String
+    let accessibilityLabel: String
+    let offsetLeftByOwnWidth: Bool
+
+    @State private var labelWidth: CGFloat = 0
+
+    var body: some View {
+        Text(text)
+            .font(.subheadline.weight(.semibold))
+            .fontDesign(.rounded)
+            .foregroundStyle(AppColors.green)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { labelWidth = geo.size.width }
+                        .onChange(of: geo.size.width) { _, newWidth in
+                            labelWidth = newWidth
+                        }
+                }
+            )
+            .offset(x: offsetLeftByOwnWidth ? -labelWidth : 0)
+            .accessibilityLabel(accessibilityLabel)
     }
 }
 
