@@ -512,21 +512,51 @@ struct AppLabeledNumberField: View {
         self.fractionDigitsUpperBound = fractionDigitsUpperBound
     }
 
+    var labelBlock: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(Color.primary)
+            if let caption, !caption.isEmpty {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    var numberField: some View {
+        AppBoundedNumberField(value: $value, fractionDigitsUpperBound: fractionDigitsUpperBound)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(Color.primary)
-                if let caption, !caption.isEmpty {
-                    Text(caption)
-                        .font(.caption)
-                        .foregroundStyle(AppColors.textSupporting)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+            labelBlock
+            numberField
+        }
+    }
+}
 
-            AppBoundedNumberField(value: $value, fractionDigitsUpperBound: fractionDigitsUpperBound)
+/// Side-by-side labeled number fields with inputs on the same horizontal line (pad settings grids).
+struct AppAlignedLabeledNumberFieldRow: View {
+    let left: AppLabeledNumberField
+    let right: AppLabeledNumberField
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            HStack(alignment: .top, spacing: AppScreenMetrics.fieldSpacing) {
+                left.labelBlock
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                right.labelBlock
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack(spacing: AppScreenMetrics.fieldSpacing) {
+                left.numberField
+                    .frame(maxWidth: .infinity)
+                right.numberField
+                    .frame(maxWidth: .infinity)
+            }
         }
     }
 }

@@ -14,19 +14,24 @@ struct DisclaimerView: View {
                     AppHeroSection(
                         systemImage: "scalemass.fill",
                         title: "LoadMate",
-                        subtitle: "Plan your caravan loading with confidence"
+                        subtitle: "Plan your caravan or motorhome loading with confidence"
                     )
 
                     VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                         paragraph(
-                            "LoadMate helps estimate caravan loading, nose weight impact, and key limit checks before you travel."
-                        )
-                        paragraph("Your data stays on your device.")
-                        paragraph(
-                            "LoadMate does not require an account, does not use a backend server, and does not upload your caravan, vehicle, or loading data."
+                            "LoadMate helps you plan what goes where before you travel, so you can stay within your limits."
                         )
                         paragraph(
-                            "Calculations are estimates only. Always physically check your actual weights before towing."
+                            "For caravans, it estimates packed weight, nose weight impact, and checks against your caravan and tow vehicle limits."
+                        )
+                        paragraph(
+                            "For motorhomes, it estimates how loading affects front and rear axle weights, and checks your MAM, axle, garage, and tow bar limits."
+                        )
+                        paragraph(
+                            "Your data stays on your device. LoadMate does not require an account, does not use a backend server, and does not upload your caravan, motorhome, vehicle, or loading data."
+                        )
+                        paragraph(
+                            "All calculations are estimates only. Always confirm your actual weights on a weighbridge before travelling, and check nose weight with a gauge when towing."
                         )
                     }
                 }

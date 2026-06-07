@@ -245,51 +245,66 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - iPad form layout
-
-    private var padSettingsColumns: [GridItem] {
-        [
-            GridItem(.flexible(minimum: 260), spacing: AppScreenMetrics.fieldSpacing),
-            GridItem(.flexible(minimum: 260), spacing: AppScreenMetrics.fieldSpacing),
-        ]
-    }
-
-    @ViewBuilder
-    private func padAdaptiveFieldStack<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        if usePadLayout {
-            LazyVGrid(columns: padSettingsColumns, alignment: .leading, spacing: AppScreenMetrics.fieldSpacing, content: content)
-        } else {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing, content: content)
-        }
-    }
-
     @ViewBuilder
     private func caravanPlateFields(_ profile: VehicleProfile) -> some View {
-        padAdaptiveFieldStack {
-            AppLabeledNumberField(
-                "MTPLM (kg)",
-                caption: "Maximum Technically Permissible Laden Mass",
-                value: binding(for: \.mtplmKg, on: profile),
-                fractionDigitsUpperBound: 0
-            )
-            AppLabeledNumberField(
-                "MIRO (kg)",
-                caption: "Mass in Running Order — used when no weighbridge weight is entered",
-                value: binding(for: \.baseWeightKg, on: profile),
-                fractionDigitsUpperBound: 0
-            )
-            AppLabeledNumberField(
-                "Weighbridge weight (kg)",
-                caption: "Actual caravan weight before trip items — used instead of MIRO when entered",
-                value: binding(for: \.weighbridgeWeightKg, on: profile),
-                fractionDigitsUpperBound: 0
-            )
-            AppLabeledNumberField(
-                "Caravan hitch limit (kg)",
-                caption: "Maximum nose weight on the caravan hitch",
-                value: binding(for: \.caravanMaxNoseKg, on: profile),
-                fractionDigitsUpperBound: 0
-            )
+        if usePadLayout {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                AppAlignedLabeledNumberFieldRow(
+                    left: AppLabeledNumberField(
+                        "MTPLM (kg)",
+                        caption: "Maximum Technically Permissible Laden Mass",
+                        value: binding(for: \.mtplmKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    ),
+                    right: AppLabeledNumberField(
+                        "MIRO (kg)",
+                        caption: "Mass in Running Order — used when no weighbridge weight is entered",
+                        value: binding(for: \.baseWeightKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
+                )
+                AppAlignedLabeledNumberFieldRow(
+                    left: AppLabeledNumberField(
+                        "Weighbridge weight (kg)",
+                        caption: "Actual caravan weight before trip items — used instead of MIRO when entered",
+                        value: binding(for: \.weighbridgeWeightKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    ),
+                    right: AppLabeledNumberField(
+                        "Caravan hitch limit (kg)",
+                        caption: "Maximum nose weight on the caravan hitch",
+                        value: binding(for: \.caravanMaxNoseKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
+                )
+            }
+        } else {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                AppLabeledNumberField(
+                    "MTPLM (kg)",
+                    caption: "Maximum Technically Permissible Laden Mass",
+                    value: binding(for: \.mtplmKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+                AppLabeledNumberField(
+                    "MIRO (kg)",
+                    caption: "Mass in Running Order — used when no weighbridge weight is entered",
+                    value: binding(for: \.baseWeightKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+                AppLabeledNumberField(
+                    "Weighbridge weight (kg)",
+                    caption: "Actual caravan weight before trip items — used instead of MIRO when entered",
+                    value: binding(for: \.weighbridgeWeightKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+                AppLabeledNumberField(
+                    "Caravan hitch limit (kg)",
+                    caption: "Maximum nose weight on the caravan hitch",
+                    value: binding(for: \.caravanMaxNoseKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+            }
         }
     }
 
@@ -434,25 +449,50 @@ struct SettingsView: View {
     @ViewBuilder
     private func motorhomeSettings(_ profile: VehicleProfile) -> some View {
         AppSettingsSection("Motorhome", caption: "Limits from your vehicle plate (MAM and axle weights).") {
-            padAdaptiveFieldStack {
-                AppLabeledNumberField(
-                    "MAM (kg)",
-                    caption: "Maximum Authorised Mass (gross laden limit)",
-                    value: binding(for: \.mtplmKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
-                AppLabeledNumberField(
-                    "MRO (kg)",
-                    caption: "Mass in Running Order — used when no weighbridge reading is entered",
-                    value: binding(for: \.baseWeightKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
-                AppLabeledNumberField(
-                    "Weighbridge gross (kg)",
-                    caption: "Total laden mass before trip items (optional if axle weights entered)",
-                    value: binding(for: \.weighbridgeWeightKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
+            if usePadLayout {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                    AppAlignedLabeledNumberFieldRow(
+                        left: AppLabeledNumberField(
+                            "MAM (kg)",
+                            caption: "Maximum Authorised Mass (gross laden limit)",
+                            value: binding(for: \.mtplmKg, on: profile),
+                            fractionDigitsUpperBound: 0
+                        ),
+                        right: AppLabeledNumberField(
+                            "MRO (kg)",
+                            caption: "Mass in Running Order — used when no weighbridge reading is entered",
+                            value: binding(for: \.baseWeightKg, on: profile),
+                            fractionDigitsUpperBound: 0
+                        )
+                    )
+                    AppLabeledNumberField(
+                        "Weighbridge gross (kg)",
+                        caption: "Total laden mass before trip items (optional if axle weights entered)",
+                        value: binding(for: \.weighbridgeWeightKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
+                }
+            } else {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                    AppLabeledNumberField(
+                        "MAM (kg)",
+                        caption: "Maximum Authorised Mass (gross laden limit)",
+                        value: binding(for: \.mtplmKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
+                    AppLabeledNumberField(
+                        "MRO (kg)",
+                        caption: "Mass in Running Order — used when no weighbridge reading is entered",
+                        value: binding(for: \.baseWeightKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
+                    AppLabeledNumberField(
+                        "Weighbridge gross (kg)",
+                        caption: "Total laden mass before trip items (optional if axle weights entered)",
+                        value: binding(for: \.weighbridgeWeightKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
+                }
             }
         }
 
@@ -477,23 +517,6 @@ struct SettingsView: View {
                     value: binding(for: \.maxGarageKg, on: profile),
                     fractionDigitsUpperBound: 0
                 )
-                Toggle(isOn: boolBinding(for: \.garageLimitIncludesBikeRack, on: profile)) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Include bike rack in garage limit")
-                            .font(.subheadline.weight(.medium))
-                        Text(profile.garageLimitIncludesBikeRack
-                            ? "Garage limit totals items in Garage and Bike Rack zones."
-                            : "Garage limit totals items in the Garage zone only (typical if your plate names the under-bed box).")
-                            .font(.caption)
-                            .foregroundStyle(AppColors.textSupporting)
-                    }
-                }
-                .tint(Color.accentColor)
-                Text("All items still count toward MAM and axle estimates. Bike rack axle impact is unchanged.")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSupporting)
-                    .fixedSize(horizontal: false, vertical: true)
-
                 Toggle(isOn: boolBinding(for: \.hasBikeRack, on: profile)) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Bike rack fitted")
@@ -506,6 +529,25 @@ struct SettingsView: View {
                     }
                 }
                 .tint(Color.accentColor)
+
+                if profile.hasBikeRack {
+                    Toggle(isOn: boolBinding(for: \.garageLimitIncludesBikeRack, on: profile)) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Include bike rack in garage limit")
+                                .font(.subheadline.weight(.medium))
+                            Text(profile.garageLimitIncludesBikeRack
+                                ? "Garage limit totals items in Garage and Bike Rack zones."
+                                : "Garage limit totals items in the Garage zone only (typical if your plate names the under-bed box).")
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSupporting)
+                        }
+                    }
+                    .tint(Color.accentColor)
+                    Text("All items still count toward MAM and axle estimates. Bike rack axle impact is unchanged.")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
 
@@ -565,44 +607,89 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func motorhomeAxleWeighbridgeFields(_ profile: VehicleProfile) -> some View {
-        HStack(alignment: .top, spacing: AppScreenMetrics.fieldSpacing) {
+        if usePadLayout {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                AppLabeledNumberField(
-                    "Front axle (kg)",
-                    caption: "From your weighbridge ticket — baseline before trip items",
-                    value: binding(for: \.weighbridgeFrontAxleKg, on: profile),
-                    fractionDigitsUpperBound: 0
+                AppAlignedLabeledNumberFieldRow(
+                    left: AppLabeledNumberField(
+                        "Front axle (kg)",
+                        caption: "From your weighbridge ticket — baseline before trip items",
+                        value: binding(for: \.weighbridgeFrontAxleKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    ),
+                    right: AppLabeledNumberField(
+                        "Rear axle (kg)",
+                        caption: "From your weighbridge ticket — baseline before trip items",
+                        value: binding(for: \.weighbridgeRearAxleKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
                 )
-                AppLabeledNumberField(
-                    "Max front axle (kg)",
-                    caption: "Plated front axle limit",
-                    value: binding(for: \.maxFrontAxleKg, on: profile),
-                    fractionDigitsUpperBound: 0
+                AppAlignedLabeledNumberFieldRow(
+                    left: AppLabeledNumberField(
+                        "Max front axle (kg)",
+                        caption: "Plated front axle limit",
+                        value: binding(for: \.maxFrontAxleKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    ),
+                    right: AppLabeledNumberField(
+                        "Max rear axle (kg)",
+                        caption: "Plated rear axle limit",
+                        value: binding(for: \.maxRearAxleKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
                 )
-                motorhomeSecondaryAxleNumberField(
-                    "Front axle split (%)",
-                    caption: "When axle weights are not entered",
-                    value: binding(for: \.axleSplitFrontPercent, on: profile),
-                    maxWidth: Self.motorhomeAxleSplitFieldMaxWidth
-                )
+                HStack(alignment: .top, spacing: AppScreenMetrics.fieldSpacing) {
+                    motorhomeSecondaryAxleNumberField(
+                        "Front axle split (%)",
+                        caption: "When axle weights are not entered",
+                        value: binding(for: \.axleSplitFrontPercent, on: profile),
+                        maxWidth: Self.motorhomeAxleSplitFieldMaxWidth
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                        .accessibilityHidden(true)
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            HStack(alignment: .top, spacing: AppScreenMetrics.fieldSpacing) {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                    AppLabeledNumberField(
+                        "Front axle (kg)",
+                        caption: "From your weighbridge ticket — baseline before trip items",
+                        value: binding(for: \.weighbridgeFrontAxleKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
+                    AppLabeledNumberField(
+                        "Max front axle (kg)",
+                        caption: "Plated front axle limit",
+                        value: binding(for: \.maxFrontAxleKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
+                    motorhomeSecondaryAxleNumberField(
+                        "Front axle split (%)",
+                        caption: "When axle weights are not entered",
+                        value: binding(for: \.axleSplitFrontPercent, on: profile),
+                        maxWidth: Self.motorhomeAxleSplitFieldMaxWidth
+                    )
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                AppLabeledNumberField(
-                    "Rear axle (kg)",
-                    caption: "From your weighbridge ticket — baseline before trip items",
-                    value: binding(for: \.weighbridgeRearAxleKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
-                AppLabeledNumberField(
-                    "Max rear axle (kg)",
-                    caption: "Plated rear axle limit",
-                    value: binding(for: \.maxRearAxleKg, on: profile),
-                    fractionDigitsUpperBound: 0
-                )
+                VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                    AppLabeledNumberField(
+                        "Rear axle (kg)",
+                        caption: "From your weighbridge ticket — baseline before trip items",
+                        value: binding(for: \.weighbridgeRearAxleKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
+                    AppLabeledNumberField(
+                        "Max rear axle (kg)",
+                        caption: "Plated rear axle limit",
+                        value: binding(for: \.maxRearAxleKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
