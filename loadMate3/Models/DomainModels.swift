@@ -312,6 +312,36 @@ extension VehicleProfile {
     }
 }
 
+/// Subjective towing/handling rating recorded per trip after a real tow or test drive.
+enum TowingExperience: String, Codable, CaseIterable, Identifiable {
+    case notSet
+    case excellent
+    case good
+    case fair
+    case poor
+    case unstable
+    case notTowedYet
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .notSet: return "Not set"
+        case .excellent: return "Great — stable"
+        case .good: return "OK"
+        case .fair: return "A bit twitchy"
+        case .poor: return "Poor"
+        case .unstable: return "Sway / instability"
+        case .notTowedYet: return "Not towed yet"
+        }
+    }
+
+    /// Options shown in the trip-notes picker (excludes the unset sentinel).
+    static var pickerCases: [TowingExperience] {
+        allCases.filter { $0 != .notSet }
+    }
+}
+
 @Model
 final class Trip {
     @Attribute(.unique) var id: UUID
@@ -319,6 +349,12 @@ final class Trip {
     var sortOrder: Int
     /// Manually entered tow bar (nose) load for this trip (kg).
     var manualTowBarLoadKg: Double
+    /// Caravan: nose weight measured on a gauge for this trip (kg). 0 = not set.
+    var measuredNoseWeightKg: Double = 0
+    /// Caravan: subjective towing experience for this trip setup.
+    var towingExperienceRaw: String = TowingExperience.notSet.rawValue
+    /// Free-form notes for this trip loading (caravan short notes; motorhome general notes).
+    var tripNotes: String = ""
 
     var profile: VehicleProfile?
 
@@ -330,13 +366,39 @@ final class Trip {
         name: String,
         sortOrder: Int = 0,
         manualTowBarLoadKg: Double = 0,
+        measuredNoseWeightKg: Double = 0,
+        towingExperienceRaw: String = TowingExperience.notSet.rawValue,
+        tripNotes: String = "",
         profile: VehicleProfile? = nil
     ) {
         self.id = id
         self.name = name
         self.sortOrder = sortOrder
         self.manualTowBarLoadKg = manualTowBarLoadKg
+        self.measuredNoseWeightKg = measuredNoseWeightKg
+        self.towingExperienceRaw = towingExperienceRaw
+        self.tripNotes = tripNotes
         self.profile = profile
+    }
+
+    var towingExperience: TowingExperience {
+        get { TowingExperience(rawValue: towingExperienceRaw) ?? .notSet }
+        set { towingExperienceRaw = newValue.rawValue }
+    }
+
+    func hasLoadingNotes(for kind: VehicleKind) -> Bool {
+        switch kind {
+        case .caravan:
+            return measuredNoseWeightKg > 0
+                || towingExperience != .notSet
+                || !trimmedTripNotes.isEmpty
+        case .motorhome:
+            return !trimmedTripNotes.isEmpty
+        }
+    }
+
+    var trimmedTripNotes: String {
+        tripNotes.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

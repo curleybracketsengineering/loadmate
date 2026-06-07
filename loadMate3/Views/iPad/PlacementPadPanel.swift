@@ -11,6 +11,7 @@ struct PlacementPadPanel: View {
     @StateObject private var viewModel = LocationViewModel()
     @State private var zonePickerItem: LoadedItem?
     @State private var showLocationsHelp = false
+    @State private var tripPendingNotes: Trip?
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
@@ -71,6 +72,11 @@ struct PlacementPadPanel: View {
                 }
             )
         }
+        .sheet(item: $tripPendingNotes) { trip in
+            if let profile = activeProfile {
+                TripLoadingNotesSheet(profile: profile, trip: trip)
+            }
+        }
         .alert("About locations", isPresented: $showLocationsHelp) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -94,6 +100,14 @@ struct PlacementPadPanel: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("About locations")
                     .pointerHelp("Help")
+
+                    Spacer(minLength: 0)
+
+                    if let profile = activeProfile, let trip = activeTrip {
+                        TripNotesToolbarButton(profile: profile, trip: trip) {
+                            tripPendingNotes = trip
+                        }
+                    }
                 }
 
                 VehicleCutawayPadView(

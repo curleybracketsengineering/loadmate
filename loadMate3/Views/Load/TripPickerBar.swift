@@ -11,6 +11,7 @@ struct TripPickerBar: View {
     @Binding var showAddTrip: Bool
     @Binding var tripPendingRename: Trip?
     @Binding var tripRenameField: String
+    var onOpenTripNotes: ((Trip) -> Void)? = nil
 
     private var canDeleteActiveTrip: Bool {
         trips.count > 1
@@ -64,6 +65,11 @@ struct TripPickerBar: View {
                 Text(trip.name)
                     .font(.subheadline.weight(isActive ? .semibold : .regular))
                     .lineLimit(1)
+                if trip.hasLoadingNotes(for: profile.kind) {
+                    Circle()
+                        .fill(isActive ? Color.white.opacity(0.9) : Color.accentColor)
+                        .frame(width: 6, height: 6)
+                }
                 if isActive {
                     Image(systemName: "checkmark")
                         .font(.caption.weight(.bold))
@@ -79,6 +85,14 @@ struct TripPickerBar: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            if let onOpenTripNotes {
+                Button {
+                    onOpenTripNotes(trip)
+                } label: {
+                    Label("Trip notes", systemImage: "note.text")
+                }
+            }
+
             if isActive {
                 Button {
                     tripPendingRename = trip

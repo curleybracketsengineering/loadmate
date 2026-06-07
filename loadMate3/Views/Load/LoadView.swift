@@ -36,6 +36,7 @@ struct LoadTabContent: View {
     @State private var tripPendingRename: Trip?
     @State private var tripRenameField = ""
     @State private var showStarterKitConfirm = false
+    @State private var tripPendingNotes: Trip?
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
@@ -114,8 +115,17 @@ struct LoadTabContent: View {
                             activeTrip: activeTrip,
                             showAddTrip: $showAddTrip,
                             tripPendingRename: $tripPendingRename,
-                            tripRenameField: $tripRenameField
+                            tripRenameField: $tripRenameField,
+                            onOpenTripNotes: { tripPendingNotes = $0 }
                         )
+                    }
+
+                    if let profile = activeProfile, let trip = activeTrip {
+                        TripNotesEntryCard(profile: profile, trip: trip) {
+                            tripPendingNotes = trip
+                        }
+                        .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                        .padding(.bottom, AppScreenMetrics.controlSpacing)
                     }
 
                     if let profile = activeProfile,
@@ -282,6 +292,11 @@ struct LoadTabContent: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text(starterKitAlertMessage)
+            }
+            .sheet(item: $tripPendingNotes) { trip in
+                if let profile = activeProfile {
+                    TripLoadingNotesSheet(profile: profile, trip: trip)
+                }
             }
             .alert("Rename trip", isPresented: Binding(
                 get: { tripPendingRename != nil },
