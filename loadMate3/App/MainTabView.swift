@@ -76,7 +76,7 @@ struct MainTabView: View {
         case .checklist:
             ChecklistView()
         case .settings:
-            SettingsView()
+            SettingsView(onNavigateToSummary: { selectedTab = .weight })
         }
     }
 
@@ -100,7 +100,7 @@ struct MainTabView: View {
                 .tag(AppTab.checklist)
                 .tabItem { Label("Checklist", systemImage: "checklist") }
 
-            SettingsView()
+            SettingsView(onNavigateToSummary: { selectedTab = .weight })
                 .tag(AppTab.settings)
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }

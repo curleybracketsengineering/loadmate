@@ -60,11 +60,14 @@ final class SettingsViewModel: ObservableObject {
         save(context)
     }
 
-    func save(_ context: ModelContext) {
+    @discardableResult
+    func save(_ context: ModelContext) -> Bool {
         do {
             try context.save()
+            return true
         } catch {
             assertionFailure("SwiftData save failed: \(error.localizedDescription)")
+            return false
         }
     }
 }

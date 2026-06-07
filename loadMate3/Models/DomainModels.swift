@@ -299,11 +299,69 @@ extension VehicleProfile {
     }
 
     var isConfiguredForWeightCalculations: Bool {
+        missingWeightCalculationFieldLabels.isEmpty
+    }
+
+    /// Settings labels for required fields that are still empty (matches Settings field titles).
+    var missingWeightCalculationFieldLabels: [String] {
         switch kind {
         case .caravan:
-            return calculationBaseWeightKg > 0 && mtplmKg > 0 && carMaxTowBallKg > 0
+            var missing: [String] = []
+            if calculationBaseWeightKg <= 0 {
+                missing.append("MIRO (kg) or weighbridge weight (kg)")
+            }
+            if mtplmKg <= 0 {
+                missing.append("MTPLM (kg)")
+            }
+            if carMaxTowBallKg <= 0 {
+                missing.append("Car tow ball limit (kg)")
+            }
+            return missing
         case .motorhome:
-            return calculationBaseWeightKg > 0 && mtplmKg > 0 && maxFrontAxleKg > 0 && maxRearAxleKg > 0
+            var missing: [String] = []
+            if calculationBaseWeightKg <= 0 {
+                missing.append("MRO (kg) or weighbridge weight")
+            }
+            if mtplmKg <= 0 {
+                missing.append("MAM (kg)")
+            }
+            if maxFrontAxleKg <= 0 {
+                missing.append("Max front axle (kg)")
+            }
+            if maxRearAxleKg <= 0 {
+                missing.append("Max rear axle (kg)")
+            }
+            return missing
+        }
+    }
+
+    /// Summary tab message when required Settings fields are incomplete.
+    var weightCalculationSetupSummaryMessage: String {
+        Self.summarySetupMessage(forMissingFieldLabels: missingWeightCalculationFieldLabels)
+    }
+
+    static func summarySetupMessage(forMissingFieldLabels labels: [String]) -> String {
+        guard !labels.isEmpty else {
+            return "Open Settings and complete your vehicle profile."
+        }
+        let fieldList = formattedFieldList(labels)
+        if labels.count == 1 {
+            return "Can't show summary information until \(fieldList) has been completed in Settings."
+        }
+        return "Can't show summary information until \(fieldList) have been completed in Settings."
+    }
+
+    private static func formattedFieldList(_ items: [String]) -> String {
+        switch items.count {
+        case 0:
+            return ""
+        case 1:
+            return items[0]
+        case 2:
+            return "\(items[0]) and \(items[1])"
+        default:
+            let prefix = items.dropLast().joined(separator: ", ")
+            return "\(prefix), and \(items[items.count - 1])"
         }
     }
 

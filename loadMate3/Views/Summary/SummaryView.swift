@@ -69,14 +69,9 @@ struct SummaryView: View {
 
     private var setupRequiredMessage: String {
         guard let profile = activeProfile else {
-            return "Open Settings and add a vehicle profile."
+            return "Can't show summary information until you add a vehicle profile in Settings."
         }
-        switch profile.kind {
-        case .caravan:
-            return "Open Settings and enter base weight, MTPLM, and tow-ball limit."
-        case .motorhome:
-            return "Open Settings and enter base weight, MAM, and front and rear axle limits."
-        }
+        return profile.weightCalculationSetupSummaryMessage
     }
 
     @ViewBuilder

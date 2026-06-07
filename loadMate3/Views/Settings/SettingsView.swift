@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 
 struct SettingsView: View {
+    var onNavigateToSummary: (() -> Void)?
+
     @Environment(\.usePadLayout) private var usePadLayout
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\VehicleProfile.sortOrder)]) private var profiles: [VehicleProfile]
@@ -53,7 +55,9 @@ struct SettingsView: View {
 
                             VStack(spacing: AppScreenMetrics.controlSpacing) {
                                 AppPrimaryButton("Save Configuration", systemImage: "checkmark.circle.fill") {
-                                    viewModel.save(modelContext)
+                                    if viewModel.save(modelContext) {
+                                        onNavigateToSummary?()
+                                    }
                                 }
                             }
                             .padding(.top, AppScreenMetrics.smallSpacing)
