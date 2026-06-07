@@ -223,11 +223,11 @@ struct MotorhomeSummaryPadLayout: View {
             title: "Total Weight",
             value: summary.totalWeightKg,
             valueColor: summary.isOverMAM ? AppColors.red : AppColors.blue,
-            limitLabel: "MAM: \(Self.displayKg(profile.mtplmKg))",
+            limitLabel: "MAM: \(MotorhomeSummaryMetrics.displayKg(profile.mtplmKg))",
             fill: CGFloat(summary.mamFillFraction(profile: profile)),
             isOverLimit: summary.isOverMAM,
             barColor: AppColors.blue,
-            footer: profile.mtplmKg > 0 ? "\(Self.displayKg(spare)) spare" : "Set MAM in Settings"
+            footer: profile.mtplmKg > 0 ? "\(MotorhomeSummaryMetrics.displayKg(spare)) spare" : "Set MAM in Settings"
         )
     }
 
@@ -239,11 +239,11 @@ struct MotorhomeSummaryPadLayout: View {
             title: "Front Axle",
             value: summary.estimatedFrontAxleKg,
             valueColor: summary.isOverFrontAxle ? AppColors.red : AppColors.blue,
-            limitLabel: "Max: \(Self.displayKg(profile.maxFrontAxleKg))",
+            limitLabel: "Max: \(MotorhomeSummaryMetrics.displayKg(profile.maxFrontAxleKg))",
             fill: CGFloat(summary.frontAxleFillFraction(profile: profile)),
             isOverLimit: summary.isOverFrontAxle,
             barColor: AppColors.blue,
-            footer: profile.maxFrontAxleKg > 0 ? "\(Self.displayKg(spare)) spare" : "Set axle limits"
+            footer: profile.maxFrontAxleKg > 0 ? "\(MotorhomeSummaryMetrics.displayKg(spare)) spare" : "Set axle limits"
         )
     }
 
@@ -255,11 +255,11 @@ struct MotorhomeSummaryPadLayout: View {
             title: "Rear Axle",
             value: summary.estimatedRearAxleKg,
             valueColor: summary.isOverRearAxle ? AppColors.red : AppColors.blue,
-            limitLabel: "Max: \(Self.displayKg(profile.maxRearAxleKg))",
+            limitLabel: "Max: \(MotorhomeSummaryMetrics.displayKg(profile.maxRearAxleKg))",
             fill: CGFloat(summary.rearAxleFillFraction(profile: profile)),
             isOverLimit: summary.isOverRearAxle,
             barColor: AppColors.blue,
-            footer: profile.maxRearAxleKg > 0 ? "\(Self.displayKg(spare)) spare" : "Set axle limits"
+            footer: profile.maxRearAxleKg > 0 ? "\(MotorhomeSummaryMetrics.displayKg(spare)) spare" : "Set axle limits"
         )
     }
 
@@ -271,11 +271,11 @@ struct MotorhomeSummaryPadLayout: View {
             title: garageTitle,
             value: garageValueKg,
             valueColor: garageIsOverLimit ? AppColors.red : AppColors.purple,
-            limitLabel: "Max: \(Self.displayKg(profile.maxGarageKg))",
+            limitLabel: "Max: \(MotorhomeSummaryMetrics.displayKg(profile.maxGarageKg))",
             fill: profile.maxGarageKg > 0 ? CGFloat(min(max(garageValueKg / profile.maxGarageKg, 0), 1)) : 0,
             isOverLimit: garageIsOverLimit,
             barColor: AppColors.purple,
-            footer: profile.maxGarageKg > 0 ? "\(Self.displayKg(spare)) spare" : "Set garage limit"
+            footer: profile.maxGarageKg > 0 ? "\(MotorhomeSummaryMetrics.displayKg(spare)) spare" : "Set garage limit"
         )
     }
 
@@ -305,14 +305,14 @@ struct MotorhomeSummaryPadLayout: View {
             value: value,
             valueColor: isOver ? AppColors.red : AppColors.green,
             limitLabel: profile.maxTowBarKg > 0
-                ? "Max: \(Self.displayKg(profile.maxTowBarKg))"
+                ? "Max: \(MotorhomeSummaryMetrics.displayKg(profile.maxTowBarKg))"
                 : "Set tow bar limit",
             fill: summary.isTowBarMeasurementMissing ? 0 : CGFloat(summary.towBarFillFraction(profile: profile)),
             isOverLimit: isOver,
             barColor: AppColors.green,
             footer: summary.isTowBarMeasurementMissing
                 ? "Enter on Load tab"
-                : (profile.maxTowBarKg > 0 ? "\(Self.displayKg(spare)) spare" : "Set tow bar limit")
+                : (profile.maxTowBarKg > 0 ? "\(MotorhomeSummaryMetrics.displayKg(spare)) spare" : "Set tow bar limit")
         )
     }
 
@@ -327,7 +327,7 @@ struct MotorhomeSummaryPadLayout: View {
             title: "Payload Remaining",
             value: remaining,
             valueColor: isOver ? AppColors.red : AppColors.green,
-            limitLabel: payloadLimitKg > 0 ? "Of \(Self.displayKg(payloadLimitKg))" : "Set MAM in Settings",
+            limitLabel: payloadLimitKg > 0 ? "Of \(MotorhomeSummaryMetrics.displayKg(payloadLimitKg))" : "Set MAM in Settings",
             fill: CGFloat(fill),
             isOverLimit: isOver,
             barColor: AppColors.green,
@@ -359,7 +359,7 @@ struct MotorhomeSummaryPadLayout: View {
                     .multilineTextAlignment(.leading)
             }
 
-            Text(Self.displayKg(value))
+            Text(MotorhomeSummaryMetrics.displayKg(value))
                 .font(.title.weight(.bold))
                 .fontDesign(.rounded)
                 .foregroundStyle(valueColor)
@@ -376,7 +376,7 @@ struct MotorhomeSummaryPadLayout: View {
 
             Spacer(minLength: 0)
 
-            motorhomeSummaryProgressBar(fill: fill, color: isOverLimit ? AppColors.red : barColor)
+            MotorhomeSummaryMetrics.progressBar(fill: fill, color: isOverLimit ? AppColors.red : barColor)
 
             Text(footer)
                 .font(.caption.weight(.semibold))
@@ -449,15 +449,6 @@ struct MotorhomeSummaryPadLayout: View {
         let totalSpacing = spacing * CGFloat(max(0, columnCount - 1))
         return (availableWidth - totalSpacing) / CGFloat(columnCount)
     }
-
-    private static func displayKg(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = value.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 1
-        formatter.minimumFractionDigits = 0
-        let number = formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
-        return "\(number) kg"
-    }
 }
 
 // MARK: - Layout
@@ -468,50 +459,4 @@ private struct MetricColumnWidthPreferenceKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
-}
-
-// MARK: - Balance
-
-private struct MotorhomeBalanceEstimate {
-    let isWarning: Bool
-    /// 0 = front-heavy, 0.5 = balanced, 1 = rear-heavy (for the balance scale marker).
-    let indicatorFraction: CGFloat
-
-    init(summary: MotorhomeWeightSummary, loadedItems: [LoadedItem]) {
-        let frontKg = Self.zoneWeight(in: [.driver, .central], items: loadedItems)
-        let rearKg = Self.zoneWeight(in: [.back, .garage, .bikeRack], items: loadedItems)
-
-        if summary.frontAxleImpactKg > summary.rearAxleImpactKg + 80, frontKg > rearKg {
-            isWarning = true
-            indicatorFraction = 0.14
-        } else if summary.rearAxleImpactKg > summary.frontAxleImpactKg + 80, rearKg > frontKg {
-            isWarning = true
-            indicatorFraction = 0.86
-        } else {
-            isWarning = false
-            indicatorFraction = 0.5
-        }
-    }
-
-    private static func zoneWeight(in zones: [LoadZone], items: [LoadedItem]) -> Double {
-        items.reduce(0) { sum, loaded in
-            guard zones.contains(loaded.zone) else { return sum }
-            let weight = loaded.item?.weightKg ?? 0
-            return sum + weight * Double(max(loaded.quantity, 0))
-        }
-    }
-}
-
-// MARK: - Shared chrome
-
-private func motorhomeSummaryProgressBar(fill: CGFloat, color: Color) -> some View {
-    GeometryReader { geo in
-        ZStack(alignment: .leading) {
-            Capsule().fill(Color(.tertiarySystemFill))
-            Capsule()
-                .fill(color)
-                .frame(width: max(geo.size.width * fill, fill > 0 ? 4 : 0))
-        }
-    }
-    .frame(height: 8)
 }

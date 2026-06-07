@@ -138,3 +138,5 @@ extension MotorhomeSummaryCheck: SummaryCheckGuidance {}
 
 typealias CaravanSummaryCheckRow = SummaryCheckRow<CaravanSummaryCheck>
 typealias CaravanSummaryCheckDetailSheet = SummaryCheckDetailSheet<CaravanSummaryCheck>
+typealias MotorhomeSummaryCheckRow = SummaryCheckRow<MotorhomeSummaryCheck>
+typealias MotorhomeSummaryCheckDetailSheet = SummaryCheckDetailSheet<MotorhomeSummaryCheck>

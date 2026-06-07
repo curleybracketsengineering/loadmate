@@ -84,7 +84,7 @@ struct MainTabView: View {
 
     private var phoneTabRoot: some View {
         TabView(selection: $selectedTab) {
-            SummaryView()
+            SummaryView(onNavigateToLocations: { selectedTab = .locations })
                 .tag(AppTab.weight)
                 .tabItem { Label("Summary", systemImage: "plus.forwardslash.minus") }
 

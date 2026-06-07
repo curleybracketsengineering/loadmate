@@ -8,6 +8,10 @@ struct SummaryView: View {
     @Query private var appStates: [AppState]
     @Query private var allLoadedItems: [LoadedItem]
     @StateObject private var viewModel = SummaryViewModel()
+    @State private var tripPendingRename: Trip?
+    @State private var tripRenameField = ""
+
+    var onNavigateToLocations: (() -> Void)?
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
@@ -64,6 +68,19 @@ struct SummaryView: View {
             .task(id: profiles.map(\.id)) {
                 TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
             }
+            .alert("Rename trip", isPresented: Binding(
+                get: { tripPendingRename != nil },
+                set: { if !$0 { tripPendingRename = nil } }
+            )) {
+                TextField("Trip name", text: $tripRenameField)
+                Button("Save") {
+                    if let trip = tripPendingRename {
+                        TripStore.renameTrip(trip, name: tripRenameField, in: modelContext)
+                    }
+                    tripPendingRename = nil
+                }
+                Button("Cancel", role: .cancel) { tripPendingRename = nil }
+            }
         }
     }
 
@@ -87,114 +104,27 @@ struct SummaryView: View {
                     }
                 case .motorhome:
                     if let summary = viewModel.motorhomeSummary {
-                        motorhomeStatusBanner(summary: summary, profile: profile)
-                        if let message = profile.motorhomeWeighbridgeValidation.bannerMessage {
-                            AppWarningBanner(message: message)
-                        }
-                        MotorhomeSummaryContent.grossWeightCard(summary: summary, profile: profile)
-                        MotorhomeSummaryContent.axleCard(
-                            title: "Front Axle",
-                            estimatedKg: summary.estimatedFrontAxleKg,
-                            limitKg: profile.maxFrontAxleKg,
-                            impactKg: summary.frontAxleImpactKg,
-                            fillFraction: CGFloat(summary.frontAxleFillFraction(profile: profile)),
-                            isOverLimit: summary.isOverFrontAxle,
-                            accessibilityLabel: "Progress toward front axle limit"
+                        MotorhomeSummaryPhoneLayout(
+                            profile: profile,
+                            trip: activeTrip,
+                            summary: summary,
+                            loadedItems: profileLoadedItems,
+                            onRenameTrip: {
+                                guard let trip = activeTrip else { return }
+                                tripPendingRename = trip
+                                tripRenameField = trip.name
+                            },
+                            onNavigateToLocations: onNavigateToLocations
                         )
-                        MotorhomeSummaryContent.axleCard(
-                            title: "Rear Axle",
-                            estimatedKg: summary.estimatedRearAxleKg,
-                            limitKg: profile.maxRearAxleKg,
-                            impactKg: summary.rearAxleImpactKg,
-                            fillFraction: CGFloat(summary.rearAxleFillFraction(profile: profile)),
-                            isOverLimit: summary.isOverRearAxle,
-                            accessibilityLabel: "Progress toward rear axle limit"
-                        )
-                        if profile.monitorsGarageLimit {
-                            MotorhomeSummaryContent.garageCard(summary: summary, profile: profile)
-                        }
-                        if summary.monitorsTowBar {
-                            MotorhomeSummaryContent.towBarCard(summary: summary, profile: profile)
-                        }
                     }
                 }
             }
             .padding(.horizontal, AppScreenMetrics.horizontalPadding)
             .padding(.top, AppScreenMetrics.verticalScreenPadding)
-            .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+            .padding(.bottom, 36)
         }
         .scrollDismissesKeyboard(.interactively)
         .background(Color(.systemGroupedBackground))
-    }
-
-    // MARK: - Motorhome banners
-
-    @ViewBuilder
-    private func motorhomeStatusBanner(summary: MotorhomeWeightSummary, profile: VehicleProfile) -> some View {
-        switch MotorhomeSummaryContent.resolveStatusBanner(summary: summary, profile: profile) {
-        case .safe:
-            safeBanner
-        case .overMAM(let reduce):
-            actionableWarningBanner(
-                title: "Gross weight limit exceeded",
-                lines: [
-                    "Reduce load by \(kgAmountPhrase(reduce))",
-                    "Remove items or lighten the motorhome"
-                ],
-                background: AppColors.red,
-                accessibilitySummary: "Gross weight limit exceeded."
-            )
-        case .frontAxleExceeded(let reduce):
-            actionableWarningBanner(
-                title: "Front axle limit exceeded",
-                lines: [
-                    "Reduce front axle load by \(kgAmountPhrase(reduce))",
-                    "Move items rearward or between the axles"
-                ],
-                background: AppColors.red,
-                accessibilitySummary: "Front axle limit exceeded."
-            )
-        case .rearAxleExceeded(let reduce):
-            actionableWarningBanner(
-                title: "Rear axle limit exceeded",
-                lines: [
-                    "Reduce rear axle load by \(kgAmountPhrase(reduce))",
-                    "Move items forward; lighten garage, bike rack, or rear overhang"
-                ],
-                background: AppColors.red,
-                accessibilitySummary: "Rear axle limit exceeded."
-            )
-        case .garageExceeded(let reduce):
-            actionableWarningBanner(
-                title: "Garage weight limit exceeded",
-                lines: [
-                    "Reduce garage load by \(kgAmountPhrase(reduce))",
-                    "Move items out of the garage zone or lighten bikes on the rack"
-                ],
-                background: AppColors.red,
-                accessibilitySummary: "Garage weight limit exceeded."
-            )
-        case .towBarMeasurementMissing:
-            actionableWarningBanner(
-                title: "Tow bar load required",
-                lines: [
-                    "Enter tow bar load on the Load tab",
-                    "Use your measured downforce for this trip"
-                ],
-                background: AppColors.orange,
-                accessibilitySummary: "Tow bar load value is required."
-            )
-        case .towBarLimitExceeded(let reduce):
-            actionableWarningBanner(
-                title: "Tow bar limit exceeded",
-                lines: [
-                    "Reduce tow bar load by \(kgAmountPhrase(reduce))",
-                    "Lighten what you are towing or redistribute load"
-                ],
-                background: AppColors.red,
-                accessibilitySummary: "Tow bar limit exceeded."
-            )
-        }
     }
 
     // MARK: - Caravan banners & cards
