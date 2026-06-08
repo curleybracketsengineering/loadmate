@@ -24,75 +24,7 @@ extension Trip {
     }
 }
 
-// MARK: - Entry card
-
-struct TripNotesEntryCard: View {
-    let profile: VehicleProfile
-    let trip: Trip
-    let onTap: () -> Void
-
-    private var summary: String? {
-        trip.loadingNotesSummary(for: profile.kind)
-    }
-
-    var body: some View {
-        AppGroupedCard {
-            Button(action: onTap) {
-                HStack(alignment: .center, spacing: AppScreenMetrics.controlSpacing) {
-                    VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
-                        Text("Trip notes")
-                            .font(.headline)
-                            .foregroundStyle(Color.primary)
-
-                        if let summary {
-                            Text(summary)
-                                .font(.caption)
-                                .foregroundStyle(AppColors.textSupporting)
-                                .lineLimit(2)
-                                .multilineTextAlignment(.leading)
-                        } else {
-                            Text(placeholder)
-                                .font(.caption)
-                                .foregroundStyle(AppColors.textSupporting)
-                                .multilineTextAlignment(.leading)
-                        }
-                    }
-
-                    Spacer(minLength: AppScreenMetrics.smallSpacing)
-
-                    Image(systemName: trip.hasLoadingNotes(for: profile.kind) ? "note.text" : "square.and.pencil")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-            }
-            .buttonStyle(.plain)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("Opens trip notes for \(trip.name)")
-        .pointerHelp("Trip notes")
-    }
-
-    private var placeholder: String {
-        switch profile.kind {
-        case .caravan:
-            return "Record measured nose weight, towing feel, and short notes for this trip."
-        case .motorhome:
-            return "Add notes about this trip setup — handling, water levels, last-minute changes."
-        }
-    }
-
-    private var accessibilityLabel: String {
-        if let summary {
-            return "Trip notes for \(trip.name). \(summary)"
-        }
-        return "Trip notes for \(trip.name). No notes yet."
-    }
-}
-
-// MARK: - Compact toolbar button (iPad placement header)
+// MARK: - Compact toolbar button
 
 struct TripNotesToolbarButton: View {
     let profile: VehicleProfile

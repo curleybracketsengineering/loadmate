@@ -48,6 +48,8 @@ struct SettingsView: View {
                                 motorhomeSettings(profile)
                             }
 
+                            aboutSection()
+
                             Text("This app is an estimator only. Always physically measure weight and axle loads on a weighbridge.")
                                 .font(.caption)
                                 .foregroundStyle(AppColors.textSupporting)
@@ -131,6 +133,36 @@ struct SettingsView: View {
 
     private func profileSubtitle(_ profile: VehicleProfile) -> String {
         "\(profile.kind.displayName) — \(profile.name)"
+    }
+
+    private static let developerEmail = "smatheson6@icloude.com"
+
+    @ViewBuilder
+    private func aboutSection() -> some View {
+        AppSettingsSection(
+            "About",
+            caption: "Who built LoadMate and why it exists."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                Text(
+                    """
+                    LoadMate was built for you by Scott Matheson. After four decades in software development, I kept seeing hobby apps — caravanning and motorhomes included — that were either poorly made or mainly about making money. I wanted to put that experience toward something genuinely useful: a free utility to help us all load more safely and sensibly.
+
+                    If you have ideas for how to improve it, I'd love to hear from you.
+                    """
+                )
+                .font(.subheadline)
+                .foregroundStyle(Color.primary)
+                .fixedSize(horizontal: false, vertical: true)
+
+                if let mailURL = URL(string: "mailto:\(Self.developerEmail)") {
+                    Link(destination: mailURL) {
+                        Label(Self.developerEmail, systemImage: "envelope")
+                            .font(.subheadline.weight(.medium))
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Profiles

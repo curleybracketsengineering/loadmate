@@ -23,6 +23,12 @@ struct TripPickerBar: View {
                 AppSectionHeading("Trip")
                     .frame(maxWidth: .infinity, alignment: .leading)
 
+                if let trip = activeTrip, let onOpenTripNotes {
+                    TripNotesToolbarButton(profile: profile, trip: trip) {
+                        onOpenTripNotes(trip)
+                    }
+                }
+
                 Menu {
                     Button {
                         showAddTrip = true

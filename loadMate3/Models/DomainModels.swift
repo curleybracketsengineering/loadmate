@@ -135,6 +135,9 @@ final class VehicleProfile {
     /// Last-selected load setup for this vehicle (beach, Europe, etc.).
     var activeTripID: UUID?
 
+    /// Starter kit was loaded for this profile — hide the one-time load option.
+    var hasAppliedStarterKit: Bool = false
+
     @Relationship(deleteRule: .cascade, inverse: \Trip.profile)
     var trips: [Trip] = []
 

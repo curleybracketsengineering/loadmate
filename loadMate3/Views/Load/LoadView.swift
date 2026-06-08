@@ -89,8 +89,9 @@ struct LoadTabContent: View {
     }
 
     private var showsStarterKit: Bool {
-        guard let kind = activeProfile?.kind else { return false }
-        return kind == .caravan || kind == .motorhome
+        guard let profile = activeProfile else { return false }
+        guard profile.kind == .caravan || profile.kind == .motorhome else { return false }
+        return !profile.hasAppliedStarterKit
     }
 
     private var starterKitVehicleLabel: String {
@@ -120,14 +121,6 @@ struct LoadTabContent: View {
                         )
                     }
 
-                    if let profile = activeProfile, let trip = activeTrip {
-                        TripNotesEntryCard(profile: profile, trip: trip) {
-                            tripPendingNotes = trip
-                        }
-                        .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                        .padding(.bottom, AppScreenMetrics.controlSpacing)
-                    }
-
                     if let profile = activeProfile,
                        profile.kind == .motorhome,
                        profile.usesManualTowBarLoad,
@@ -140,6 +133,7 @@ struct LoadTabContent: View {
                     if libraryItems.isEmpty {
                         LoadEmptyStateView(
                             vehicleKind: activeProfile?.kind,
+                            showsStarterKit: showsStarterKit,
                             onLoadStarterKit: requestStarterKit,
                             onAddItem: { showAddItem = true }
                         )
@@ -352,8 +346,8 @@ struct LoadTabContent: View {
     }
 
     private func applyStarterKit() {
-        guard let kind = activeProfile?.kind else { return }
-        switch kind {
+        guard let profile = activeProfile else { return }
+        switch profile.kind {
         case .caravan:
             _ = viewModel.applyCaravanStarterKit(
                 trip: activeTrip,
@@ -368,6 +362,14 @@ struct LoadTabContent: View {
                 loadedItems: loadedItems,
                 in: modelContext
             )
+        default:
+            return
+        }
+        profile.hasAppliedStarterKit = true
+        do {
+            try modelContext.save()
+        } catch {
+            assertionFailure("SwiftData save failed: \(error.localizedDescription)")
         }
     }
 
@@ -462,12 +464,9 @@ private struct LoadPhoneTabView: View {
 
 private struct LoadEmptyStateView: View {
     var vehicleKind: VehicleKind?
+    var showsStarterKit: Bool
     var onLoadStarterKit: () -> Void
     var onAddItem: () -> Void
-
-    private var showsStarterKit: Bool {
-        vehicleKind == .caravan || vehicleKind == .motorhome
-    }
 
     private var vehicleLabel: String {
         vehicleKind == .motorhome ? "motorhome" : "caravan"
