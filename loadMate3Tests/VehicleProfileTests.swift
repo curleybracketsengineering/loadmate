@@ -28,13 +28,36 @@ final class VehicleProfileTests: XCTestCase {
         profile.maxRearAxleKg = 1850
 
         XCTAssertFalse(profile.isConfiguredForWeightCalculations)
+        XCTAssertTrue(profile.isMissingMotorhomePlatedAxleLimits)
+        XCTAssertEqual(
+            profile.weightCalculationSetupSummaryMessage,
+            VehicleProfile.motorhomePlatedAxleLimitsRequiredMessage
+        )
+    }
+
+    func testMotorhomeSetupSummaryMessageWhenOnlyPlatedRearMissing() {
+        var profile = TestFixtures.motorhomeProfile()
+        profile.maxRearAxleKg = 0
+
+        XCTAssertTrue(profile.isMissingMotorhomePlatedAxleLimits)
+        XCTAssertEqual(
+            profile.weightCalculationSetupSummaryMessage,
+            VehicleProfile.motorhomePlatedAxleLimitsRequiredMessage
+        )
+    }
+
+    func testMotorhomeSetupSummaryMessageListsOtherMissingFieldsWhenPlatedLimitsSet() {
+        var profile = TestFixtures.motorhomeProfile(gross: 0, frontAxle: 0, rearAxle: 0, mam: 0)
+        profile.baseWeightKg = 0
+
+        XCTAssertFalse(profile.isMissingMotorhomePlatedAxleLimits)
         XCTAssertEqual(
             profile.missingWeightCalculationFieldLabels,
-            ["MRO (kg) or weighbridge weight", "MAM (kg)", "Max front axle (kg)"]
+            ["MRO (kg) or weighbridge weight", "MAM (kg)"]
         )
         XCTAssertEqual(
             profile.weightCalculationSetupSummaryMessage,
-            "Can't show summary information until MRO (kg) or weighbridge weight, MAM (kg), and Max front axle (kg) have been completed in Settings."
+            "Can't show summary information until MRO (kg) or weighbridge weight and MAM (kg) have been completed in Settings."
         )
     }
 

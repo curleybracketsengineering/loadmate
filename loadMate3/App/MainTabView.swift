@@ -18,7 +18,7 @@ struct MainTabView: View {
     @State private var didPresentSetupPrompt = false
 
     private var activeProfile: VehicleProfile? {
-        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+        VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
     }
 
     private var needsSetup: Bool {
@@ -114,12 +114,8 @@ struct MainTabView: View {
         guard let profile = activeProfile else {
             return "Add a vehicle in Settings for weight calculations. You can still use Load, Locations, and Checklist first."
         }
-        switch profile.kind {
-        case .caravan:
-            return "Your caravan and tow vehicle details are needed for accurate weight calculations. You can still use Load, Locations, and Checklist before completing Settings."
-        case .motorhome:
-            return "Your motorhome MAM and axle limits are needed for accurate weight estimates. Enter weighbridge axle weights when you can. You can still use Load, Locations, and Checklist before completing Settings."
-        }
+        return profile.weightCalculationSetupSummaryMessage
+            + " You can still use Load, Locations, and Checklist before completing Settings."
     }
 
     private func presentSetupPromptIfNeeded() {

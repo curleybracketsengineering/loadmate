@@ -4,21 +4,18 @@ import SwiftData
 
 @MainActor
 final class ChecklistViewModel: ObservableObject {
-    private static let legacyMigrationKey = "checklistThreeLevelMigrationV1"
-
     /// Moves old flat `section.items` into a `ChecklistGroup` so every row lives under section → group → item.
     func migrateLegacyChecklistIfNeeded(in context: ModelContext) {
-        guard !UserDefaults.standard.bool(forKey: Self.legacyMigrationKey) else { return }
         let descriptor = FetchDescriptor<ChecklistSection>()
         guard let allSections = try? context.fetch(descriptor) else { return }
 
         var didChange = false
         for section in allSections {
-            let legacy = section.items.filter { $0.group == nil }
+            let legacy = section.itemsList.filter { $0.group == nil }
             guard !legacy.isEmpty else { continue }
             didChange = true
 
-            if section.groups.isEmpty {
+            if section.groupsList.isEmpty {
                 let group = ChecklistGroup(title: "Checklist", sortOrder: 0, section: section)
                 context.insert(group)
                 for (idx, item) in legacy.enumerated() {
@@ -27,7 +24,7 @@ final class ChecklistViewModel: ObservableObject {
                     item.sortOrder = idx
                 }
             } else {
-                let nextOrder = (section.groups.map(\.sortOrder).max() ?? -1) + 1
+                let nextOrder = (section.groupsList.map(\.sortOrder).max() ?? -1) + 1
                 let group = ChecklistGroup(title: "Imported", sortOrder: nextOrder, section: section)
                 context.insert(group)
                 for (idx, item) in legacy.enumerated() {
@@ -41,10 +38,14 @@ final class ChecklistViewModel: ObservableObject {
         if didChange {
             save(context)
         }
-        UserDefaults.standard.set(true, forKey: Self.legacyMigrationKey)
     }
 
-    func ensureSeedData(in context: ModelContext, existingSections: [ChecklistSection]) {
+    func ensureSeedData(
+        in context: ModelContext,
+        existingSections: [ChecklistSection],
+        appState: AppState
+    ) {
+        guard !appState.didSeedDefaultChecklist else { return }
         // Insert built-in sections only when the store has none (no UserDefaults gate — it could block
         // forever after a manual section was added before the first seed, or after deleting all sections).
         guard existingSections.isEmpty else { return }
@@ -246,6 +247,7 @@ final class ChecklistViewModel: ObservableObject {
             }
         }
 
+        appState.didSeedDefaultChecklist = true
         save(context)
     }
 
@@ -273,7 +275,7 @@ final class ChecklistViewModel: ObservableObject {
     func addGroup(to section: ChecklistSection, title: String, in context: ModelContext) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let next = (section.groups.map(\.sortOrder).max() ?? -1) + 1
+        let next = (section.groupsList.map(\.sortOrder).max() ?? -1) + 1
         let group = ChecklistGroup(title: trimmed, sortOrder: next, section: section)
         context.insert(group)
         save(context)
@@ -294,7 +296,7 @@ final class ChecklistViewModel: ObservableObject {
     func addItem(to group: ChecklistGroup, title: String, in context: ModelContext) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let next = (group.items.map(\.sortOrder).max() ?? -1) + 1
+        let next = (group.itemsList.map(\.sortOrder).max() ?? -1) + 1
         let item = ChecklistItem(title: trimmed, isChecked: false, sortOrder: next, group: group)
         context.insert(item)
         save(context)
@@ -318,12 +320,12 @@ final class ChecklistViewModel: ObservableObject {
     }
 
     func resetSection(_ section: ChecklistSection, in context: ModelContext) {
-        for group in section.groups {
-            for item in group.items {
+        for group in section.groupsList {
+            for item in group.itemsList {
                 item.isChecked = false
             }
         }
-        for item in section.items {
+        for item in section.itemsList {
             item.isChecked = false
         }
         save(context)
@@ -331,12 +333,12 @@ final class ChecklistViewModel: ObservableObject {
 
     func resetAll(sections: [ChecklistSection], in context: ModelContext) {
         for section in sections {
-            for group in section.groups {
-                for item in group.items {
+            for group in section.groupsList {
+                for item in group.itemsList {
                     item.isChecked = false
                 }
             }
-            for item in section.items {
+            for item in section.itemsList {
                 item.isChecked = false
             }
         }

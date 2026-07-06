@@ -20,7 +20,7 @@ struct LocationView: View {
     @State private var tripRenameField = ""
 
     private var activeProfile: VehicleProfile? {
-        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+        VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
     }
 
     private var activeTrip: Trip? {

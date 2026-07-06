@@ -39,7 +39,7 @@ struct LoadTabContent: View {
     @State private var tripPendingNotes: Trip?
 
     private var activeProfile: VehicleProfile? {
-        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+        VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
     }
 
     private var activeTrip: Trip? {
@@ -69,9 +69,7 @@ struct LoadTabContent: View {
         guard let profile = activeProfile else {
             return "Add a vehicle in Settings to see weight calculations."
         }
-        return profile.kind == .motorhome
-            ? "Configure motorhome settings (MAM and axle limits) for weight calculations."
-            : "Configure caravan settings to see weight calculations."
+        return profile.weightCalculationSetupSummaryMessage
     }
 
     private var loadedUnitCount: Int {

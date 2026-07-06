@@ -9,6 +9,12 @@ enum VehicleProfileStore {
         }
     }
 
+    /// One row per profile ID — avoids duplicate list rows during CloudKit import.
+    static func uniqueSortedProfiles(_ profiles: [VehicleProfile]) -> [VehicleProfile] {
+        var seen = Set<UUID>()
+        return sortedProfiles(profiles).filter { seen.insert($0.id).inserted }
+    }
+
     static func activeProfile(
         profiles: [VehicleProfile],
         appState: AppState?
@@ -37,20 +43,37 @@ enum VehicleProfileStore {
         if let appState {
             state = appState
         } else {
-            let newState = AppState()
-            context.insert(newState)
-            state = newState
+            state = AppStateStore.resolve(in: context)
         }
 
-        if profiles.isEmpty {
-            let caravan = VehicleProfile(name: "My Caravan", kind: .caravan, sortOrder: 0)
+        if profiles.isEmpty, !state.didSeedDefaultProfiles {
+            let caravan = VehicleProfile(
+                id: LoadMateSyncIDs.defaultCaravanProfile,
+                name: "My Caravan",
+                kind: .caravan,
+                sortOrder: 0
+            )
             context.insert(caravan)
-            _ = TripStore.ensureDefaultTrip(for: caravan, in: context)
+            _ = TripStore.ensureDefaultTrip(
+                for: caravan,
+                preferredID: LoadMateSyncIDs.defaultCaravanTrip,
+                in: context
+            )
 
-            let motorhome = VehicleProfile(name: "My Motorhome", kind: .motorhome, sortOrder: 1)
+            let motorhome = VehicleProfile(
+                id: LoadMateSyncIDs.defaultMotorhomeProfile,
+                name: "My Motorhome",
+                kind: .motorhome,
+                sortOrder: 1
+            )
             context.insert(motorhome)
-            _ = TripStore.ensureDefaultTrip(for: motorhome, in: context)
+            _ = TripStore.ensureDefaultTrip(
+                for: motorhome,
+                preferredID: LoadMateSyncIDs.defaultMotorhomeTrip,
+                in: context
+            )
 
+            state.didSeedDefaultProfiles = true
             setActive(caravan, appState: state, in: context)
             return ([caravan, motorhome], state)
         }
@@ -59,9 +82,12 @@ enum VehicleProfileStore {
             setActive(first, appState: state, in: context)
         }
 
-        TripStore.ensureTripsMigrated(in: context, profiles: profiles)
+        _ = VehicleProfileSyncReconciliation.reconcile(in: context, appState: state)
+        let currentProfiles = (try? context.fetch(FetchDescriptor<VehicleProfile>())) ?? profiles
 
-        return (sortedProfiles(profiles), state)
+        TripStore.ensureTripsMigrated(in: context, profiles: currentProfiles)
+
+        return (sortedProfiles(currentProfiles), state)
     }
 
     @MainActor

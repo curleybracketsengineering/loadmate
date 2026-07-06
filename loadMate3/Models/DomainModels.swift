@@ -72,65 +72,65 @@ enum LoadZone: String, Codable, CaseIterable, Identifiable {
 
 @Model
 final class VehicleProfile {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    var kindRaw: String
-    var sortOrder: Int
+    var id: UUID = UUID()
+    var name: String = ""
+    var kindRaw: String = VehicleKind.caravan.rawValue
+    var sortOrder: Int = 0
 
     /// Manufacturer MIRO / MRO — used when no weighbridge reading is entered.
-    var baseWeightKg: Double
+    var baseWeightKg: Double = 0
     /// Measured laden mass before trip items (caravan total or motorhome gross).
-    var weighbridgeWeightKg: Double
+    var weighbridgeWeightKg: Double = 0
 
     /// MTPLM (caravan) or MAM (motorhome).
-    var mtplmKg: Double
+    var mtplmKg: Double = 0
 
     // MARK: Caravan
 
-    var caravanMaxNoseKg: Double
-    var carMaxTowBallKg: Double
-    var noseWeightBasePercent: Double
+    var caravanMaxNoseKg: Double = 0
+    var carMaxTowBallKg: Double = 0
+    var noseWeightBasePercent: Double = 6.0
     /// Stored basis for 5%–7% safe zone; default MTPLM for existing profiles.
     var noseSafeZoneBasisRaw: String = NoseSafeZoneBasis.mtplm.rawValue
 
-    var factorFrontLocker: Double
-    var factorFront: Double
-    var factorMiddle: Double
-    var factorRear: Double
-    var factorBikeRack: Double
+    var factorFrontLocker: Double = 0.25
+    var factorFront: Double = 0.15
+    var factorMiddle: Double = 0
+    var factorRear: Double = -0.20
+    var factorBikeRack: Double = -0.35
     /// Rear bike rack fitted — controls placement art and whether the bike rack zone is offered.
-    var hasBikeRack: Bool
+    var hasBikeRack: Bool = false
 
     // MARK: Motorhome axle weighbridge & limits
 
-    var weighbridgeFrontAxleKg: Double
-    var weighbridgeRearAxleKg: Double
+    var weighbridgeFrontAxleKg: Double = 0
+    var weighbridgeRearAxleKg: Double = 0
     /// Used when axle weights are not entered: front axle share of base mass (%).
-    var axleSplitFrontPercent: Double
-    var maxFrontAxleKg: Double
-    var maxRearAxleKg: Double
+    var axleSplitFrontPercent: Double = 45
+    var maxFrontAxleKg: Double = 0
+    var maxRearAxleKg: Double = 0
     /// Max load for the rear garage / overhang box (0 = not set — no separate limit).
-    var maxGarageKg: Double
+    var maxGarageKg: Double = 0
     /// When true, trip items in the bike rack zone count toward `maxGarageKg` (manufacturer combined rear limit).
-    var garageLimitIncludesBikeRack: Bool
+    var garageLimitIncludesBikeRack: Bool = false
     /// Motorhome: user tows with a tow bar — enter load per trip on the Load tab.
-    var usesManualTowBarLoad: Bool
+    var usesManualTowBarLoad: Bool = false
     /// Maximum tow bar (nose) load the motorhome tow bar can take (0 = not set).
-    var maxTowBarKg: Double
+    var maxTowBarKg: Double = 0
 
     /// Motorhome: kg added to each axle estimate per kg of item in that zone.
-    var mhFactorDriverFront: Double
-    var mhFactorDriverRear: Double
-    var mhFactorFrontFront: Double
-    var mhFactorFrontRear: Double
-    var mhFactorCentralFront: Double
-    var mhFactorCentralRear: Double
-    var mhFactorBackFront: Double
-    var mhFactorBackRear: Double
-    var mhFactorGarageFront: Double
-    var mhFactorGarageRear: Double
-    var mhFactorBikeRackFront: Double
-    var mhFactorBikeRackRear: Double
+    var mhFactorDriverFront: Double = 0.75
+    var mhFactorDriverRear: Double = 0.15
+    var mhFactorFrontFront: Double = 0.95
+    var mhFactorFrontRear: Double = 0.05
+    var mhFactorCentralFront: Double = 0.50
+    var mhFactorCentralRear: Double = 0.50
+    var mhFactorBackFront: Double = 0.05
+    var mhFactorBackRear: Double = 0.95
+    var mhFactorGarageFront: Double = 0.02
+    var mhFactorGarageRear: Double = 0.98
+    var mhFactorBikeRackFront: Double = -0.08
+    var mhFactorBikeRackRear: Double = 1.08
 
     /// Last-selected load setup for this vehicle (beach, Europe, etc.).
     var activeTripID: UUID?
@@ -139,7 +139,11 @@ final class VehicleProfile {
     var hasAppliedStarterKit: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \Trip.profile)
-    var trips: [Trip] = []
+    var trips: [Trip]?
+
+    /// Legacy loaded-item links kept for migration from pre-trip stores.
+    @Relationship(deleteRule: .nullify, inverse: \LoadedItem.profile)
+    var legacyLoadedItems: [LoadedItem]?
 
     init(
         id: UUID = UUID(),
@@ -338,10 +342,21 @@ extension VehicleProfile {
         }
     }
 
-    /// Summary tab message when required Settings fields are incomplete.
-    var weightCalculationSetupSummaryMessage: String {
-        Self.summarySetupMessage(forMissingFieldLabels: missingWeightCalculationFieldLabels)
+    /// Motorhome: plated axle limits are required before weight calculations can run.
+    var isMissingMotorhomePlatedAxleLimits: Bool {
+        kind == .motorhome && (maxFrontAxleKg <= 0 || maxRearAxleKg <= 0)
     }
+
+    /// Message when required Settings fields are incomplete (Summary, Load, setup alert).
+    var weightCalculationSetupSummaryMessage: String {
+        if isMissingMotorhomePlatedAxleLimits {
+            return Self.motorhomePlatedAxleLimitsRequiredMessage
+        }
+        return Self.summarySetupMessage(forMissingFieldLabels: missingWeightCalculationFieldLabels)
+    }
+
+    static let motorhomePlatedAxleLimitsRequiredMessage =
+        "We can't move forward until the plated front and rear axle limits are entered in Settings."
 
     static func summarySetupMessage(forMissingFieldLabels labels: [String]) -> String {
         guard !labels.isEmpty else {
@@ -405,11 +420,11 @@ enum TowingExperience: String, Codable, CaseIterable, Identifiable {
 
 @Model
 final class Trip {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    var sortOrder: Int
+    var id: UUID = UUID()
+    var name: String = ""
+    var sortOrder: Int = 0
     /// Manually entered tow bar (nose) load for this trip (kg).
-    var manualTowBarLoadKg: Double
+    var manualTowBarLoadKg: Double = 0
     /// Caravan: nose weight measured on a gauge for this trip (kg). 0 = not set.
     var measuredNoseWeightKg: Double = 0
     /// Caravan: subjective towing experience for this trip setup.
@@ -420,7 +435,7 @@ final class Trip {
     var profile: VehicleProfile?
 
     @Relationship(deleteRule: .cascade, inverse: \LoadedItem.trip)
-    var loadedItems: [LoadedItem] = []
+    var loadedItems: [LoadedItem]?
 
     init(
         id: UUID = UUID(),
@@ -465,10 +480,13 @@ final class Trip {
 
 @Model
 final class LibraryItem {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    var weightKg: Double
+    var id: UUID = UUID()
+    var name: String = ""
+    var weightKg: Double = 0
     var defaultZoneRaw: String?
+
+    @Relationship(deleteRule: .nullify, inverse: \LoadedItem.item)
+    var loadedReferences: [LoadedItem]?
 
     init(id: UUID = UUID(), name: String, weightKg: Double, defaultZoneRaw: String? = nil) {
         self.id = id
@@ -485,9 +503,9 @@ final class LibraryItem {
 
 @Model
 final class LoadedItem {
-    @Attribute(.unique) var id: UUID
-    var quantity: Int
-    var zoneRaw: String
+    var id: UUID = UUID()
+    var quantity: Int = 1
+    var zoneRaw: String = LoadZone.unassigned.rawValue
     var loadedAt: Date = Date()
     var item: LibraryItem?
     var trip: Trip?
@@ -523,28 +541,43 @@ final class LoadedItem {
 
 @Model
 final class AppState {
-    var disclaimerAccepted: Bool
+    var id: UUID = LoadMateSyncIDs.appState
+    var disclaimerAccepted: Bool = false
     var acceptedAt: Date?
     var activeProfileID: UUID?
+    /// Prevents duplicate default vehicle profiles when multiple devices bootstrap before iCloud sync completes.
+    var didSeedDefaultProfiles: Bool = false
+    /// Prevents duplicate built-in checklist templates across devices.
+    var didSeedDefaultChecklist: Bool = false
 
-    init(disclaimerAccepted: Bool = false, acceptedAt: Date? = nil, activeProfileID: UUID? = nil) {
+    init(
+        id: UUID = LoadMateSyncIDs.appState,
+        disclaimerAccepted: Bool = false,
+        acceptedAt: Date? = nil,
+        activeProfileID: UUID? = nil,
+        didSeedDefaultProfiles: Bool = false,
+        didSeedDefaultChecklist: Bool = false
+    ) {
+        self.id = id
         self.disclaimerAccepted = disclaimerAccepted
         self.acceptedAt = acceptedAt
         self.activeProfileID = activeProfileID
+        self.didSeedDefaultProfiles = didSeedDefaultProfiles
+        self.didSeedDefaultChecklist = didSeedDefaultChecklist
     }
 }
 
 @Model
 final class ChecklistSection {
-    @Attribute(.unique) var id: UUID
-    var title: String
-    var sortOrder: Int
+    var id: UUID = UUID()
+    var title: String = ""
+    var sortOrder: Int = 0
 
     @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.section)
-    var items: [ChecklistItem] = []
+    var items: [ChecklistItem]?
 
     @Relationship(deleteRule: .cascade, inverse: \ChecklistGroup.section)
-    var groups: [ChecklistGroup] = []
+    var groups: [ChecklistGroup]?
 
     init(id: UUID = UUID(), title: String, sortOrder: Int = 0) {
         self.id = id
@@ -555,14 +588,14 @@ final class ChecklistSection {
 
 @Model
 final class ChecklistGroup {
-    @Attribute(.unique) var id: UUID
-    var title: String
-    var sortOrder: Int
+    var id: UUID = UUID()
+    var title: String = ""
+    var sortOrder: Int = 0
 
     var section: ChecklistSection?
 
     @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.group)
-    var items: [ChecklistItem] = []
+    var items: [ChecklistItem]?
 
     init(id: UUID = UUID(), title: String, sortOrder: Int = 0, section: ChecklistSection? = nil) {
         self.id = id
@@ -574,10 +607,10 @@ final class ChecklistGroup {
 
 @Model
 final class ChecklistItem {
-    @Attribute(.unique) var id: UUID
-    var title: String
-    var isChecked: Bool
-    var sortOrder: Int
+    var id: UUID = UUID()
+    var title: String = ""
+    var isChecked: Bool = false
+    var sortOrder: Int = 0
 
     var section: ChecklistSection?
     var group: ChecklistGroup?
@@ -597,4 +630,21 @@ final class ChecklistItem {
         self.section = section
         self.group = group
     }
+}
+
+extension VehicleProfile {
+    var tripsList: [Trip] { trips ?? [] }
+}
+
+extension Trip {
+    var loadedItemsList: [LoadedItem] { loadedItems ?? [] }
+}
+
+extension ChecklistSection {
+    var groupsList: [ChecklistGroup] { groups ?? [] }
+    var itemsList: [ChecklistItem] { items ?? [] }
+}
+
+extension ChecklistGroup {
+    var itemsList: [ChecklistItem] { items ?? [] }
 }

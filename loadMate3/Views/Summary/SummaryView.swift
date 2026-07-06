@@ -14,7 +14,7 @@ struct SummaryView: View {
     var onNavigateToLocations: (() -> Void)?
 
     private var activeProfile: VehicleProfile? {
-        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+        VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
     }
 
     private var activeTrip: Trip? {

@@ -10,6 +10,7 @@ struct SettingsView: View {
     @Query private var appStates: [AppState]
 
     @StateObject private var viewModel = SettingsViewModel()
+    @StateObject private var cloudSync = CloudSyncMonitor()
     @State private var appState: AppState?
     @State private var editingProfile: VehicleProfile?
     @State private var isWeightFactorsExpanded = false
@@ -19,9 +20,16 @@ struct SettingsView: View {
     @State private var profilePendingRename: VehicleProfile?
     @State private var profileRenameField = ""
     @State private var showNoseSafeZoneHelp = false
+    @State private var showSetupIncompleteAlert = false
+    @State private var setupIncompleteAlertMessage = ""
 
     private var sortedProfiles: [VehicleProfile] {
-        VehicleProfileStore.sortedProfiles(profiles)
+        VehicleProfileStore.uniqueSortedProfiles(profiles)
+    }
+
+    /// Changes when profiles are added, removed, renamed, or merged — not only when the count changes.
+    private var profileListToken: String {
+        sortedProfiles.map { "\($0.id.uuidString):\($0.name):\($0.kindRaw)" }.joined(separator: "|")
     }
 
     private var activeProfile: VehicleProfile? {
@@ -40,7 +48,7 @@ struct SettingsView: View {
                                 subtitle: profileSubtitle(profile)
                             )
 
-                            vehicleProfilesSection(active: profile)
+                            vehicleProfilesSection(editing: profile)
 
                             if profile.kind == .caravan {
                                 caravanSettings(profile)
@@ -50,6 +58,8 @@ struct SettingsView: View {
 
                             aboutSection()
 
+                            iCloudSyncSection()
+
                             Text("This app is an estimator only. Always physically measure weight and axle loads on a weighbridge.")
                                 .font(.caption)
                                 .foregroundStyle(AppColors.textSupporting)
@@ -57,8 +67,12 @@ struct SettingsView: View {
 
                             VStack(spacing: AppScreenMetrics.controlSpacing) {
                                 AppPrimaryButton("Save Configuration", systemImage: "checkmark.circle.fill") {
-                                    if viewModel.save(modelContext) {
+                                    guard viewModel.save(modelContext) else { return }
+                                    if let profile = editingProfile, profile.isConfiguredForWeightCalculations {
                                         onNavigateToSummary?()
+                                    } else if let profile = editingProfile {
+                                        setupIncompleteAlertMessage = profile.weightCalculationSetupSummaryMessage
+                                        showSetupIncompleteAlert = true
                                     }
                                 }
                             }
@@ -78,10 +92,27 @@ struct SettingsView: View {
             .appScreenBackground()
             .appPrincipalTabTitle("Settings")
         }
-        .task(id: profiles.count) {
-            let boot = viewModel.bootstrap(in: modelContext, profiles: profiles, appState: appStates.first)
+        .task(id: profileListToken) {
+            let resolvedState = AppStateStore.resolve(in: modelContext, existing: appStates)
+            _ = VehicleProfileSyncReconciliation.reconcile(in: modelContext, appState: resolvedState)
+
+            let storedProfiles = (try? modelContext.fetch(FetchDescriptor<VehicleProfile>())) ?? profiles
+            let boot = viewModel.bootstrap(
+                in: modelContext,
+                profiles: VehicleProfileStore.uniqueSortedProfiles(storedProfiles),
+                appState: resolvedState
+            )
             appState = boot.appState
-            editingProfile = VehicleProfileStore.activeProfile(profiles: boot.profiles, appState: boot.appState)
+
+            if let editing = editingProfile,
+               let match = boot.profiles.first(where: { $0.id == editing.id }) {
+                editingProfile = match
+            } else {
+                editingProfile = VehicleProfileStore.activeProfile(profiles: boot.profiles, appState: boot.appState)
+            }
+        }
+        .task {
+            await cloudSync.refresh()
         }
         .sheet(isPresented: $showAddVehicle) {
             AddVehicleSheet(
@@ -112,6 +143,11 @@ struct SettingsView: View {
         } message: {
             Text(Self.noseSafeZoneHelpMessage)
         }
+        .alert("Setup incomplete", isPresented: $showSetupIncompleteAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(setupIncompleteAlertMessage)
+        }
         .alert("Rename vehicle", isPresented: Binding(
             get: { profilePendingRename != nil },
             set: { if !$0 { profilePendingRename = nil } }
@@ -136,6 +172,30 @@ struct SettingsView: View {
     }
 
     private static let developerEmail = "smatheson6@icloude.com"
+
+    @ViewBuilder
+    private func iCloudSyncSection() -> some View {
+        AppSettingsSection(
+            "iCloud sync",
+            caption: "Keep your data consistent across your own iPhone and iPad."
+        ) {
+            HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
+                Image(systemName: cloudSync.accountStatus.systemImage)
+                    .font(.title3)
+                    .foregroundStyle(cloudSync.accountStatus == .available ? Color.accentColor : Color.secondary)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                    Text(cloudSync.accountStatus.settingsTitle)
+                        .font(.subheadline.weight(.semibold))
+                    Text(cloudSync.accountStatus.settingsDetail)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
 
     @ViewBuilder
     private func aboutSection() -> some View {
@@ -168,7 +228,7 @@ struct SettingsView: View {
     // MARK: - Profiles
 
     @ViewBuilder
-    private func vehicleProfilesSection(active: VehicleProfile) -> some View {
+    private func vehicleProfilesSection(editing: VehicleProfile) -> some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
             HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
                 AppSectionHeading(
@@ -196,11 +256,11 @@ struct SettingsView: View {
 
             AppGroupedCard {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(sortedProfiles.enumerated()), id: \.element.id) { index, profile in
-                        if index > 0 {
+                    ForEach(sortedProfiles) { profile in
+                        if profile.id != sortedProfiles.first?.id {
                             Divider()
                         }
-                        vehicleProfileRow(profile, active: active)
+                        vehicleProfileRow(profile, editing: editing)
                     }
                 }
             }
@@ -208,7 +268,8 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
-    private func vehicleProfileRow(_ profile: VehicleProfile, active: VehicleProfile) -> some View {
+    private func vehicleProfileRow(_ profile: VehicleProfile, editing: VehicleProfile) -> some View {
+        let isSelected = activeProfile?.id == profile.id
         HStack(alignment: .center, spacing: AppScreenMetrics.controlSpacing) {
             Button {
                 guard let state = appState else { return }
@@ -218,7 +279,7 @@ struct SettingsView: View {
                 HStack(spacing: AppScreenMetrics.controlSpacing) {
                     Image(systemName: profile.kind.systemImage)
                         .font(.body)
-                        .foregroundStyle(profile.id == active.id ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                         .frame(width: 28)
 
                     VStack(alignment: .leading, spacing: 2) {
@@ -232,7 +293,7 @@ struct SettingsView: View {
 
                     Spacer(minLength: 0)
 
-                    if profile.id == active.id {
+                    if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(Color.accentColor)
                             .accessibilityLabel("Selected")
@@ -538,6 +599,9 @@ struct SettingsView: View {
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 motorhomeAxleWeighbridgeFields(profile)
+                if profile.isMissingMotorhomePlatedAxleLimits {
+                    AppWarningBanner(message: VehicleProfile.motorhomePlatedAxleLimitsRequiredMessage)
+                }
                 MotorhomeWeighbridgeValidationMessages(profile: profile)
             }
         }
