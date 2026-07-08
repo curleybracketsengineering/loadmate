@@ -4,6 +4,8 @@ import SwiftData
 enum AppTab: Hashable {
     case weight
     case load
+    case tyreSafety
+    case maintenance
     case locations
     case checklist
     case settings
@@ -71,6 +73,10 @@ struct MainTabView: View {
             SummaryView()
         case .load:
             LoadView()
+        case .tyreSafety:
+            TyreSafetyView()
+        case .maintenance:
+            MaintenanceView()
         case .locations:
             LocationView(onNavigateToLoad: { selectedTab = .load })
         case .checklist:
@@ -91,6 +97,14 @@ struct MainTabView: View {
             LoadView()
                 .tag(AppTab.load)
                 .tabItem { Label("Load", systemImage: "shippingbox") }
+
+            TyreSafetyView()
+                .tag(AppTab.tyreSafety)
+                .tabItem { Label("Tyre Safety", systemImage: "circle.hexagongrid.fill") }
+
+            MaintenanceView()
+                .tag(AppTab.maintenance)
+                .tabItem { Label("Maintenance", systemImage: "wrench.and.screwdriver") }
 
             LocationView(onNavigateToLoad: { selectedTab = .load })
                 .tag(AppTab.locations)

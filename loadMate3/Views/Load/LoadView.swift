@@ -364,11 +364,7 @@ struct LoadTabContent: View {
             return
         }
         profile.hasAppliedStarterKit = true
-        do {
-            try modelContext.save()
-        } catch {
-            assertionFailure("SwiftData save failed: \(error.localizedDescription)")
-        }
+        _ = SyncDebugSaveHelper.save(modelContext, source: "LoadView.applyStarterKit")
     }
 
     private func commitAdd() {
@@ -423,11 +419,7 @@ struct LoadTabContent: View {
     }
 
     private func saveTowBarValue() {
-        do {
-            try modelContext.save()
-        } catch {
-            assertionFailure("SwiftData save failed: \(error.localizedDescription)")
-        }
+        _ = SyncDebugSaveHelper.save(modelContext, source: "LoadView.saveTowBarValue")
     }
 }
 

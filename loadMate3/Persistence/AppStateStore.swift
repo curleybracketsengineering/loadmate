@@ -80,13 +80,18 @@ enum AppStateStore {
 
     target.didSeedDefaultProfiles = target.didSeedDefaultProfiles || source.didSeedDefaultProfiles
     target.didSeedDefaultChecklist = target.didSeedDefaultChecklist || source.didSeedDefaultChecklist
+
+    let sourceProbeDate = source.syncProbeUpdatedAt ?? .distantPast
+    let targetProbeDate = target.syncProbeUpdatedAt ?? .distantPast
+    if sourceProbeDate > targetProbeDate {
+      target.syncProbeSequence = source.syncProbeSequence
+      target.syncProbeValue = source.syncProbeValue
+      target.syncProbeUpdatedAt = source.syncProbeUpdatedAt
+      target.syncProbeUpdatedBy = source.syncProbeUpdatedBy
+    }
   }
 
   private static func save(_ context: ModelContext) {
-    do {
-      try context.save()
-    } catch {
-      assertionFailure("SwiftData save failed: \(error.localizedDescription)")
-    }
+    _ = SyncDebugSaveHelper.save(context, source: "AppStateStore.save")
   }
 }

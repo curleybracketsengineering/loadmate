@@ -6,6 +6,7 @@ struct SettingsView: View {
 
     @Environment(\.usePadLayout) private var usePadLayout
     @Environment(\.modelContext) private var modelContext
+    @AppStorage(TyreSupport.pressureUnitAppStorageKey) private var pressureUnitRaw = PressureUnit.psi.rawValue
     @Query(sort: [SortDescriptor(\VehicleProfile.sortOrder)]) private var profiles: [VehicleProfile]
     @Query private var appStates: [AppState]
 
@@ -22,6 +23,7 @@ struct SettingsView: View {
     @State private var showNoseSafeZoneHelp = false
     @State private var showSetupIncompleteAlert = false
     @State private var setupIncompleteAlertMessage = ""
+    @State private var showSyncDebugPanel = false
 
     private var sortedProfiles: [VehicleProfile] {
         VehicleProfileStore.uniqueSortedProfiles(profiles)
@@ -55,6 +57,8 @@ struct SettingsView: View {
                             } else {
                                 motorhomeSettings(profile)
                             }
+
+                            tyreSafetySettings()
 
                             aboutSection()
 
@@ -138,6 +142,13 @@ struct SettingsView: View {
                 }
             )
         }
+        .sheet(isPresented: $showSyncDebugPanel) {
+            SyncDebugPanelView(
+                cloudSync: cloudSync,
+                appState: appState,
+                activeProfileName: activeProfile?.name
+            )
+        }
         .alert("5–7% safe zone", isPresented: $showNoseSafeZoneHelp) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -164,6 +175,21 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {
                 profilePendingRename = nil
             }
+        }
+    }
+
+    @ViewBuilder
+    private func tyreSafetySettings() -> some View {
+        AppSettingsSection(
+            "Tyre Safety",
+            caption: "App-wide preferences for tyre pressure display."
+        ) {
+            Picker("Pressure unit", selection: $pressureUnitRaw) {
+                ForEach(PressureUnit.allCases) { unit in
+                    Text(unit.displayName).tag(unit.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
         }
     }
 
@@ -194,6 +220,13 @@ struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+        }
+        .onTapGesture(count: 7) {
+            SyncDebugLogger.shared.record(
+                category: "panel",
+                message: "Hidden sync debug panel unlocked from Settings."
+            )
+            showSyncDebugPanel = true
         }
     }
 

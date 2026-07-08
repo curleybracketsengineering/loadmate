@@ -212,10 +212,6 @@ enum VehicleProfileSyncReconciliation {
     }
 
     private static func save(_ context: ModelContext) {
-        do {
-            try context.save()
-        } catch {
-            assertionFailure("SwiftData save failed: \(error.localizedDescription)")
-        }
+        _ = SyncDebugSaveHelper.save(context, source: "VehicleProfileSyncReconciliation.save")
     }
 }

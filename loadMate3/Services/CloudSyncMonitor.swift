@@ -48,14 +48,28 @@ enum CloudSyncAccountStatus: Equatable {
 @MainActor
 final class CloudSyncMonitor: ObservableObject {
   @Published private(set) var accountStatus: CloudSyncAccountStatus = .couldNotDetermine
+  @Published private(set) var lastCheckedAt: Date?
+  @Published private(set) var lastErrorDescription: String?
 
   func refresh() async {
     do {
       let status = try await CKContainer(identifier: LoadMateModelContainer.cloudKitContainerID)
         .accountStatus()
       accountStatus = map(status)
+      lastErrorDescription = nil
+      lastCheckedAt = Date()
+      SyncDebugLogger.shared.record(
+        category: "icloud",
+        message: "Account status refreshed: \(accountStatus.settingsTitle)."
+      )
     } catch {
       accountStatus = .couldNotDetermine
+      lastErrorDescription = error.localizedDescription
+      lastCheckedAt = Date()
+      SyncDebugLogger.shared.record(
+        category: "icloud",
+        message: "Account status refresh failed: \(error.localizedDescription)"
+      )
     }
   }
 
