@@ -259,13 +259,29 @@ struct MaintenanceView: View {
     }
 
     private var faultDashboardSection: some View {
-        AppSettingsSection("Faults", caption: "Track issues that still need attention and prioritise the important ones first.") {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                FaultSeverityRow(title: "High Priority", count: MaintenanceSupport.highPriorityFaultCount(scopedFaults), tint: .red)
-                FaultSeverityRow(title: "Medium Priority", count: MaintenanceSupport.mediumPriorityFaultCount(scopedFaults), tint: .orange)
-                FaultSeverityRow(title: "Low Priority", count: MaintenanceSupport.lowPriorityFaultCount(scopedFaults), tint: .yellow)
-                AppSecondaryButton("View all faults") {
-                    showFaultsList = true
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
+                AppSectionHeading("Faults", caption: "Track issues that still need attention and prioritise the important ones first.")
+                Button {
+                    showFaultCreate = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add fault")
+            }
+            AppGroupedCard {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                    FaultSeverityRow(title: "High Priority", count: MaintenanceSupport.highPriorityFaultCount(scopedFaults), tint: .red)
+                    FaultSeverityRow(title: "Medium Priority", count: MaintenanceSupport.mediumPriorityFaultCount(scopedFaults), tint: .orange)
+                    FaultSeverityRow(title: "Low Priority", count: MaintenanceSupport.lowPriorityFaultCount(scopedFaults), tint: .yellow)
+                    AppSecondaryButton("View all faults") {
+                        showFaultsList = true
+                    }
                 }
             }
         }
@@ -293,6 +309,9 @@ struct MaintenanceView: View {
                     }
                 }
 
+                AppSecondaryButton("Add maintenance record") {
+                    showMaintenanceCreate = true
+                }
                 AppSecondaryButton("View all maintenance") {
                     showMaintenanceList = true
                 }
@@ -322,6 +341,9 @@ struct MaintenanceView: View {
                     }
                 }
 
+                AppSecondaryButton("Add document") {
+                    showDocumentCreate = true
+                }
                 AppSecondaryButton("View all documents") {
                     showDocumentsList = true
                 }
@@ -1118,7 +1140,9 @@ private struct MaintenanceAttachmentEditorSection: View {
             }
         }
         .confirmationDialog("Add attachment", isPresented: $showSourceDialog, titleVisibility: .visible) {
-            Button("Take Photo") { showCamera = true }
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Take Photo") { showCamera = true }
+            }
             if VNDocumentCameraViewController.isSupported {
                 Button("Scan Document") { showScanner = true }
             }
@@ -1370,6 +1394,13 @@ private struct MaintenanceImagePicker: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
+        guard UIImagePickerController.isSourceTypeAvailable(sourceType) else {
+            DispatchQueue.main.async {
+                context.coordinator.parent.dismiss()
+            }
+            picker.delegate = context.coordinator
+            return picker
+        }
         picker.sourceType = sourceType
         picker.delegate = context.coordinator
         return picker

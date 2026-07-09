@@ -63,7 +63,9 @@ struct TyrePhotoGallerySection: View {
             }
         }
         .confirmationDialog("Add photo", isPresented: $showSourcePicker, titleVisibility: .visible) {
-            Button("Take photo") { showCamera = true }
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Take photo") { showCamera = true }
+            }
             Button("Choose from library") { showLibraryPicker = true }
             Button("Cancel", role: .cancel) {}
         }
@@ -177,7 +179,9 @@ struct TyrePendingPhotoSection: View {
             }
         }
         .confirmationDialog("Add photo", isPresented: $showSourcePicker, titleVisibility: .visible) {
-            Button("Take photo") { showCamera = true }
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Take photo") { showCamera = true }
+            }
             Button("Choose from library") { showLibraryPicker = true }
             Button("Cancel", role: .cancel) {}
         }
@@ -325,6 +329,13 @@ private struct TyreImagePicker: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
+        guard UIImagePickerController.isSourceTypeAvailable(sourceType) else {
+            DispatchQueue.main.async {
+                context.coordinator.parent.dismiss()
+            }
+            picker.delegate = context.coordinator
+            return picker
+        }
         picker.sourceType = sourceType
         picker.delegate = context.coordinator
         return picker

@@ -1,11 +1,15 @@
 import SwiftUI
 import SwiftData
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct SettingsView: View {
     var onNavigateToSummary: (() -> Void)?
 
     @Environment(\.usePadLayout) private var usePadLayout
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
     @AppStorage(TyreSupport.pressureUnitAppStorageKey) private var pressureUnitRaw = PressureUnit.psi.rawValue
     @Query(sort: [SortDescriptor(\VehicleProfile.sortOrder)]) private var profiles: [VehicleProfile]
     @Query private var appStates: [AppState]
@@ -205,19 +209,33 @@ struct SettingsView: View {
             "iCloud sync",
             caption: "Keep your data consistent across your own iPhone and iPad."
         ) {
-            HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
-                Image(systemName: cloudSync.accountStatus.systemImage)
-                    .font(.title3)
-                    .foregroundStyle(cloudSync.accountStatus == .available ? Color.accentColor : Color.secondary)
-                    .frame(width: 28)
+            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
+                    Image(systemName: cloudSync.accountStatus.systemImage)
+                        .font(.title3)
+                        .foregroundStyle(cloudSync.accountStatus == .available ? Color.accentColor : Color.secondary)
+                        .frame(width: 28)
 
-                VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
-                    Text(cloudSync.accountStatus.settingsTitle)
-                        .font(.subheadline.weight(.semibold))
-                    Text(cloudSync.accountStatus.settingsDetail)
-                        .font(.caption)
-                        .foregroundStyle(AppColors.textSupporting)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                        Text(cloudSync.accountStatus.settingsTitle)
+                            .font(.subheadline.weight(.semibold))
+                        Text(cloudSync.accountStatus.settingsDetail)
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                if cloudSync.accountStatus != .available {
+                    AppSecondaryButton("Open Settings") {
+                        openSystemSettings()
+                    }
+
+                    AppSecondaryButton("Check Again") {
+                        Task {
+                            await cloudSync.refresh()
+                        }
+                    }
                 }
             }
         }
@@ -906,6 +924,13 @@ struct SettingsView: View {
         let minNose = Formatters.kg(summary.towBallMinKg)
         let limit = Formatters.kg(profile.effectiveMaxTowBallKg)
         return "The 5% minimum nose weight (\(minNose)) meets or exceeds your effective limit (\(limit))—the lower of your car tow ball and caravan hitch limits. You may need a higher car limit, a higher hitch rating (only if the car allows), or a lighter caravan."
+    }
+
+    private func openSystemSettings() {
+#if canImport(UIKit)
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        openURL(url)
+#endif
     }
 
     private static func carTowBallFivePercentHintText(profile: VehicleProfile, summary: WeightSummary) -> String {
