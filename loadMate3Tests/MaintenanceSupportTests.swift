@@ -1,0 +1,61 @@
+import SwiftData
+import XCTest
+@testable import loadMate3
+
+@MainActor
+final class MaintenanceSupportTests: XCTestCase {
+    private var container: ModelContainer!
+    private var context: ModelContext!
+
+    override func setUpWithError() throws {
+        container = try LoadMateModelContainer.makePreview()
+        context = ModelContext(container)
+    }
+
+    override func tearDownWithError() throws {
+        container = nil
+        context = nil
+    }
+
+    func testUpcomingReminderPrefersSoonestDueItem() {
+        let vehicleID = UUID()
+        let maintenance = MaintenanceRecord(vehicleID: vehicleID)
+        maintenance.title = "Habitation service"
+        maintenance.category = .annualHabitationService
+        maintenance.reminderDate = Calendar.current.date(byAdding: .day, value: 7, to: Date())
+
+        let document = DocumentRecord(vehicleID: vehicleID)
+        document.title = "Insurance"
+        document.category = .insurance
+        document.expiryDate = Calendar.current.date(byAdding: .day, value: 30, to: Date())
+
+        let upcoming = MaintenanceSupport.upcomingReminder(
+            maintenanceRecords: [maintenance],
+            documents: [document]
+        )
+
+        XCTAssertEqual(upcoming?.title, "Habitation service")
+        XCTAssertEqual(upcoming?.kind, .maintenance)
+    }
+
+    func testHistoryEntriesIncludeFaultRaisedAndResolved() {
+        let vehicleID = UUID()
+        let fault = FaultRecord(vehicleID: vehicleID)
+        fault.title = "Fridge fault"
+        fault.details = "Ignition stops after lighting"
+        fault.severity = .medium
+        fault.status = .completed
+        fault.discoveredDate = Date(timeIntervalSince1970: 1_000)
+        fault.resolvedDate = Date(timeIntervalSince1970: 2_000)
+
+        let entries = MaintenanceSupport.historyEntries(
+            maintenanceRecords: [],
+            documents: [],
+            faults: [fault]
+        )
+
+        XCTAssertEqual(entries.count, 2)
+        XCTAssertTrue(entries.contains(where: { $0.subtitle == "Fault raised" }))
+        XCTAssertTrue(entries.contains(where: { $0.subtitle == "Fault repaired" }))
+    }
+}

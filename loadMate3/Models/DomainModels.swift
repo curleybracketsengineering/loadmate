@@ -549,6 +549,11 @@ final class AppState {
     var didSeedDefaultProfiles: Bool = false
     /// Prevents duplicate built-in checklist templates across devices.
     var didSeedDefaultChecklist: Bool = false
+    /// Hidden developer probe for confirming CloudKit export/import on real devices.
+    var syncProbeSequence: Int = 0
+    var syncProbeValue: String = ""
+    var syncProbeUpdatedAt: Date?
+    var syncProbeUpdatedBy: String = ""
 
     init(
         id: UUID = LoadMateSyncIDs.appState,
@@ -556,7 +561,11 @@ final class AppState {
         acceptedAt: Date? = nil,
         activeProfileID: UUID? = nil,
         didSeedDefaultProfiles: Bool = false,
-        didSeedDefaultChecklist: Bool = false
+        didSeedDefaultChecklist: Bool = false,
+        syncProbeSequence: Int = 0,
+        syncProbeValue: String = "",
+        syncProbeUpdatedAt: Date? = nil,
+        syncProbeUpdatedBy: String = ""
     ) {
         self.id = id
         self.disclaimerAccepted = disclaimerAccepted
@@ -564,6 +573,10 @@ final class AppState {
         self.activeProfileID = activeProfileID
         self.didSeedDefaultProfiles = didSeedDefaultProfiles
         self.didSeedDefaultChecklist = didSeedDefaultChecklist
+        self.syncProbeSequence = syncProbeSequence
+        self.syncProbeValue = syncProbeValue
+        self.syncProbeUpdatedAt = syncProbeUpdatedAt
+        self.syncProbeUpdatedBy = syncProbeUpdatedBy
     }
 }
 

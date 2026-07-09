@@ -16,6 +16,8 @@ struct PadTabBar: View {
         [
             TabDescriptor(tab: .weight, title: "Summary", systemImage: "plus.forwardslash.minus"),
             TabDescriptor(tab: .load, title: "Load & placement", systemImage: "shippingbox"),
+            TabDescriptor(tab: .tyreSafety, title: "Tyre Safety", systemImage: "circle.hexagongrid.fill"),
+            TabDescriptor(tab: .maintenance, title: "Maintenance", systemImage: "wrench.and.screwdriver"),
             TabDescriptor(tab: .checklist, title: "Checklist", systemImage: "checklist"),
             TabDescriptor(tab: .settings, title: "Settings", systemImage: "gearshape"),
         ]

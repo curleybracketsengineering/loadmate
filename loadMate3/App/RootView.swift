@@ -3,6 +3,7 @@ import SwiftData
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
+    
     @Query private var appStates: [AppState]
     @Query private var profiles: [VehicleProfile]
 

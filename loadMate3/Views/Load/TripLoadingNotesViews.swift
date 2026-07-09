@@ -247,10 +247,6 @@ struct TripLoadingNotesSheet: View {
     }
 
     private func save() {
-        do {
-            try modelContext.save()
-        } catch {
-            assertionFailure("SwiftData save failed: \(error.localizedDescription)")
-        }
+        _ = SyncDebugSaveHelper.save(modelContext, source: "TripLoadingNotesViews.save")
     }
 }
