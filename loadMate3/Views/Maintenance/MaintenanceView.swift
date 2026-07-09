@@ -66,14 +66,6 @@ struct MaintenanceView: View {
         .sorted { $0.dueDate < $1.dueDate }
     }
 
-    private var historyEntries: [MaintenanceHistoryEntry] {
-        MaintenanceSupport.historyEntries(
-            maintenanceRecords: scopedMaintenanceRecords,
-            documents: scopedDocuments,
-            faults: scopedFaults
-        )
-    }
-
     var body: some View {
         NavigationStack {
             Group {
@@ -91,8 +83,6 @@ struct MaintenanceView: View {
                             faultDashboardSection
                             maintenancePreviewSection(profile: profile)
                             documentsPreviewSection
-                            recentActivitySection
-                            quickActionsSection
                         }
                         .padding(.horizontal, AppScreenMetrics.horizontalPadding)
                         .padding(.top, AppScreenMetrics.verticalScreenPadding)
@@ -188,12 +178,12 @@ struct MaintenanceView: View {
     }
 
     private var summarySection: some View {
-        AppSettingsSection("Summary", caption: "The next due item, open issues and your digital paperwork at a glance.") {
+        AppSettingsSection("Summary", caption: "Upcoming work, open issues and recent activity at a glance.") {
             LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: AppScreenMetrics.controlSpacing),
-                    GridItem(.flexible(), spacing: AppScreenMetrics.controlSpacing)
-                ],
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: AppScreenMetrics.controlSpacing),
+                    count: 3
+                ),
                 spacing: AppScreenMetrics.controlSpacing
             ) {
                 MaintenanceDashboardCard(
@@ -204,18 +194,17 @@ struct MaintenanceView: View {
                     action: { showHistory = true }
                 )
                 MaintenanceDashboardCard(
-                    title: "Outstanding Faults",
-                    value: "\(summary.outstandingFaults) Open",
-                    detail: faultDetailText,
-                    tint: summary.outstandingFaults == 0 ? AppColors.green : .orange,
-                    action: { showFaultsList = true }
-                )
-                MaintenanceDashboardCard(
-                    title: "Documents",
-                    value: "\(summary.documentCount) Stored",
-                    detail: "Insurance, certificates, invoices and more",
-                    tint: .blue,
-                    action: { showDocumentsList = true }
+                    title: "Outstanding",
+                    value: outstandingSummaryValue,
+                    detail: outstandingSummaryDetail,
+                    tint: outstandingSummaryTint,
+                    action: {
+                        if summary.outstandingFaults > 0 {
+                            showFaultsList = true
+                        } else {
+                            showDocumentsList = true
+                        }
+                    }
                 )
                 MaintenanceDashboardCard(
                     title: "Recent Activity",
@@ -259,141 +248,104 @@ struct MaintenanceView: View {
     }
 
     private var faultDashboardSection: some View {
-        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-            HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
-                AppSectionHeading("Faults", caption: "Track issues that still need attention and prioritise the important ones first.")
-                Button {
-                    showFaultCreate = true
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Add fault")
-            }
-            AppGroupedCard {
-                VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                    FaultSeverityRow(title: "High Priority", count: MaintenanceSupport.highPriorityFaultCount(scopedFaults), tint: .red)
-                    FaultSeverityRow(title: "Medium Priority", count: MaintenanceSupport.mediumPriorityFaultCount(scopedFaults), tint: .orange)
-                    FaultSeverityRow(title: "Low Priority", count: MaintenanceSupport.lowPriorityFaultCount(scopedFaults), tint: .yellow)
-                    AppSecondaryButton("View all faults") {
-                        showFaultsList = true
-                    }
-                }
+        MaintenanceCompactSectionRow(
+            caption: "Track issues that still need attention and prioritise the important ones first.",
+            label: "Faults",
+            addAccessibilityLabel: "Add fault",
+            viewAccessibilityLabel: "View all faults",
+            onAdd: { showFaultCreate = true },
+            onView: { showFaultsList = true }
+        ) {
+            HStack(spacing: 10) {
+                MaintenanceMetricCount(
+                    count: MaintenanceSupport.highPriorityFaultCount(scopedFaults),
+                    tint: .red,
+                    accessibilityLabel: "High priority faults"
+                )
+                MaintenanceMetricCount(
+                    count: MaintenanceSupport.mediumPriorityFaultCount(scopedFaults),
+                    tint: .orange,
+                    accessibilityLabel: "Medium priority faults"
+                )
+                MaintenanceMetricCount(
+                    count: MaintenanceSupport.lowPriorityFaultCount(scopedFaults),
+                    tint: .yellow,
+                    accessibilityLabel: "Low priority faults"
+                )
             }
         }
     }
 
     private func maintenancePreviewSection(profile: VehicleProfile) -> some View {
-        AppSettingsSection("Maintenance Records", caption: "Scheduled services, repairs and ongoing upkeep for this \(profile.kind.displayName.lowercased()).") {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                if scopedMaintenanceRecords.isEmpty {
-                    Text("No maintenance records yet.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.textSupporting)
-                } else {
-                    ForEach(Array(scopedMaintenanceRecords.prefix(3)), id: \.id) { record in
-                        Button {
-                            selectedMaintenanceRecord = record
-                        } label: {
-                            MaintenancePreviewRow(
-                                title: record.title.isEmpty ? record.category.displayName : record.title,
-                                subtitle: "\(record.category.displayName) • \(Formatters.date(record.serviceDate))",
-                                tertiary: record.supplier.isEmpty ? nil : record.supplier
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                AppSecondaryButton("Add maintenance record") {
-                    showMaintenanceCreate = true
-                }
-                AppSecondaryButton("View all maintenance") {
-                    showMaintenanceList = true
-                }
-            }
+        MaintenanceCompactSectionRow(
+            caption: "Scheduled services, repairs and ongoing upkeep for this \(profile.kind.displayName.lowercased()).",
+            label: "Maintenance",
+            addAccessibilityLabel: "Add maintenance record",
+            viewAccessibilityLabel: "View all maintenance",
+            onAdd: { showMaintenanceCreate = true },
+            onView: { showMaintenanceList = true }
+        ) {
+            MaintenanceMetricCount(
+                count: scopedMaintenanceRecords.count,
+                tint: .blue,
+                accessibilityLabel: "Maintenance records"
+            )
         }
     }
 
     private var documentsPreviewSection: some View {
-        AppSettingsSection("Documents", caption: "Keep service paperwork, policies and certificates together with the vehicle record.") {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                if scopedDocuments.isEmpty {
-                    Text("No documents stored yet.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.textSupporting)
-                } else {
-                    ForEach(Array(scopedDocuments.prefix(3)), id: \DocumentRecord.id) { (record: DocumentRecord) in
-                        Button {
-                            selectedDocumentRecord = record
-                        } label: {
-                            MaintenancePreviewRow(
-                                title: record.title.isEmpty ? record.category.displayName : record.title,
-                                subtitle: "\(record.category.displayName) • \(record.expiryDate.map { "Expires \(Formatters.date($0))" } ?? "Added \(Formatters.date(record.dateAdded))")",
-                                tertiary: record.attachmentsList.isEmpty ? nil : "\(record.attachmentsList.count) attachment\(record.attachmentsList.count == 1 ? "" : "s")"
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                AppSecondaryButton("Add document") {
-                    showDocumentCreate = true
-                }
-                AppSecondaryButton("View all documents") {
-                    showDocumentsList = true
-                }
-            }
+        MaintenanceCompactSectionRow(
+            caption: "Keep service paperwork, policies and certificates together with the vehicle record.",
+            label: "Documents",
+            addAccessibilityLabel: "Add document",
+            viewAccessibilityLabel: "View all documents",
+            onAdd: { showDocumentCreate = true },
+            onView: { showDocumentsList = true }
+        ) {
+            MaintenanceMetricCount(
+                count: scopedDocuments.count,
+                tint: .blue,
+                accessibilityLabel: "Stored documents"
+            )
         }
     }
 
-    private var recentActivitySection: some View {
-        AppSettingsSection("History", caption: "A combined timeline of maintenance work, document updates and fault activity.") {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                if historyEntries.isEmpty {
-                    Text("History will appear here as you add maintenance records, documents and faults.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.textSupporting)
-                } else {
-                    ForEach(Array(historyEntries.prefix(5))) { entry in
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(entry.title)
-                                .font(.subheadline.weight(.semibold))
-                            Text(entry.subtitle)
-                                .font(.caption)
-                                .foregroundStyle(AppColors.textSupporting)
-                            Text(Formatters.date(entry.date))
-                                .font(.caption)
-                                .foregroundStyle(AppColors.textSupporting)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 3)
-                    }
-                }
-
-                AppSecondaryButton("View full history") {
-                    showHistory = true
-                }
-            }
-        }
+    private func dayDelta(for date: Date) -> Int {
+        Calendar.current.dateComponents(
+            [.day],
+            from: Calendar.current.startOfDay(for: Date()),
+            to: Calendar.current.startOfDay(for: date)
+        ).day ?? 0
     }
 
-    private var quickActionsSection: some View {
-        VStack(spacing: AppScreenMetrics.controlSpacing) {
-            AppPrimaryButton("Add maintenance item", systemImage: "plus.circle.fill") {
-                showCreateDialog = true
-            }
-            AppSecondaryButton("Open documents") {
-                showDocumentsList = true
-            }
-            AppSecondaryButton("Open faults") {
-                showFaultsList = true
-            }
+    private var outstandingSummaryValue: String {
+        if summary.outstandingFaults == 0 && summary.documentCount == 0 {
+            return "All clear"
         }
+        var parts: [String] = []
+        if summary.outstandingFaults > 0 {
+            parts.append("\(summary.outstandingFaults) fault\(summary.outstandingFaults == 1 ? "" : "s")")
+        }
+        if summary.documentCount > 0 {
+            parts.append("\(summary.documentCount) doc\(summary.documentCount == 1 ? "" : "s")")
+        }
+        return parts.joined(separator: " • ")
+    }
+
+    private var outstandingSummaryDetail: String {
+        if summary.outstandingFaults > 0 {
+            return "\(faultDetailText) • \(summary.documentCount) stored"
+        }
+        if summary.documentCount > 0 {
+            return "No open faults • paperwork on file"
+        }
+        return "Faults and documents will appear here"
+    }
+
+    private var outstandingSummaryTint: Color {
+        if summary.outstandingFaults > 0 { return .orange }
+        if summary.documentCount > 0 { return .blue }
+        return AppColors.green
     }
 
     private var faultDetailText: String {
@@ -401,15 +353,93 @@ struct MaintenanceView: View {
     }
 
     private func tintColor(for dueDate: Date) -> Color {
-        let dayDelta = Calendar.current.dateComponents(
-            [.day],
-            from: Calendar.current.startOfDay(for: Date()),
-            to: Calendar.current.startOfDay(for: dueDate)
-        ).day ?? 0
+        let delta = dayDelta(for: dueDate)
 
-        if dayDelta < 0 { return .red }
-        if dayDelta <= 7 { return .orange }
+        if delta < 0 { return .red }
+        if delta <= 7 { return .orange }
         return .accentColor
+    }
+}
+
+private struct MaintenanceCompactSectionRow<Metrics: View>: View {
+    let caption: String
+    let label: String
+    let addAccessibilityLabel: String
+    let viewAccessibilityLabel: String
+    let onAdd: () -> Void
+    let onView: () -> Void
+    @ViewBuilder let metrics: Metrics
+
+    init(
+        caption: String,
+        label: String,
+        addAccessibilityLabel: String,
+        viewAccessibilityLabel: String,
+        onAdd: @escaping () -> Void,
+        onView: @escaping () -> Void,
+        @ViewBuilder metrics: () -> Metrics
+    ) {
+        self.caption = caption
+        self.label = label
+        self.addAccessibilityLabel = addAccessibilityLabel
+        self.viewAccessibilityLabel = viewAccessibilityLabel
+        self.onAdd = onAdd
+        self.onView = onView
+        self.metrics = metrics()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            Text(caption)
+                .font(.caption)
+                .foregroundStyle(AppColors.textSupporting)
+                .fixedSize(horizontal: false, vertical: true)
+            AppGroupedCard {
+                HStack(spacing: AppScreenMetrics.controlSpacing) {
+                    Text(label)
+                        .font(.subheadline.weight(.semibold))
+
+                    metrics
+
+                    Spacer(minLength: 0)
+
+                    Button(action: onAdd) {
+                        Image(systemName: "plus")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(addAccessibilityLabel)
+
+                    Button(action: onView) {
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.secondary)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(viewAccessibilityLabel)
+                }
+            }
+        }
+    }
+}
+
+private struct MaintenanceMetricCount: View {
+    let count: Int
+    let tint: Color
+    let accessibilityLabel: String
+
+    var body: some View {
+        Text("\(count)")
+            .font(.subheadline.weight(.semibold))
+            .monospacedDigit()
+            .foregroundStyle(tint)
+            .frame(minWidth: 18)
+            .accessibilityLabel("\(accessibilityLabel): \(count)")
     }
 }
 
@@ -426,71 +456,30 @@ private struct MaintenanceDashboardCard: View {
                 Text(title)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(tint)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
                 Text(value)
-                    .font(.headline)
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.primary)
                     .multilineTextAlignment(.leading)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.85)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(detail)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(AppColors.textSupporting)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.85)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(AppScreenMetrics.cardInteriorPadding)
-            .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
+            .padding(10)
+            .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
                     .fill(Color(.tertiarySystemFill))
             )
         }
         .buttonStyle(.plain)
-    }
-}
-
-private struct FaultSeverityRow: View {
-    let title: String
-    let count: Int
-    let tint: Color
-
-    var body: some View {
-        HStack {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-            Spacer()
-            Text("\(count)")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(tint)
-        }
-    }
-}
-
-private struct MaintenancePreviewRow: View {
-    let title: String
-    let subtitle: String
-    let tertiary: String?
-
-    var body: some View {
-        HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.primary)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSupporting)
-                if let tertiary, !tertiary.isEmpty {
-                    Text(tertiary)
-                        .font(.caption)
-                        .foregroundStyle(AppColors.textSupporting)
-                }
-            }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.secondary)
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
     }
 }
 
