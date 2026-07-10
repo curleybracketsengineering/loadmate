@@ -33,6 +33,18 @@ extension EnvironmentValues {
     }
 }
 
+private struct PadTopTabBarActiveKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// True when iPad root uses the floating top pill tab bar (hide per-tab nav chrome).
+    var padTopTabBarActive: Bool {
+        get { self[PadTopTabBarActiveKey.self] }
+        set { self[PadTopTabBarActiveKey.self] = newValue }
+    }
+}
+
 /// Max widths and gutters tuned for 11″ iPad; scales down on narrower containers.
 enum PadContentLayout {
     /// Single-column forms (Settings, etc.).
@@ -100,6 +112,14 @@ extension View {
     /// Centers content on iPad with side margins; no-op on iPhone.
     func padReadableContent(maxWidth: CGFloat = PadContentLayout.readableMaxWidth) -> some View {
         modifier(PadReadableContentModifier(maxWidth: maxWidth))
+    }
+}
+
+extension View {
+    /// Visible scrollbar and keyboard dismiss for Load Planner tab panels on iPad.
+    func loadPlannerScrollPanel() -> some View {
+        scrollIndicators(.visible, axes: .vertical)
+            .scrollDismissesKeyboard(.interactively)
     }
 }
 

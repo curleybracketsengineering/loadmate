@@ -1,22 +1,31 @@
 import SwiftUI
 
-/// Floating pill tab bar matching the system iPad style; widens on 11″ so every tab fits.
+enum PadTab: Hashable {
+    case summary
+    case load
+    case safety
+    case maintenance
+    case checklist
+    case settings
+}
+
+/// Floating pill tab bar at the top of the iPad workspace.
 struct PadTabBar: View {
-    @Binding var selection: AppTab
+    @Binding var selection: PadTab
     let availableWidth: CGFloat
 
     private struct TabDescriptor: Identifiable {
-        let tab: AppTab
+        let tab: PadTab
         let title: String
         let systemImage: String
-        var id: AppTab { tab }
+        var id: PadTab { tab }
     }
 
     private var tabs: [TabDescriptor] {
         [
-            TabDescriptor(tab: .weight, title: "Summary", systemImage: "plus.forwardslash.minus"),
+            TabDescriptor(tab: .summary, title: "Summary", systemImage: "plus.forwardslash.minus"),
             TabDescriptor(tab: .load, title: "Load & placement", systemImage: "shippingbox"),
-            TabDescriptor(tab: .tyreSafety, title: "Tyre Safety", systemImage: "circle.hexagongrid.fill"),
+            TabDescriptor(tab: .safety, title: "Safety", systemImage: "shield"),
             TabDescriptor(tab: .maintenance, title: "Maintenance", systemImage: "wrench.and.screwdriver"),
             TabDescriptor(tab: .checklist, title: "Checklist", systemImage: "checklist"),
             TabDescriptor(tab: .settings, title: "Settings", systemImage: "gearshape"),
@@ -54,6 +63,7 @@ struct PadTabBar: View {
         .padding(.horizontal, PadContentLayout.tabBarOuterHorizontalPadding)
         .padding(.top, PadContentLayout.tabBarTopPadding)
         .padding(.bottom, PadContentLayout.tabBarBottomPadding)
+        .background(Color(.systemGroupedBackground))
     }
 
     private func tabButton(_ tab: TabDescriptor) -> some View {

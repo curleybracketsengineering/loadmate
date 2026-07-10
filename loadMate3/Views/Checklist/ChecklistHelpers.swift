@@ -25,6 +25,36 @@ enum ChecklistProgress {
         }
     }
 
+    static func isGroupComplete(
+        in sections: [ChecklistSection],
+        sectionTitle: String,
+        groupTitle: String,
+        emptyMeansComplete: Bool = false
+    ) -> Bool {
+        guard
+            let section = sections.first(where: { $0.title == sectionTitle }),
+            let group = section.groupsList.first(where: { $0.title == groupTitle })
+        else {
+            return emptyMeansComplete
+        }
+        let counts = counts(in: group)
+        guard counts.total > 0 else { return emptyMeansComplete }
+        return counts.completed == counts.total
+    }
+
+    static func isSectionComplete(
+        in sections: [ChecklistSection],
+        title: String,
+        emptyMeansComplete: Bool = false
+    ) -> Bool {
+        guard let section = sections.first(where: { $0.title == title }) else {
+            return emptyMeansComplete
+        }
+        let counts = counts(in: section)
+        guard counts.total > 0 else { return emptyMeansComplete }
+        return counts.completed == counts.total
+    }
+
     static func fraction(completed: Int, total: Int) -> Double {
         guard total > 0 else { return 0 }
         return min(max(Double(completed) / Double(total), 0), 1)

@@ -2,22 +2,25 @@ import SwiftUI
 import SwiftData
 
 enum AppTab: Hashable {
-    case weight
+    case home
     case load
-    case tyreSafety
-    case maintenance
-    case locations
-    case checklist
-    case settings
+    case safety
+    case care
+    case more
 }
 
 struct MainTabView: View {
     @Query private var profiles: [VehicleProfile]
     @Query private var appStates: [AppState]
 
-    @State private var selectedTab: AppTab = .weight
+    @State private var selectedTab: AppTab = .home
+    @State private var selectedPadTab: PadTab = .summary
+    @State private var loadWorkflowStep: LoadWorkflowStep = .items
+    @State private var pendingCareDestination: CareDestination?
     @State private var showSetupAlert = false
     @State private var didPresentSetupPrompt = false
+    @State private var isPadLayoutActive = AppLayout.defaultUsePadLayout
+    @State private var padAvailableWidth: CGFloat = UIScreen.main.bounds.width
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
@@ -29,28 +32,41 @@ struct MainTabView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            let usePadLayout = AppLayout.usePadLayout(availableWidth: geometry.size.width)
-
-            Group {
-                if usePadLayout {
-                    padTabRoot(availableWidth: geometry.size.width)
-                } else {
-                    phoneTabRoot
-                }
+        Group {
+            if isPadLayoutActive {
+                padTabRoot(availableWidth: padAvailableWidth)
+            } else {
+                phoneTabRoot
             }
-            .environment(\.usePadLayout, usePadLayout)
-            .onAppear {
-                presentSetupPromptIfNeeded()
+        }
+        .background {
+            GeometryReader { geometry in
+                Color.clear
+                    .preference(key: AvailableWidthKey.self, value: geometry.size.width)
             }
-            .onChange(of: needsSetup) { _, _ in
-                presentSetupPromptIfNeeded()
+        }
+        .onPreferenceChange(AvailableWidthKey.self) { width in
+            guard width > 0 else { return }
+            let usePad = AppLayout.usePadLayout(availableWidth: width)
+            if usePad != isPadLayoutActive {
+                isPadLayoutActive = usePad
             }
-            .alert(setupAlertTitle, isPresented: $showSetupAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(setupAlertMessage)
+            if usePad {
+                padAvailableWidth = width
             }
+        }
+        .environment(\.usePadLayout, isPadLayoutActive)
+        .environment(\.padTopTabBarActive, isPadLayoutActive)
+        .onAppear {
+            presentSetupPromptIfNeeded()
+        }
+        .onChange(of: needsSetup) { _, _ in
+            presentSetupPromptIfNeeded()
+        }
+        .alert(setupAlertTitle, isPresented: $showSetupAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(setupAlertMessage)
         }
     }
 
@@ -58,31 +74,30 @@ struct MainTabView: View {
 
     private func padTabRoot(availableWidth: CGFloat) -> some View {
         VStack(spacing: 0) {
-            PadTabBar(selection: $selectedTab, availableWidth: availableWidth)
+            PadTabBar(selection: $selectedPadTab, availableWidth: availableWidth)
 
             padTabContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
     }
 
     @ViewBuilder
     private var padTabContent: some View {
-        switch selectedTab {
-        case .weight:
-            SummaryView()
+        switch selectedPadTab {
+        case .summary:
+            SummaryPadView()
         case .load:
-            LoadView()
-        case .tyreSafety:
-            TyreSafetyView()
+            LoadPlacementPadView()
+        case .safety:
+            SafetyPadView(onNavigateToMaintenance: { selectedPadTab = .maintenance })
         case .maintenance:
-            MaintenanceView()
-        case .locations:
-            LocationView(onNavigateToLoad: { selectedTab = .load })
+            MaintenancePadView()
         case .checklist:
             ChecklistView()
         case .settings:
-            SettingsView(onNavigateToSummary: { selectedTab = .weight })
+            SettingsView(onNavigateToSummary: { selectedPadTab = .summary })
         }
     }
 
@@ -90,33 +105,40 @@ struct MainTabView: View {
 
     private var phoneTabRoot: some View {
         TabView(selection: $selectedTab) {
-            SummaryView(onNavigateToLocations: { selectedTab = .locations })
-                .tag(AppTab.weight)
-                .tabItem { Label("Summary", systemImage: "plus.forwardslash.minus") }
+            HomeView(
+                onNavigateToLoad: { selectedTab = .load },
+                onNavigateToLocations: {
+                    selectedTab = .load
+                    loadWorkflowStep = .locations
+                },
+                onNavigateToSummary: {
+                    selectedTab = .load
+                    loadWorkflowStep = .summary
+                },
+                onNavigateToSafety: { selectedTab = .safety },
+                onNavigateToCare: { selectedTab = .care },
+                onNavigateToMaintenance: { navigateToPhoneMaintenance() },
+                onNavigateToTyreSafety: { navigateToPhoneTyreSafety() },
+                onNavigateToWarranty: { selectedTab = .care }
+            )
+            .tag(AppTab.home)
+            .tabItem { Label("Home", systemImage: "house") }
 
-            LoadView()
+            LoadView(workflowStep: $loadWorkflowStep)
                 .tag(AppTab.load)
                 .tabItem { Label("Load", systemImage: "shippingbox") }
 
-            TyreSafetyView()
-                .tag(AppTab.tyreSafety)
-                .tabItem { Label("Tyre Safety", systemImage: "circle.hexagongrid.fill") }
+            SafetyView(onNavigateToMaintenance: { navigateToPhoneMaintenance() })
+                .tag(AppTab.safety)
+                .tabItem { Label("Safety", systemImage: "shield") }
 
-            MaintenanceView()
-                .tag(AppTab.maintenance)
-                .tabItem { Label("Maintenance", systemImage: "wrench.and.screwdriver") }
+            CareView(pendingDestination: $pendingCareDestination)
+                .tag(AppTab.care)
+                .tabItem { Label("Care", systemImage: "hammer") }
 
-            LocationView(onNavigateToLoad: { selectedTab = .load })
-                .tag(AppTab.locations)
-                .tabItem { Label("Locations", systemImage: "mappin.and.ellipse") }
-
-            ChecklistView()
-                .tag(AppTab.checklist)
-                .tabItem { Label("Checklist", systemImage: "checklist") }
-
-            SettingsView(onNavigateToSummary: { selectedTab = .weight })
-                .tag(AppTab.settings)
-                .tabItem { Label("Settings", systemImage: "gearshape") }
+            MoreView(onNavigateToHome: { selectedTab = .home })
+                .tag(AppTab.more)
+                .tabItem { Label("More", systemImage: "ellipsis") }
         }
     }
 
@@ -126,16 +148,34 @@ struct MainTabView: View {
 
     private var setupAlertMessage: String {
         guard let profile = activeProfile else {
-            return "Add a vehicle in Settings for weight calculations. You can still use Load, Locations, and Checklist first."
+            return "Add a vehicle in Settings for weight calculations. You can still use Load, Safety, and Care first."
         }
         return profile.weightCalculationSetupSummaryMessage
-            + " You can still use Load, Locations, and Checklist before completing Settings."
+            + " You can still use Load, Safety, and Care before completing Settings."
     }
 
     private func presentSetupPromptIfNeeded() {
         guard needsSetup, !didPresentSetupPrompt else { return }
         didPresentSetupPrompt = true
-        selectedTab = .settings
+        selectedTab = .more
+        selectedPadTab = .settings
         showSetupAlert = true
+    }
+
+    private func navigateToPhoneMaintenance() {
+        selectedTab = .care
+        pendingCareDestination = .maintenance
+    }
+
+    private func navigateToPhoneTyreSafety() {
+        selectedTab = .care
+        pendingCareDestination = .tyreSafety
+    }
+}
+
+private struct AvailableWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

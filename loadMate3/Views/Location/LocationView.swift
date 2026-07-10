@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 
 struct LocationView: View {
     var onNavigateToLoad: (() -> Void)?
+    var showsTripPicker: Bool = true
+    var screenTitle: String? = "Locations"
 
     @Environment(\.usePadLayout) private var usePadLayout
     @Environment(\.modelContext) private var modelContext
@@ -82,7 +84,7 @@ struct LocationView: View {
                     ZStack(alignment: .bottomTrailing) {
                         ScrollView {
                             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                                if let profile = activeProfile, !profileTrips.isEmpty {
+                                if showsTripPicker, let profile = activeProfile, !profileTrips.isEmpty {
                                     TripPickerBar(
                                         profile: profile,
                                         trips: profileTrips,
@@ -119,7 +121,7 @@ struct LocationView: View {
                 }
             }
             .background(Color(.systemGroupedBackground))
-            .appPrincipalTabTitle("Locations")
+            .modifier(OptionalPrincipalTabTitle(title: screenTitle))
             .task(id: profiles.map(\.id)) {
                 TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
             }

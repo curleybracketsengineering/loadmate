@@ -8,6 +8,7 @@ struct SettingsView: View {
     var onNavigateToSummary: (() -> Void)?
 
     @Environment(\.usePadLayout) private var usePadLayout
+    @Environment(\.padTopTabBarActive) private var padTopTabBarActive
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
     @AppStorage(TyreSupport.pressureUnitAppStorageKey) private var pressureUnitRaw = PressureUnit.psi.rawValue
@@ -98,7 +99,7 @@ struct SettingsView: View {
                 }
             }
             .appScreenBackground()
-            .appPrincipalTabTitle("Settings")
+            .modifier(SettingsNavigationTitleModifier())
         }
         .task(id: profileListToken) {
             let resolvedState = AppStateStore.resolve(in: modelContext, existing: appStates)
@@ -989,5 +990,17 @@ private struct AddVehicleSheet: View {
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
+    }
+}
+
+private struct SettingsNavigationTitleModifier: ViewModifier {
+    @Environment(\.padTopTabBarActive) private var padTopTabBarActive
+
+    func body(content: Content) -> some View {
+        if padTopTabBarActive {
+            content.toolbar(.hidden, for: .navigationBar)
+        } else {
+            content.appPrincipalTabTitle("Settings")
+        }
     }
 }

@@ -1,0 +1,214 @@
+import SwiftUI
+import SwiftData
+
+struct HomeView: View {
+    var onNavigateToLoad: (() -> Void)?
+    var onNavigateToLocations: (() -> Void)?
+    var onNavigateToSummary: (() -> Void)?
+    var onNavigateToSafety: (() -> Void)?
+    var onNavigateToCare: (() -> Void)?
+    var onNavigateToMaintenance: (() -> Void)?
+    var onNavigateToTyreSafety: (() -> Void)?
+    var onNavigateToWarranty: (() -> Void)?
+
+    @Environment(\.usePadLayout) private var usePadLayout
+    @Environment(\.modelContext) private var modelContext
+    @Query private var profiles: [VehicleProfile]
+    @Query private var appStates: [AppState]
+    @Query private var allLoadedItems: [LoadedItem]
+    @StateObject private var viewModel = SummaryViewModel()
+
+    @State private var showAddTrip = false
+    @State private var newTripName = ""
+    @State private var tripPendingRename: Trip?
+    @State private var tripRenameField = ""
+
+    private var activeProfile: VehicleProfile? {
+        VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
+    }
+
+    private var activeTrip: Trip? {
+        TripStore.activeTrip(for: activeProfile)
+    }
+
+    private var profileTrips: [Trip] {
+        TripStore.sortedTrips(for: activeProfile)
+    }
+
+    private var profileLoadedItems: [LoadedItem] {
+        TripStore.loadedItems(for: activeTrip, from: allLoadedItems)
+    }
+
+    private var refreshToken: String {
+        let tripSignature = activeTrip.map { "\($0.id)-\($0.name)" } ?? "no-trip"
+        let itemSignature = profileLoadedItems.map { "\($0.id.uuidString)-\($0.quantity)" }.joined(separator: "|")
+        return "\(tripSignature)|\(itemSignature)"
+    }
+
+    var body: some View {
+        if usePadLayout {
+            HomeDashboardPadView(
+                onNavigateToLoad: onNavigateToLoad,
+                onNavigateToSafety: onNavigateToSafety,
+                onNavigateToCare: onNavigateToCare
+            )
+        } else {
+            phoneBody
+        }
+    }
+
+    private var phoneBody: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                    if let profile = activeProfile, !profileTrips.isEmpty {
+                        HomeTripSelectorBar(
+                            profile: profile,
+                            trips: profileTrips,
+                            activeTrip: activeTrip,
+                            showAddTrip: $showAddTrip,
+                            tripPendingRename: $tripPendingRename,
+                            tripRenameField: $tripRenameField
+                        )
+                    }
+
+                    if let profile = activeProfile, profile.isConfiguredForWeightCalculations {
+                        LoadOverviewCard(
+                            profile: profile,
+                            caravanSummary: viewModel.caravanSummary,
+                            motorhomeSummary: viewModel.motorhomeSummary,
+                            onViewFullSummary: onNavigateToSummary
+                        )
+                    } else {
+                        setupCard
+                    }
+
+                    quickActionsSection
+                    moreSection
+                }
+                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                .padding(.top, AppScreenMetrics.verticalScreenPadding)
+                .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+            }
+            .appScreenBackground()
+            .navigationTitle("LoadMate")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showAddTrip = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .accessibilityLabel("Add trip")
+                }
+            }
+            .task(id: refreshToken) {
+                viewModel.refresh(profile: activeProfile, trip: activeTrip, loadedItems: profileLoadedItems)
+            }
+            .task(id: profiles.map(\.id)) {
+                TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
+            }
+            .sheet(isPresented: $showAddTrip, onDismiss: { newTripName = "" }) {
+                AddTripSheet(name: $newTripName) {
+                    guard let profile = activeProfile else { return }
+                    let trimmed = newTripName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    _ = TripStore.addTrip(name: trimmed, to: profile, in: modelContext)
+                    newTripName = ""
+                    showAddTrip = false
+                }
+            }
+            .alert("Rename trip", isPresented: Binding(
+                get: { tripPendingRename != nil },
+                set: { if !$0 { tripPendingRename = nil } }
+            )) {
+                TextField("Trip name", text: $tripRenameField)
+                Button("Save") {
+                    if let trip = tripPendingRename {
+                        TripStore.renameTrip(trip, name: tripRenameField, in: modelContext)
+                    }
+                    tripPendingRename = nil
+                }
+                Button("Cancel", role: .cancel) { tripPendingRename = nil }
+            }
+        }
+    }
+
+    private var setupCard: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            Text("Load Overview")
+                .font(.headline.weight(.semibold))
+            Text(activeProfile?.weightCalculationSetupSummaryMessage
+                 ?? "Add a vehicle in Settings to see weight calculations.")
+                .font(.subheadline)
+                .foregroundStyle(AppColors.textSupporting)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AppScreenMetrics.cardInteriorPadding)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
+    }
+
+    private var quickActionsSection: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            Text("Quick Actions")
+                .font(.headline.weight(.semibold))
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: AppScreenMetrics.controlSpacing), count: 4), spacing: AppScreenMetrics.controlSpacing) {
+                HomeQuickActionButton(title: "Add Item", systemImage: "shippingbox.fill", tint: AppColors.blue) {
+                    onNavigateToLoad?()
+                }
+                HomeQuickActionButton(title: "Locations", systemImage: "mappin.and.ellipse", tint: AppColors.purple) {
+                    onNavigateToLocations?()
+                }
+                HomeQuickActionButton(title: "Summary", systemImage: "scalemass.fill", tint: AppColors.green) {
+                    onNavigateToSummary?()
+                }
+                HomeQuickActionButton(title: "Trip Settings", systemImage: "slider.horizontal.3", tint: AppColors.orange) {
+                    onNavigateToLoad?()
+                }
+            }
+        }
+    }
+
+    private var moreSection: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            Text("More")
+                .font(.headline.weight(.semibold))
+
+            VStack(spacing: 0) {
+                HomeHubListRow(
+                    title: "Maintenance",
+                    subtitle: "Services, checks and history",
+                    systemImage: "wrench.and.screwdriver.fill",
+                    tint: AppColors.blue
+                ) {
+                    onNavigateToMaintenance?()
+                }
+                Divider().padding(.leading, 56)
+                HomeHubListRow(
+                    title: "Tyre Safety",
+                    subtitle: "Pressures, age and condition",
+                    systemImage: "circle.circle.fill",
+                    tint: AppColors.green
+                ) {
+                    onNavigateToTyreSafety?()
+                }
+                Divider().padding(.leading, 56)
+                HomeHubListRow(
+                    title: "Warranty",
+                    subtitle: "Plans, checks and documents",
+                    systemImage: "shield.fill",
+                    tint: AppColors.purple
+                ) {
+                    onNavigateToWarranty?()
+                }
+            }
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+        }
+    }
+}

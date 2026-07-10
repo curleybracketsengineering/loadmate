@@ -3,6 +3,16 @@ import SwiftData
 
 /// iPad placement column: cutaway graphic and assign-items list.
 struct PlacementPadPanel: View {
+    enum Layout {
+        /// Vertical scroll: map then list (legacy).
+        case stacked
+        /// Side-by-side: cutaway left, assigned items right (Load Planner tab).
+        case split
+    }
+
+    var layout: Layout = .stacked
+    var onAddItems: (() -> Void)? = nil
+
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\LoadedItem.loadedAt)]) private var allLoadedItems: [LoadedItem]
     @Query private var profiles: [VehicleProfile]
@@ -61,6 +71,7 @@ struct PlacementPadPanel: View {
                 )
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(item: $zonePickerItem) { loaded in
             LocationZonePickerSheet(
                 vehicleKind: activeProfile?.kind ?? .caravan,
@@ -86,29 +97,18 @@ struct PlacementPadPanel: View {
 
     @ViewBuilder
     private func placementContent(profile: VehicleProfile) -> some View {
+        switch layout {
+        case .stacked:
+            stackedPlacementContent(profile: profile)
+        case .split:
+            splitPlacementContent(profile: profile)
+        }
+    }
+
+    private func stackedPlacementContent(profile: VehicleProfile) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                HStack {
-                    Text("Assign locations")
-                        .font(.title3.weight(.semibold))
-                    Button {
-                        showLocationsHelp = true
-                    } label: {
-                        Image(systemName: "questionmark.circle")
-                            .foregroundStyle(Color.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("About locations")
-                    .pointerHelp("Help")
-
-                    Spacer(minLength: 0)
-
-                    if let profile = activeProfile, let trip = activeTrip {
-                        TripNotesToolbarButton(profile: profile, trip: trip) {
-                            tripPendingNotes = trip
-                        }
-                    }
-                }
+                placementHeader
 
                 VehicleCutawayPadView(
                     profile: profile,
@@ -126,13 +126,106 @@ struct PlacementPadPanel: View {
             .padding(.vertical, AppScreenMetrics.verticalScreenPadding)
             .frame(maxWidth: .infinity)
         }
-        .scrollDismissesKeyboard(.interactively)
+        .loadPlannerScrollPanel()
+    }
+
+    private func splitPlacementContent(profile: VehicleProfile) -> some View {
+        HStack(alignment: .top, spacing: AppScreenMetrics.sectionSpacing) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                    placementHeader
+
+                    if profile.kind == .caravan, let summary = caravanSummary {
+                        noseEffectBanner(kg: summary.estimatedNoseWeightKg)
+                    } else if profile.kind == .motorhome, let summary = motorhomeSummary {
+                        noseEffectBanner(kg: summary.towBarLoadKg, label: "Tow bar load")
+                    }
+
+                    VehicleCutawayPadView(
+                        profile: profile,
+                        zoneWeightsKg: zoneWeightsKg,
+                        overLimitZones: overLimitZones,
+                        onDropAssign: { zone, loadedItemID in
+                            guard let loaded = loadedItems.first(where: { $0.id == loadedItemID }) else { return }
+                            viewModel.updateZone(for: loaded, to: zone, in: modelContext)
+                        }
+                    )
+                }
+                .padding(.vertical, AppScreenMetrics.verticalScreenPadding)
+                .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+                .frame(maxWidth: .infinity)
+            }
+            .loadPlannerScrollPanel()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                Text("Assigned Items")
+                    .font(.headline.weight(.semibold))
+                    .padding(.top, AppScreenMetrics.verticalScreenPadding)
+                ScrollView {
+                    assignItemsList
+                        .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+                }
+                .loadPlannerScrollPanel()
+            }
+            .frame(width: 320)
+            .frame(maxHeight: .infinity)
+        }
+        .padding(.horizontal, PadContentLayout.horizontalGutter)
+        .frame(maxHeight: .infinity)
+    }
+
+    private var caravanSummary: WeightSummary? {
+        guard let profile = activeProfile, profile.kind == .caravan else { return nil }
+        return WeightCalculator.summary(profile: profile, loadedItems: loadedItems)
+    }
+
+    private var placementHeader: some View {
+        HStack {
+            Text("Assign locations")
+                .font(.title3.weight(.semibold))
+            Button {
+                showLocationsHelp = true
+            } label: {
+                Image(systemName: "questionmark.circle")
+                    .foregroundStyle(Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("About locations")
+            .pointerHelp("Help")
+
+            Spacer(minLength: 0)
+
+            if let profile = activeProfile, let trip = activeTrip {
+                TripNotesToolbarButton(profile: profile, trip: trip) {
+                    tripPendingNotes = trip
+                }
+            }
+        }
+    }
+
+    private func noseEffectBanner(kg: Double, label: String = "Total Nose Effect") -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(AppColors.textSupporting)
+            Spacer()
+            Text(Formatters.kg(kg))
+                .font(.title3.weight(.bold))
+                .foregroundStyle(Color.accentColor)
+                .monospacedDigit()
+        }
+        .padding(AppScreenMetrics.cardInteriorPadding)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
     }
 
     private var assignItemsList: some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-            Text("Loaded items")
-                .font(.headline)
+            if layout == .stacked {
+                Text("Loaded items")
+                    .font(.headline)
+            }
 
             VStack(spacing: 0) {
                 ForEach(Array(loadedItems.enumerated()), id: \.element.id) { index, loaded in
@@ -160,16 +253,22 @@ struct PlacementPadPanel: View {
 
     private var padEmptyState: some View {
         VStack(spacing: AppScreenMetrics.fieldSpacing) {
-            Image(systemName: "arrow.left")
+            Image(systemName: "shippingbox")
                 .font(.largeTitle.weight(.light))
                 .foregroundStyle(Color.secondary)
-            Text("Load items on the left")
+            Text("No items loaded")
                 .font(.headline)
-            Text("Add items to this trip, then assign each one to a zone here.")
+            Text("Add items on the Items tab, then assign each one to a zone here.")
                 .font(.subheadline)
                 .foregroundStyle(AppColors.textSupporting)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, AppScreenMetrics.sectionSpacing)
+            if let onAddItems {
+                AppPrimaryButton("Go to Items", systemImage: "arrow.left") {
+                    onAddItems()
+                }
+                .padding(.horizontal, AppScreenMetrics.sectionSpacing)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

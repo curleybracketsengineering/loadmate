@@ -3,21 +3,34 @@ import SwiftData
 
 struct LoadView: View {
     @Environment(\.usePadLayout) private var usePadLayout
+    @Binding var workflowStep: LoadWorkflowStep
+
+    init(workflowStep: Binding<LoadWorkflowStep> = .constant(.items)) {
+        _workflowStep = workflowStep
+    }
 
     var body: some View {
         if usePadLayout {
-            LoadPlacementPadView()
+            LoadPlannerPadView()
         } else {
-            LoadPhoneTabView()
+            LoadWorkflowPhoneView(step: $workflowStep)
         }
     }
 }
 
 struct LoadTabContent: View {
     @Binding var showAddItem: Bool
+    var showsTripPicker: Bool = true
+    var usesScrollablePanel: Bool = false
 
-    init(showAddItem: Binding<Bool> = .constant(false)) {
+    init(
+        showAddItem: Binding<Bool> = .constant(false),
+        showsTripPicker: Bool = true,
+        usesScrollablePanel: Bool = false
+    ) {
         _showAddItem = showAddItem
+        self.showsTripPicker = showsTripPicker
+        self.usesScrollablePanel = usesScrollablePanel
     }
 
     @Environment(\.modelContext) private var modelContext
@@ -102,54 +115,121 @@ struct LoadTabContent: View {
     }
 
     var body: some View {
+        Group {
+            if usesScrollablePanel {
+                scrollablePanelBody
+            } else {
+                standardBody
+            }
+        }
+        .background(Color(.systemGroupedBackground))
+        .task(id: profiles.map(\.id)) {
+            TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
+        }
+        .sheet(isPresented: $showAddTrip, onDismiss: {
+            newTripName = ""
+        }) {
+            AddTripSheet(name: $newTripName) {
+                guard let profile = activeProfile else { return }
+                let trimmed = newTripName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return }
+                _ = TripStore.addTrip(name: trimmed, to: profile, in: modelContext)
+                newTripName = ""
+                showAddTrip = false
+            }
+        }
+        .alert("Rename trip", isPresented: Binding(
+            get: { tripPendingRename != nil },
+            set: { if !$0 { tripPendingRename = nil } }
+        )) {
+            TextField("Trip name", text: $tripRenameField)
+            Button("Save") {
+                if let trip = tripPendingRename {
+                    TripStore.renameTrip(trip, name: tripRenameField, in: modelContext)
+                }
+                tripPendingRename = nil
+            }
+            Button("Cancel", role: .cancel) { tripPendingRename = nil }
+        }
+        .sheet(item: $libraryItemEditSession, onDismiss: {
+            libraryItemEditSession = nil
+        }) { session in
+            EditLibraryItemSheet(
+                initialName: session.name,
+                initialWeightText: session.weightText,
+                onSave: { name, weightKg in
+                    if let item = libraryItems.first(where: { $0.id == session.id }) {
+                        viewModel.updateLibraryItem(item, name: name, weightKg: weightKg, in: modelContext)
+                    }
+                    libraryItemEditSession = nil
+                },
+                onCancel: {
+                    libraryItemEditSession = nil
+                }
+            )
+        }
+        .sheet(isPresented: $showAddItem, onDismiss: {
+            newName = ""
+            newWeight = ""
+        }) {
+            AddLibraryItemSheet(
+                name: $newName,
+                weightText: $newWeight,
+                onAdd: commitAdd
+            )
+        }
+        .sheet(item: $tripPendingNotes) { trip in
+            if let profile = activeProfile {
+                TripLoadingNotesSheet(profile: profile, trip: trip)
+            }
+        }
+        .alert("Add starter kit?", isPresented: $showStarterKitConfirm) {
+            Button("Add items") {
+                applyStarterKit()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(starterKitAlertMessage)
+        }
+    }
+
+    private var standardBody: some View {
         VStack(spacing: 0) {
-                    if showSetupBanner {
-                        AppWarningBanner(message: setupBannerMessage)
-                    }
+            loadTabHeaderContent
 
-                    if let profile = activeProfile, !profileTrips.isEmpty {
-                        TripPickerBar(
-                            profile: profile,
-                            trips: profileTrips,
-                            activeTrip: activeTrip,
-                            showAddTrip: $showAddTrip,
-                            tripPendingRename: $tripPendingRename,
-                            tripRenameField: $tripRenameField,
-                            onOpenTripNotes: { tripPendingNotes = $0 }
-                        )
-                    }
+            if libraryItems.isEmpty {
+                LoadEmptyStateView(
+                    vehicleKind: activeProfile?.kind,
+                    showsStarterKit: showsStarterKit,
+                    onLoadStarterKit: requestStarterKit,
+                    onAddItem: { showAddItem = true }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                VStack(spacing: 0) {
+                    AppSearchField(text: $searchText)
+                        .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                        .padding(.top, AppScreenMetrics.smallSpacing)
+                        .padding(.bottom, AppScreenMetrics.controlSpacing)
 
-                    if let profile = activeProfile,
-                       profile.kind == .motorhome,
-                       profile.usesManualTowBarLoad,
-                       let trip = activeTrip {
-                        towBarEntryCard(for: trip)
-                            .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                            .padding(.bottom, AppScreenMetrics.controlSpacing)
-                    }
-
-                    if libraryItems.isEmpty {
-                        LoadEmptyStateView(
-                            vehicleKind: activeProfile?.kind,
-                            showsStarterKit: showsStarterKit,
-                            onLoadStarterKit: requestStarterKit,
-                            onAddItem: { showAddItem = true }
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        VStack(spacing: 0) {
-                            AppSearchField(text: $searchText)
-                                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                                .padding(.top, AppScreenMetrics.smallSpacing)
-                                .padding(.bottom, AppScreenMetrics.controlSpacing)
-
-                            List {
-                            Section {
-                                if filteredLibraryItems.isEmpty {
-                                    Text("No items match your search.")
-                                        .font(.subheadline)
-                                        .foregroundStyle(AppColors.textSupporting)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                    List {
+                        Section {
+                            if filteredLibraryItems.isEmpty {
+                                Text("No items match your search.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppColors.textSupporting)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .listRowInsets(EdgeInsets(
+                                        top: 6,
+                                        leading: AppScreenMetrics.cardInteriorPadding,
+                                        bottom: 6,
+                                        trailing: AppScreenMetrics.cardInteriorPadding
+                                    ))
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
+                            } else {
+                                ForEach(filteredLibraryItems) { item in
+                                    libraryItemRow(item)
                                         .listRowInsets(EdgeInsets(
                                             top: 6,
                                             leading: AppScreenMetrics.cardInteriorPadding,
@@ -158,181 +238,191 @@ struct LoadTabContent: View {
                                         ))
                                         .listRowSeparator(.hidden)
                                         .listRowBackground(Color.clear)
-                                } else {
-                                ForEach(filteredLibraryItems) { item in
-                                    HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.controlSpacing) {
-                                        VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
-                                            Text(item.name)
-                                                .font(.headline)
-                                                .foregroundStyle(Color.primary)
-                                            Text(Formatters.kg(item.weightKg))
-                                                .font(.caption)
-                                                .foregroundStyle(AppColors.textSupporting)
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                            Button("Load") {
+                                                viewModel.load(
+                                                    item: item,
+                                                    trip: activeTrip,
+                                                    loadedItems: loadedItems,
+                                                    in: modelContext
+                                                )
+                                            }
+                                            .tint(AppColors.green)
                                         }
-                                        Spacer(minLength: AppScreenMetrics.smallSpacing)
-                                        Text("×\(quantity(for: item))")
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(Color.accentColor)
-                                            .monospacedDigit()
-                                    }
-                                    .padding(.vertical, AppScreenMetrics.smallSpacing)
-                                    .listRowInsets(EdgeInsets(
-                                        top: 6,
-                                        leading: AppScreenMetrics.cardInteriorPadding,
-                                        bottom: 6,
-                                        trailing: AppScreenMetrics.cardInteriorPadding
-                                    ))
-                                    .listRowSeparator(.hidden)
-                                    .listRowBackground(
-                                        RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                                            .fill(Color(.secondarySystemGroupedBackground))
-                                            .padding(.vertical, 4)
-                                    )
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                        Button("Load") {
-                                            viewModel.load(
-                                                item: item,
-                                                trip: activeTrip,
-                                                loadedItems: loadedItems,
-                                                in: modelContext
-                                            )
+                                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                            Button("Unload") {
+                                                viewModel.unload(item: item, loadedItems: loadedItems, in: modelContext)
+                                            }
+                                            .tint(AppColors.orange)
                                         }
-                                        .tint(AppColors.green)
-                                    }
-                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                        Button("Unload") {
-                                            viewModel.unload(item: item, loadedItems: loadedItems, in: modelContext)
-                                        }
-                                        .tint(AppColors.orange)
-                                    }
-                                    .contextMenu {
-                                        Button {
-                                            libraryItemEditSession = LibraryItemEditSession(item: item)
-                                        } label: {
-                                            Label("Edit Item", systemImage: "pencil")
-                                        }
-                                        Button(role: .destructive) {
-                                            viewModel.delete(item: item, allLoadedItems: allLoadedItems, in: modelContext)
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
                                 }
-                                }
-                            } header: {
-                                HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.smallSpacing) {
-                                    AppSectionHeading(itemsSectionTitle)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                                    if showsStarterKit {
-                                        Button(action: requestStarterKit) {
-                                            Image(systemName: "shippingbox")
-                                                .font(.body.weight(.medium))
-                                                .foregroundStyle(Color.accentColor)
-                                                .frame(minWidth: 44, minHeight: 44)
-                                                .contentShape(Rectangle())
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel("Add starter kit")
-                                        .pointerHelp("Starter kit")
-                                    }
-
-                                    Button {
-                                        showAddItem = true
-                                    } label: {
-                                        Image(systemName: "plus.circle")
-                                            .font(.body.weight(.medium))
-                                            .foregroundStyle(Color.accentColor)
-                                            .frame(minWidth: 44, minHeight: 44)
-                                            .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("Add item")
-                                    .pointerHelp("Add item")
-                                }
-                                .textCase(nil)
                             }
-                            .headerProminence(.increased)
-                            }
-                            .listStyle(.insetGrouped)
-                            .scrollContentBackground(.hidden)
-                            .scrollDismissesKeyboard(.interactively)
+                        } header: {
+                            itemsSectionHeader
                         }
+                        .headerProminence(.increased)
                     }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.systemGroupedBackground))
-            .task(id: profiles.map(\.id)) {
-                TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
-            }
-            .sheet(isPresented: $showAddTrip, onDismiss: {
-                newTripName = ""
-            }) {
-                AddTripSheet(name: $newTripName) {
-                    guard let profile = activeProfile else { return }
-                    let trimmed = newTripName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !trimmed.isEmpty else { return }
-                    _ = TripStore.addTrip(name: trimmed, to: profile, in: modelContext)
-                    newTripName = ""
-                    showAddTrip = false
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
+                    .scrollDismissesKeyboard(.interactively)
                 }
             }
-            .alert("Add starter kit?", isPresented: $showStarterKitConfirm) {
-                Button("Add items") {
-                    applyStarterKit()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text(starterKitAlertMessage)
-            }
-            .sheet(item: $tripPendingNotes) { trip in
-                if let profile = activeProfile {
-                    TripLoadingNotesSheet(profile: profile, trip: trip)
-                }
-            }
-            .alert("Rename trip", isPresented: Binding(
-                get: { tripPendingRename != nil },
-                set: { if !$0 { tripPendingRename = nil } }
-            )) {
-                TextField("Trip name", text: $tripRenameField)
-                Button("Save") {
-                    if let trip = tripPendingRename {
-                        TripStore.renameTrip(trip, name: tripRenameField, in: modelContext)
-                    }
-                    tripPendingRename = nil
-                }
-                Button("Cancel", role: .cancel) {
-                    tripPendingRename = nil
-                }
-            }
-            .sheet(isPresented: $showAddItem, onDismiss: {
-                newName = ""
-                newWeight = ""
-            }) {
-                AddLibraryItemSheet(
-                    name: $newName,
-                    weightText: $newWeight,
-                    onAdd: commitAdd
-                )
-            }
-            .sheet(item: $libraryItemEditSession, onDismiss: {
-                libraryItemEditSession = nil
-            }) { session in
-                EditLibraryItemSheet(
-                    initialName: session.name,
-                    initialWeightText: session.weightText,
-                    onSave: { name, weightKg in
-                        if let item = libraryItems.first(where: { $0.id == session.id }) {
-                            viewModel.updateLibraryItem(item, name: name, weightKg: weightKg, in: modelContext)
-                        }
-                        libraryItemEditSession = nil
-                    },
-                    onCancel: {
-                        libraryItemEditSession = nil
-                    }
-                )
-            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    private var scrollablePanelBody: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                loadTabHeaderContent
+
+                if libraryItems.isEmpty {
+                    LoadEmptyStateView(
+                        vehicleKind: activeProfile?.kind,
+                        showsStarterKit: showsStarterKit,
+                        onLoadStarterKit: requestStarterKit,
+                        onAddItem: { showAddItem = true }
+                    )
+                    .padding(.vertical, AppScreenMetrics.sectionSpacing)
+                } else {
+                    AppSearchField(text: $searchText)
+                        .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                        .padding(.top, AppScreenMetrics.smallSpacing)
+                        .padding(.bottom, AppScreenMetrics.controlSpacing)
+
+                    itemsSectionHeader
+                        .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                        .padding(.bottom, AppScreenMetrics.smallSpacing)
+
+                    if filteredLibraryItems.isEmpty {
+                        Text("No items match your search.")
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.textSupporting)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                    } else {
+                        LazyVStack(spacing: AppScreenMetrics.smallSpacing) {
+                            ForEach(filteredLibraryItems) { item in
+                                libraryItemRow(item)
+                            }
+                        }
+                        .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                    }
+                }
+            }
+            .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+        }
+        .loadPlannerScrollPanel()
+    }
+
+    @ViewBuilder
+    private var loadTabHeaderContent: some View {
+        if showSetupBanner {
+            AppWarningBanner(message: setupBannerMessage)
+        }
+
+        if showsTripPicker, let profile = activeProfile, !profileTrips.isEmpty {
+            TripPickerBar(
+                profile: profile,
+                trips: profileTrips,
+                activeTrip: activeTrip,
+                showAddTrip: $showAddTrip,
+                tripPendingRename: $tripPendingRename,
+                tripRenameField: $tripRenameField,
+                onOpenTripNotes: { tripPendingNotes = $0 }
+            )
+        }
+
+        if let profile = activeProfile,
+           profile.kind == .motorhome,
+           profile.usesManualTowBarLoad,
+           let trip = activeTrip {
+            towBarEntryCard(for: trip)
+                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                .padding(.bottom, AppScreenMetrics.controlSpacing)
+        }
+    }
+
+    private var itemsSectionHeader: some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.smallSpacing) {
+            AppSectionHeading(itemsSectionTitle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if showsStarterKit {
+                Button(action: requestStarterKit) {
+                    Image(systemName: "shippingbox")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add starter kit")
+                .pointerHelp("Starter kit")
+            }
+
+            Button {
+                showAddItem = true
+            } label: {
+                Image(systemName: "plus.circle")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Add item")
+            .pointerHelp("Add item")
+        }
+        .textCase(nil)
+    }
+
+    private func libraryItemRow(_ item: LibraryItem) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.controlSpacing) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                Text(item.name)
+                    .font(.headline)
+                    .foregroundStyle(Color.primary)
+                Text(Formatters.kg(item.weightKg))
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+            }
+            Spacer(minLength: AppScreenMetrics.smallSpacing)
+            Text("×\(quantity(for: item))")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+                .monospacedDigit()
+        }
+        .padding(.vertical, AppScreenMetrics.smallSpacing)
+        .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
+        .background(
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+        .contextMenu {
+            Button {
+                viewModel.load(item: item, trip: activeTrip, loadedItems: loadedItems, in: modelContext)
+            } label: {
+                Label("Load", systemImage: "plus.circle")
+            }
+            Button {
+                viewModel.unload(item: item, loadedItems: loadedItems, in: modelContext)
+            } label: {
+                Label("Unload", systemImage: "minus.circle")
+            }
+            Button {
+                libraryItemEditSession = LibraryItemEditSession(item: item)
+            } label: {
+                Label("Edit Item", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                viewModel.delete(item: item, allLoadedItems: allLoadedItems, in: modelContext)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
 
     private func requestStarterKit() {
         guard showsStarterKit else { return }
