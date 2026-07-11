@@ -17,6 +17,7 @@ struct CareView: View {
     @Query private var maintenanceRecords: [MaintenanceRecord]
     @Query private var documentRecords: [DocumentRecord]
     @Query private var faultRecords: [FaultRecord]
+    @Query private var warrantyPlans: [WarrantyPlan]
     @Query(sort: \ChecklistSection.sortOrder) private var checklistSections: [ChecklistSection]
 
     @Binding var pendingDestination: CareDestination?
@@ -54,9 +55,13 @@ struct CareView: View {
     }
 
     private var reminderItems: [MaintenanceReminderItem] {
-        MaintenanceSupport.reminderItems(
+        guard let profile = activeProfile else { return [] }
+        return MaintenanceSupport.reminderItems(
             maintenanceRecords: scopedMaintenance,
-            documents: scopedDocuments
+            documents: scopedDocuments,
+            warrantyPlans: warrantyPlans,
+            vehicleID: profile.id,
+            warrantyAvailable: profile.warrantyAvailable
         )
     }
 
@@ -83,12 +88,14 @@ struct CareView: View {
                         tint: AppColors.blue
                     ) { destination = .maintenance }
 
-                    careHubCard(
-                        title: "Warranty",
-                        subtitle: warrantySubtitle,
-                        systemImage: "shield.fill",
-                        tint: AppColors.purple
-                    ) { destination = .warranty }
+                    if WarrantySupport.showsWarrantyFeatures(for: activeProfile) {
+                        careHubCard(
+                            title: "Warranty",
+                            subtitle: warrantySubtitle,
+                            systemImage: "shield.fill",
+                            tint: AppColors.purple
+                        ) { destination = .warranty }
+                    }
 
                     careHubCard(
                         title: "Documents",
@@ -123,7 +130,7 @@ struct CareView: View {
                 case .tyreSafety:
                     TyreSafetyView()
                 case .warranty:
-                    MaintenanceView()
+                    WarrantyView()
                 case .documents:
                     MaintenanceView()
                 case .checklist:
@@ -142,10 +149,10 @@ struct CareView: View {
     }
 
     private var warrantySubtitle: String {
-        if let warranty = scopedMaintenance.first(where: { $0.category == .warrantyRepair }) {
-            return "Active. Last recorded \(Formatters.date(warranty.serviceDate))."
+        guard let profile = activeProfile else {
+            return "Plans, checks and documents."
         }
-        return "Plans, checks and documents."
+        return WarrantySupport.careHubSubtitle(plans: warrantyPlans, vehicleID: profile.id)
     }
 
     private func careHubCard(

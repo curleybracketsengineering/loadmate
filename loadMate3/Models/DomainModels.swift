@@ -138,6 +138,18 @@ final class VehicleProfile {
     /// Starter kit was loaded for this profile — hide the one-time load option.
     var hasAppliedStarterKit: Bool = false
 
+    /// When false, warranty tab and related shortcuts are hidden for this vehicle.
+    var warrantyAvailable: Bool = true
+
+    // MARK: External dimensions (handbook / plate — for route and site planning)
+
+    /// External body width in metres (e.g. 2.35).
+    var externalWidthM: Double = 0
+    /// External body height in metres (e.g. 2.74).
+    var externalHeightM: Double = 0
+    /// Overall length in metres (e.g. 7.20).
+    var externalLengthM: Double = 0
+
     @Relationship(deleteRule: .cascade, inverse: \Trip.profile)
     var trips: [Trip]?
 
@@ -189,6 +201,13 @@ final class VehicleProfile {
         self.mhFactorGarageRear = 0.98
         self.mhFactorBikeRackFront = -0.08
         self.mhFactorBikeRackRear = 1.08
+        self.externalWidthM = 0
+        self.externalHeightM = 0
+        self.externalLengthM = 0
+    }
+
+    var hasExternalDimensions: Bool {
+        externalWidthM > 0 || externalHeightM > 0 || externalLengthM > 0
     }
 
     var kind: VehicleKind {

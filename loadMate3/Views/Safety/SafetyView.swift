@@ -212,6 +212,10 @@ struct SafetyView: View {
                 }
             }
 
+            if let profile = activeProfile {
+                vehicleDimensionsSection(profile: profile)
+            }
+
             HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
                 tyreAlertsCard
                 recentActivityCard
@@ -304,6 +308,80 @@ struct SafetyView: View {
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+
+    private func vehicleDimensionsSection(profile: VehicleProfile) -> some View {
+        let vehicleName = SafetySupport.vehicleKindName(for: profile.kind)
+        return AppSettingsSection(
+            "Vehicle dimensions",
+            caption: "External sizes from your \(vehicleName) handbook — useful for low bridges, ferries, and site access."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                AppLabeledNumberField(
+                    "Width (m)",
+                    caption: "Widest point including mirrors or awnings if relevant",
+                    value: dimensionBinding(for: \.externalWidthM, on: profile),
+                    fractionDigitsUpperBound: 2
+                )
+                AppLabeledNumberField(
+                    "Height (m)",
+                    caption: "Highest point including roof fittings",
+                    value: dimensionBinding(for: \.externalHeightM, on: profile),
+                    fractionDigitsUpperBound: 2
+                )
+                AppLabeledNumberField(
+                    "Length (m)",
+                    caption: "Overall length including hitch or bike rack if fitted",
+                    value: dimensionBinding(for: \.externalLengthM, on: profile),
+                    fractionDigitsUpperBound: 2
+                )
+
+                AppSectionDivider()
+
+                VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                    Text("Weight reference")
+                        .font(.subheadline.weight(.semibold))
+                    Text("From Settings — edit there to update load calculations.")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
+                    dimensionReferenceRow(
+                        title: SafetySupport.maxWeightLabel(for: profile.kind),
+                        value: profile.mtplmKg > 0 ? Formatters.kg(profile.mtplmKg) : "Not set"
+                    )
+                    dimensionReferenceRow(
+                        title: SafetySupport.unladenWeightLabel(for: profile.kind),
+                        value: profile.calculationBaseWeightKg > 0
+                            ? Formatters.kg(profile.calculationBaseWeightKg)
+                            : "Not set"
+                    )
+                }
+            }
+        }
+    }
+
+    private func dimensionReferenceRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(Color.primary)
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(value == "Not set" ? AppColors.textSupporting : Color.primary)
+        }
+    }
+
+    private func dimensionBinding(
+        for keyPath: ReferenceWritableKeyPath<VehicleProfile, Double>,
+        on profile: VehicleProfile
+    ) -> Binding<Double> {
+        Binding(
+            get: { profile[keyPath: keyPath] },
+            set: { newValue in
+                profile[keyPath: keyPath] = newValue
+                _ = SyncDebugSaveHelper.save(modelContext, source: "SafetyView.saveDimensions")
+            }
+        )
     }
 
     private var tyreAlertsCard: some View {

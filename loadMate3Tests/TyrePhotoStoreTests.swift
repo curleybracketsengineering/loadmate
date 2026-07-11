@@ -78,4 +78,25 @@ final class TyrePhotoStoreTests: XCTestCase {
         XCTAssertEqual(record.generalPhotosList().count, 1)
         XCTAssertEqual(TyrePhotoStore.photos(for: record, inspection: inspection).count, 1)
     }
+
+    func testDiagramPhotoPrefersFullTyreOverSidewall() {
+        let record = TyreRecord(vehicleID: UUID(), position: .caravanLeft)
+        let sidewall = TyrePhoto(
+            tyreRecord: record,
+            inspection: nil,
+            kind: .sidewall,
+            capturedAt: Date().addingTimeInterval(-60),
+            localFileName: "sidewall.jpg"
+        )
+        let fullTyre = TyrePhoto(
+            tyreRecord: record,
+            inspection: nil,
+            kind: .fullTyre,
+            capturedAt: Date(),
+            localFileName: "full.jpg"
+        )
+        record.photos = [sidewall, fullTyre]
+
+        XCTAssertEqual(TyrePhotoStore.diagramPhoto(for: record)?.kind, .fullTyre)
+    }
 }

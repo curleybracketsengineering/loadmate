@@ -63,6 +63,8 @@ struct SettingsView: View {
                                 motorhomeSettings(profile)
                             }
 
+                            warrantySettings(profile)
+
                             tyreSafetySettings()
 
                             aboutSection()
@@ -180,6 +182,27 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {
                 profilePendingRename = nil
             }
+        }
+    }
+
+    @ViewBuilder
+    private func warrantySettings(_ profile: VehicleProfile) -> some View {
+        AppSettingsSection(
+            "Warranty",
+            caption: "Turn off if this vehicle has no manufacturer warranty to track."
+        ) {
+            Toggle(isOn: boolBinding(for: \.warrantyAvailable, on: profile)) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Warranty available")
+                        .font(.subheadline.weight(.medium))
+                    Text(profile.warrantyAvailable
+                        ? "Shows the Warranty tab in Maintenance and Care shortcuts."
+                        : "Hides warranty tracking for this vehicle.")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
+                }
+            }
+            .tint(Color.accentColor)
         }
     }
 

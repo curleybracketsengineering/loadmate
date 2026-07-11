@@ -197,14 +197,16 @@ struct HomeView: View {
                 ) {
                     onNavigateToTyreSafety?()
                 }
-                Divider().padding(.leading, 56)
-                HomeHubListRow(
-                    title: "Warranty",
-                    subtitle: "Plans, checks and documents",
-                    systemImage: "shield.fill",
-                    tint: AppColors.purple
-                ) {
-                    onNavigateToWarranty?()
+                if activeProfile.map({ WarrantySupport.showsWarrantyFeatures(for: $0) }) ?? false {
+                    Divider().padding(.leading, 56)
+                    HomeHubListRow(
+                        title: "Warranty",
+                        subtitle: "Plans, checks and documents",
+                        systemImage: "shield.fill",
+                        tint: AppColors.purple
+                    ) {
+                        onNavigateToWarranty?()
+                    }
                 }
             }
             .background(Color(.secondarySystemGroupedBackground))

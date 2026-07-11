@@ -21,6 +21,7 @@ enum FaultStore {
         estimatedRepairCost: Double?,
         actualRepairCost: Double?,
         linkedMaintenanceRecord: MaintenanceRecord?,
+        isWarrantyRelated: Bool = false,
         in context: ModelContext
     ) {
         fault.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -32,6 +33,7 @@ enum FaultStore {
         fault.estimatedRepairCost = estimatedRepairCost
         fault.actualRepairCost = actualRepairCost
         fault.linkedMaintenanceRecord = linkedMaintenanceRecord
+        fault.isWarrantyRelated = isWarrantyRelated
         fault.updatedAt = Date()
         try? context.save()
     }

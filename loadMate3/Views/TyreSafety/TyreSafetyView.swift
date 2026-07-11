@@ -102,100 +102,56 @@ private struct TyreSafetyOverviewView: View {
     let onShowHistory: () -> Void
     let onShowInfo: () -> Void
 
-    private var currentCount: Int { records.filter { $0.statusLevel == .current }.count }
-    private var attentionCount: Int { records.filter { $0.statusLevel == .attention || $0.statusLevel == .action }.count }
-    private var incompleteCount: Int { records.filter { $0.statusLevel == .incomplete }.count }
-
-    private var alertMessages: [String] {
-        var messages: [String] = []
-        for record in records {
-            let age = record.ageAssessment
-            if let message = age.message, age.level != .current {
-                messages.append("\(record.displayName) tyre: \(message)")
-            } else if record.manufactureDate == nil {
-                messages.append("\(record.displayName) tyre has no manufacture date recorded.")
-            }
-
-            let pressure = record.pressureAssessment
-            if pressure.level == .attention || pressure.level == .action || pressure.level == .incomplete {
-                messages.append("\(record.displayName) tyre: \(pressure.message).")
-            }
-
-            if let inspectionDate = record.latestInspectionDate,
-               Calendar.current.dateComponents([.day], from: inspectionDate, to: Date()).day ?? 0 > 90 {
-                messages.append("\(record.displayName) tyre inspection is more than 90 days old.")
-            }
-        }
-        return Array(messages.prefix(8))
-    }
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                AppHeroSection(
-                    systemImage: "circle.hexagongrid.fill",
-                    title: "Tyre Safety",
-                    subtitle: "\(profile.name) \(profile.kind.displayName.lowercased())"
-                )
-
-                AppSettingsSection("Summary", caption: "Advisory information from the tyre details you have recorded.") {
+                AppGroupedCard {
                     VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                        Text("\(records.count) tyres recorded")
-                            .font(.headline)
-                        Text("\(currentCount) current")
-                        Text("\(attentionCount) need attention")
-                        Text("\(incompleteCount) have missing information")
-                    }
-                }
+                        HStack(alignment: .center, spacing: AppScreenMetrics.tinySpacing) {
+                            Spacer(minLength: 0)
+                            Button(action: onShowQuickCheck) {
+                                Image(systemName: "gauge.with.dots.needle.50percent")
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(Color.accentColor)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .accessibilityLabel("Record tyre check")
+                            .pointerHelp("Record tyre check")
 
-                AppSettingsSection("Vehicle layout", caption: "Select a tyre to view or update its details. A list view is also shown for accessibility.") {
-                    VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                            Button(action: onShowHistory) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(Color.accentColor)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .accessibilityLabel("View inspection history")
+                            .pointerHelp("View inspection history")
+
+                            Button(action: onShowSetup) {
+                                Image(systemName: "circle.hexagongrid")
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(Color.accentColor)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .accessibilityLabel("Change tyre layout")
+                            .pointerHelp("Change tyre layout")
+
+                            Button(action: onShowInfo) {
+                                Image(systemName: "info.circle")
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(Color.accentColor)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .accessibilityLabel("Tyre Safety information")
+                            .pointerHelp("Tyre Safety information")
+                        }
+
                         TyreDiagramView(profile: profile, records: records, onSelectRecord: onSelectRecord)
-                        VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
-                            ForEach(records) { record in
-                                Button {
-                                    onSelectRecord(record)
-                                } label: {
-                                    HStack(spacing: AppScreenMetrics.controlSpacing) {
-                                        Image(systemName: record.statusLevel.symbolName)
-                                            .foregroundStyle(color(for: record.statusLevel))
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(record.displayName)
-                                                .font(.subheadline.weight(.semibold))
-                                                .foregroundStyle(Color.primary)
-                                            Text(record.ageAssessment.status)
-                                                .font(.caption)
-                                                .foregroundStyle(AppColors.textSupporting)
-                                        }
-                                        Spacer()
-                                        Image(systemName: "chevron.right")
-                                            .foregroundStyle(Color.secondary)
-                                    }
-                                    .padding(.vertical, 6)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
                     }
-                }
-
-                if !alertMessages.isEmpty {
-                    AppSettingsSection("Alerts", caption: "Items that may need attention based on the information recorded.") {
-                        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                            ForEach(alertMessages, id: \.self) { message in
-                                Text(message)
-                                    .font(.subheadline)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }
-                }
-
-                VStack(spacing: AppScreenMetrics.controlSpacing) {
-                    AppPrimaryButton("Record tyre check", systemImage: "gauge.with.dots.needle.50percent", action: onShowQuickCheck)
-                    AppSecondaryButton("View inspection history", action: onShowHistory)
-                    AppSecondaryButton("Change tyre layout", action: onShowSetup)
-                    AppSecondaryButton("Tyre Safety information", action: onShowInfo)
                 }
             }
             .padding(.horizontal, AppScreenMetrics.horizontalPadding)
@@ -203,21 +159,16 @@ private struct TyreSafetyOverviewView: View {
             .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
         }
     }
-
-    private func color(for level: TyreStatusLevel) -> Color {
-        switch level {
-        case .current: return AppColors.green
-        case .attention: return .orange
-        case .action: return .red
-        case .incomplete: return .secondary
-        }
-    }
 }
 
 private struct TyreDiagramView: View {
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
     let profile: VehicleProfile
     let records: [TyreRecord]
     let onSelectRecord: (TyreRecord) -> Void
+
+    private var isLandscape: Bool { verticalSizeClass == .compact }
 
     var body: some View {
         VStack(spacing: AppScreenMetrics.controlSpacing) {
@@ -230,20 +181,11 @@ private struct TyreDiagramView: View {
             } else {
                 motorhomeLayout
             }
-
-            Text("Rear")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppColors.textSupporting)
         }
     }
 
     private var caravanLayout: some View {
         VStack(spacing: AppScreenMetrics.controlSpacing) {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.tertiarySystemFill))
-                .frame(height: 70)
-                .overlay(Text("Caravan body").font(.caption))
-
             if records.contains(where: { $0.position == .caravanLeft || $0.position == .caravanRight }) {
                 HStack(spacing: AppScreenMetrics.controlSpacing) {
                     tyreButton(.caravanLeft)
@@ -305,22 +247,79 @@ private struct TyreDiagramView: View {
             Button {
                 onSelectRecord(record)
             } label: {
-                VStack(spacing: 4) {
-                    Image(systemName: record.statusLevel.symbolName)
-                        .foregroundStyle(color(for: record.statusLevel))
-                    Text(record.position.displayName)
-                        .font(.caption2)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity, minHeight: 64)
-                .padding(8)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.secondarySystemGroupedBackground))
-                )
+                tyreButtonLabel(for: record)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(tyreAccessibilityLabel(for: record))
         }
+    }
+
+    private func tyreAccessibilityLabel(for record: TyreRecord) -> String {
+        let details = record.alertMessages.isEmpty
+            ? record.ageAssessment.status
+            : record.alertMessages.joined(separator: ". ")
+        return "\(record.displayName), \(details)"
+    }
+
+    @ViewBuilder
+    private func tyreButtonLabel(for record: TyreRecord) -> some View {
+        let statusColor = color(for: record.statusLevel)
+        let imageToTextSpacing = isLandscape ? 0 : AppScreenMetrics.tinySpacing
+        VStack(spacing: imageToTextSpacing) {
+            ZStack(alignment: .topTrailing) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(.tertiarySystemFill))
+                    .frame(width: 130, height: 130)
+
+                if let image = diagramImage(for: record) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 122, height: 122)
+                } else {
+                    Image(systemName: record.statusLevel.symbolName)
+                        .font(.title2)
+                        .foregroundStyle(statusColor)
+                }
+
+                Image(systemName: record.statusLevel.symbolName)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(5)
+                    .background(Circle().fill(statusColor))
+                    .padding(4)
+            }
+            .frame(maxWidth: .infinity)
+
+            VStack(spacing: isLandscape ? 1 : 2) {
+                if record.alertMessages.isEmpty {
+                    Text(record.ageAssessment.status)
+                        .font(.caption2)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(AppColors.textSupporting)
+                } else {
+                    ForEach(record.alertMessages, id: \.self) { message in
+                        Text(message)
+                            .font(.caption2)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(AppColors.textSupporting)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .frame(maxWidth: isLandscape ? 130 : .infinity)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+
+    private func diagramImage(for record: TyreRecord) -> UIImage? {
+        guard let photo = TyrePhotoStore.diagramPhoto(for: record) else { return nil }
+        return TyrePhotoStore.loadImage(for: photo, vehicleID: profile.id)
     }
 
     private func color(for level: TyreStatusLevel) -> Color {
@@ -436,6 +435,7 @@ private struct TyreDetailView: View {
     @State private var removedDate: Date
     @State private var isCurrentlyFitted: Bool
     @State private var dateCodeError: String?
+    @State private var previewManufactureDate: Date?
     @State private var showInspection = false
     @State private var showHistory = false
     @State private var showReplaceConfirm = false
@@ -462,6 +462,14 @@ private struct TyreDetailView: View {
         _installedDate = State(initialValue: record.installedDate ?? Date())
         _removedDate = State(initialValue: record.removedDate ?? Date())
         _isCurrentlyFitted = State(initialValue: record.isCurrentlyFitted)
+        _previewManufactureDate = State(initialValue: record.manufactureDate)
+    }
+
+    private var manufactureDateAgeCaption: String {
+        if let previewManufactureDate {
+            return TyreSupport.ageText(for: previewManufactureDate)
+        }
+        return "Manufacture date not recorded"
     }
 
     private var pressureUnit: PressureUnit {
@@ -506,14 +514,16 @@ private struct TyreDetailView: View {
                                 "Manufacture date code",
                                 caption: "The final four digits of the tyre identification marking show the week and year of manufacture. For example, 1221 means the tyre was manufactured during week 12 of 2021.",
                                 placeholder: "e.g. 1221",
-                                text: $dateCode
+                                text: $dateCode,
+                                keyboard: .numberPad,
+                                onEditingEnded: commitDateCode
                             )
                             if let dateCodeError {
                                 Text(dateCodeError)
                                     .font(.caption)
                                     .foregroundStyle(.red)
                             }
-                            Text(record.manufactureDate == nil && dateCode.isEmpty ? "Manufacture date not recorded" : TyreSupport.ageText(for: record.manufactureDate))
+                            Text(manufactureDateAgeCaption)
                                 .font(.caption)
                                 .foregroundStyle(AppColors.textSupporting)
                         }
@@ -708,7 +718,26 @@ private struct TyreDetailView: View {
         }
         if let dateCodeValue, !dateCodeValue.isEmpty {
             dateCode = dateCodeValue
+            commitDateCode()
         }
+    }
+
+    private func commitDateCode() {
+        dateCodeError = nil
+        let trimmedDateCode = dateCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedDateCode.isEmpty else {
+            previewManufactureDate = nil
+            return
+        }
+
+        guard let parsed = TyreSupport.parseDateCode(trimmedDateCode) else {
+            previewManufactureDate = nil
+            dateCodeError = "Enter a valid four-digit week and year code that is not in the future."
+            return
+        }
+
+        dateCode = parsed.normalized
+        previewManufactureDate = parsed.manufactureDate
     }
 
     private static func displayPressure(_ pressurePSI: Double, unit: PressureUnit) -> String {

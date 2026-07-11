@@ -267,6 +267,7 @@ struct AppBoundedTextField: View {
     let placeholder: String
     @Binding var text: String
     var keyboard: UIKeyboardType = .default
+    var onEditingEnded: (() -> Void)? = nil
 
     @FocusState private var focused: Bool
 
@@ -288,6 +289,11 @@ struct AppBoundedTextField: View {
                     .strokeBorder(focused ? Color.accentColor.opacity(0.55) : Color(.separator), lineWidth: focused ? 2 : 1)
             }
             .animation(.spring(response: 0.35), value: focused)
+            .onChange(of: focused) { wasFocused, isFocused in
+                if wasFocused, !isFocused {
+                    onEditingEnded?()
+                }
+            }
     }
 }
 
@@ -297,19 +303,22 @@ struct AppLabeledTextField: View {
     let placeholder: String
     @Binding var text: String
     var keyboard: UIKeyboardType = .default
+    var onEditingEnded: (() -> Void)? = nil
 
     init(
         _ title: String,
         caption: String? = nil,
         placeholder: String,
         text: Binding<String>,
-        keyboard: UIKeyboardType = .default
+        keyboard: UIKeyboardType = .default,
+        onEditingEnded: (() -> Void)? = nil
     ) {
         self.title = title
         self.caption = caption
         self.placeholder = placeholder
         self._text = text
         self.keyboard = keyboard
+        self.onEditingEnded = onEditingEnded
     }
 
     var body: some View {
@@ -326,7 +335,12 @@ struct AppLabeledTextField: View {
                 }
             }
 
-            AppBoundedTextField(placeholder: placeholder, text: $text, keyboard: keyboard)
+            AppBoundedTextField(
+                placeholder: placeholder,
+                text: $text,
+                keyboard: keyboard,
+                onEditingEnded: onEditingEnded
+            )
         }
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct SafetyPadView: View {
     var onNavigateToMaintenance: (() -> Void)?
@@ -12,18 +13,40 @@ struct SafetyPadView: View {
 
 enum MaintenancePadTab: String, CaseIterable, Identifiable {
     case maintenance = "Maintenance"
-    case tyreSafety = "Tyre safety"
+    case tyre = "Tyre"
+    case warranty = "Warranty"
 
     var id: String { rawValue }
+
+    static func tabs(warrantyAvailable: Bool) -> [MaintenancePadTab] {
+        if warrantyAvailable {
+            return allCases
+        }
+        return allCases.filter { $0 != .warranty }
+    }
 }
 
 struct MaintenancePadView: View {
+    @Query private var profiles: [VehicleProfile]
+    @Query private var appStates: [AppState]
+
     @State private var tab: MaintenancePadTab = .maintenance
+
+    private var activeProfile: VehicleProfile? {
+        VehicleProfileStore.activeProfile(
+            profiles: profiles,
+            appState: AppStateStore.canonical(from: appStates)
+        )
+    }
+
+    private var visibleTabs: [MaintenancePadTab] {
+        MaintenancePadTab.tabs(warrantyAvailable: WarrantySupport.showsWarrantyFeatures(for: activeProfile))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             Picker("Maintenance section", selection: $tab) {
-                ForEach(MaintenancePadTab.allCases) { item in
+                ForEach(visibleTabs) { item in
                     Text(item.rawValue).tag(item)
                 }
             }
@@ -39,14 +62,27 @@ struct MaintenancePadView: View {
                 case .maintenance:
                     MaintenanceView(showsEmbeddedTyrePanel: true)
                         .environment(\.usePadLayout, false)
-                case .tyreSafety:
+                case .tyre:
                     TyreSafetyView()
+                        .environment(\.usePadLayout, false)
+                case .warranty:
+                    WarrantyView()
                         .environment(\.usePadLayout, false)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationTitle(tab.rawValue)
+        .onChange(of: activeProfile?.warrantyAvailable) { _, _ in
+            if !visibleTabs.contains(tab) {
+                tab = .maintenance
+            }
+        }
+        .onAppear {
+            if !visibleTabs.contains(tab) {
+                tab = .maintenance
+            }
+        }
     }
 }
 

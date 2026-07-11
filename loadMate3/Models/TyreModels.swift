@@ -323,4 +323,23 @@ extension TyreRecord {
             return .incomplete
         }
     }
+
+    var alertMessages: [String] {
+        var messages: [String] = []
+        let age = ageAssessment
+        if let message = age.message, age.level != .current {
+            messages.append(message)
+        }
+
+        let pressure = pressureAssessment
+        if pressure.level == .attention || pressure.level == .action || pressure.level == .incomplete {
+            messages.append(pressure.message)
+        }
+
+        if let inspectionDate = latestInspectionDate,
+           Calendar.current.dateComponents([.day], from: inspectionDate, to: Date()).day ?? 0 > 90 {
+            messages.append("Inspection is more than 90 days old.")
+        }
+        return messages
+    }
 }

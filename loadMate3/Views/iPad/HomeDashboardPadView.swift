@@ -109,13 +109,15 @@ struct HomeDashboardPadView: View {
                         tint: AppColors.blue,
                         action: onNavigateToCare
                     )
-                    statusCard(
-                        title: "Warranty Active",
-                        value: "Valid",
-                        subtitle: maintenanceSummary.recentActivitySubtitle,
-                        tint: AppColors.purple,
-                        action: onNavigateToCare
-                    )
+                    if WarrantySupport.showsWarrantyFeatures(for: activeProfile) {
+                        statusCard(
+                            title: "Warranty Active",
+                            value: "Valid",
+                            subtitle: maintenanceSummary.recentActivitySubtitle,
+                            tint: AppColors.purple,
+                            action: onNavigateToCare
+                        )
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {

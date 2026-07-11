@@ -13,6 +13,8 @@ enum LoadMateModelContainer {
       DocumentRecord.self,
       FaultRecord.self,
       MaintenanceAttachment.self,
+      WarrantyPlan.self,
+      WarrantyEvent.self,
       TyreRecord.self,
       TyreInspection.self,
       TyrePhoto.self,

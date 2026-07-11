@@ -14,6 +14,11 @@ enum Formatters {
         return "\(formatted) kg"
     }
 
+    static func metres(_ value: Double) -> String {
+        let formatted = oneDecimal.string(from: NSNumber(value: value)) ?? "\(value)"
+        return "\(formatted) m"
+    }
+
     static func signedKg(_ value: Double) -> String {
         let formatted = oneDecimal.string(from: NSNumber(value: abs(value))) ?? String(format: "%.1f", abs(value))
         if value < 0 {

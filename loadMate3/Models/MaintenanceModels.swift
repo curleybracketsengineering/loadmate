@@ -240,6 +240,8 @@ final class FaultRecord {
 
     var linkedMaintenanceRecord: MaintenanceRecord?
 
+    var isWarrantyRelated: Bool = false
+
     @Relationship(deleteRule: .cascade, inverse: \MaintenanceAttachment.faultRecord)
     var attachments: [MaintenanceAttachment]?
 
@@ -277,6 +279,7 @@ final class MaintenanceAttachment {
     var maintenanceRecord: MaintenanceRecord?
     var documentRecord: DocumentRecord?
     var faultRecord: FaultRecord?
+    var warrantyEvent: WarrantyEvent?
 
     init(
         id: UUID = UUID(),

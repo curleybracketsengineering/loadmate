@@ -22,6 +22,7 @@ enum MaintenanceReminderKind: String {
     case maintenance
     case documentExpiry
     case documentReminder
+    case warrantyEvent
 }
 
 struct MaintenanceDashboardSummary {
@@ -148,7 +149,10 @@ enum MaintenanceSupport {
 
     static func reminderItems(
         maintenanceRecords: [MaintenanceRecord],
-        documents: [DocumentRecord]
+        documents: [DocumentRecord],
+        warrantyPlans: [WarrantyPlan] = [],
+        vehicleID: UUID? = nil,
+        warrantyAvailable: Bool = true
     ) -> [MaintenanceReminderItem] {
         var items: [MaintenanceReminderItem] = []
 
@@ -186,6 +190,20 @@ enum MaintenanceSupport {
                         dueDate: expiryDate,
                         subtitle: "\(document.category.displayName) expiry",
                         kind: .documentExpiry
+                    )
+                )
+            }
+        }
+
+        if let vehicleID, warrantyAvailable {
+            for warrantyItem in WarrantySupport.reminderItems(plans: warrantyPlans, vehicleID: vehicleID) {
+                items.append(
+                    MaintenanceReminderItem(
+                        id: warrantyItem.id,
+                        title: warrantyItem.title,
+                        dueDate: warrantyItem.dueDate,
+                        subtitle: warrantyItem.subtitle,
+                        kind: .warrantyEvent
                     )
                 )
             }

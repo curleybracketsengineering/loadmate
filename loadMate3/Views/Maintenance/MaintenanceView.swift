@@ -17,6 +17,7 @@ struct MaintenanceView: View {
     @Query private var documentRecords: [DocumentRecord]
     @Query private var faultRecords: [FaultRecord]
     @Query private var tyreRecords: [TyreRecord]
+    @Query private var warrantyPlans: [WarrantyPlan]
 
     @State private var showCreateDialog = false
     @State private var showMaintenanceCreate = false
@@ -63,9 +64,13 @@ struct MaintenanceView: View {
     }
 
     private var reminderItems: [MaintenanceReminderItem] {
-        MaintenanceSupport.reminderItems(
+        guard let profile = activeProfile else { return [] }
+        return MaintenanceSupport.reminderItems(
             maintenanceRecords: scopedMaintenanceRecords,
-            documents: scopedDocuments
+            documents: scopedDocuments,
+            warrantyPlans: warrantyPlans,
+            vehicleID: profile.id,
+            warrantyAvailable: profile.warrantyAvailable
         )
         .sorted { $0.dueDate < $1.dueDate }
     }
@@ -986,6 +991,7 @@ private struct FaultRecordEditorView: View {
     @State private var estimatedRepairCost: String
     @State private var actualRepairCost: String
     @State private var linkedMaintenanceID: UUID?
+    @State private var isWarrantyRelated: Bool
     @State private var pendingAttachments: [MaintenanceAttachmentDraft] = []
 
     init(
@@ -1006,6 +1012,7 @@ private struct FaultRecordEditorView: View {
         _estimatedRepairCost = State(initialValue: record?.estimatedRepairCost.map { Self.currencyInputString($0) } ?? "")
         _actualRepairCost = State(initialValue: record?.actualRepairCost.map { Self.currencyInputString($0) } ?? "")
         _linkedMaintenanceID = State(initialValue: record?.linkedMaintenanceRecord?.id)
+        _isWarrantyRelated = State(initialValue: record?.isWarrantyRelated ?? false)
     }
 
     var body: some View {
@@ -1047,6 +1054,7 @@ private struct FaultRecordEditorView: View {
                                         .tag(Optional.some(maintenance.id))
                                 }
                             }
+                            Toggle("Warranty-related fault", isOn: $isWarrantyRelated)
                         }
                     }
 
@@ -1095,6 +1103,7 @@ private struct FaultRecordEditorView: View {
             estimatedRepairCost: Self.parseCurrency(estimatedRepairCost),
             actualRepairCost: Self.parseCurrency(actualRepairCost),
             linkedMaintenanceRecord: linkedRecord,
+            isWarrantyRelated: isWarrantyRelated,
             in: modelContext
         )
         if !pendingAttachments.isEmpty {

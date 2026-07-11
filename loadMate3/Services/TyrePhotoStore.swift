@@ -101,6 +101,18 @@ enum TyrePhotoStore {
         return record.generalPhotosList()
     }
 
+    /// Best photo to show on the vehicle layout diagram — prefers full-tyre shots, then sidewall.
+    static func diagramPhoto(for record: TyreRecord) -> TyrePhoto? {
+        let photos = photos(for: record, inspection: nil)
+        let preferredKinds: [TyrePhotoKind] = [.fullTyre, .sidewall, .general, .tread]
+        for kind in preferredKinds {
+            if let photo = photos.first(where: { $0.kind == kind }) {
+                return photo
+            }
+        }
+        return photos.first
+    }
+
     static func resize(image: UIImage, maxDimension: CGFloat) -> UIImage {
         let size = image.size
         let longest = max(size.width, size.height)

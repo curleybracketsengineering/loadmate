@@ -23,12 +23,14 @@ enum MaintenanceAttachmentOwner {
     case maintenance(MaintenanceRecord)
     case document(DocumentRecord)
     case fault(FaultRecord)
+    case warrantyEvent(WarrantyEvent)
 
     var vehicleID: UUID {
         switch self {
         case .maintenance(let record): return record.vehicleID
         case .document(let record): return record.vehicleID
         case .fault(let record): return record.vehicleID
+        case .warrantyEvent(let event): return event.vehicleID
         }
     }
 }
@@ -169,6 +171,8 @@ enum MaintenanceAttachmentStore {
             attachment.documentRecord = record
         case .fault(let record):
             attachment.faultRecord = record
+        case .warrantyEvent(let event):
+            attachment.warrantyEvent = event
         }
 
         context.insert(attachment)

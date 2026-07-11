@@ -176,4 +176,20 @@ enum SafetySupport {
         guard let record = records.first else { return "Not set up" }
         return record.ageText
     }
+
+    static func dimensionDisplay(_ metres: Double) -> String {
+        metres > 0 ? Formatters.metres(metres) : "Not set"
+    }
+
+    static func maxWeightLabel(for kind: VehicleKind) -> String {
+        kind == .caravan ? "MTPLM" : "MAM"
+    }
+
+    static func unladenWeightLabel(for kind: VehicleKind) -> String {
+        kind == .caravan ? "Unladen (MIRO)" : "Unladen (MRO)"
+    }
+
+    static func vehicleKindName(for kind: VehicleKind) -> String {
+        kind.displayName.lowercased()
+    }
 }
