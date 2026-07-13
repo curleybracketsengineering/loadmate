@@ -19,16 +19,70 @@ enum WarrantySupport {
     static let defaultDaysBefore = 60
     static let defaultDaysAfter = 30
 
+    /// Starter statutory inspection schedule for non-UK motorhomes (confirm local rules).
+    static let motorhomeVehicleInspectionFirstYear = 3
+    static let motorhomeVehicleInspectionDaysBefore = 30
+    static let motorhomeVehicleInspectionDaysAfter = 0
+
+    static func suggestedMOTClass(for profile: VehicleProfile) -> UKMotorhomeMOTClass {
+        UKMotorhomeMOTClass.suggested(forPlatedMassKg: profile.mtplmKg)
+    }
+
     static let warrantyDisclaimer = """
     LoadMate helps you organise warranty-related records and reminders. It cannot confirm warranty coverage, interpret manufacturer terms, or guarantee that a claim will be accepted. Always follow your owner's handbook and manufacturer instructions. If in doubt, contact your dealer or manufacturer directly.
     """
 
-    static let templateOptions: [WarrantyTemplateOption] = [
-        WarrantyTemplateOption(id: "custom", displayName: "Custom plan (manual)", manufacturer: "")
-    ]
+    static let customTemplateID = WarrantyPatternCatalog.customID
+
+    static let starterDisclaimer = WarrantyPatternCatalog.starterDisclaimer
+
+    static let templateOptions: [WarrantyTemplateOption] = {
+        WarrantyPatternCatalog.pickerOptions.map {
+            WarrantyTemplateOption(
+                id: $0.id,
+                displayName: $0.displayName,
+                manufacturer: $0.manufacturerName
+            )
+        }
+    }()
+
+    static func patternOrCustom(id: String?, kind: VehicleKind) -> WarrantyManufacturerTemplate {
+        switch kind {
+        case .caravan:
+            return WarrantyPatternCatalog.patternOrCustom(id: id)
+        case .motorhome:
+            return MotorhomeWarrantyPatternCatalog.patternOrCustom(id: id)
+        }
+    }
+
+    static func patternSummary(for templateID: String?, kind: VehicleKind) -> String {
+        patternOrCustom(id: templateID, kind: kind).summary
+    }
+
+    static func manufacturerTemplate(for templateID: String?, kind: VehicleKind) -> WarrantyManufacturerTemplate? {
+        let template = patternOrCustom(id: templateID, kind: kind)
+        return template.isCustom ? nil : template
+    }
 
     static func showsWarrantyFeatures(for profile: VehicleProfile?) -> Bool {
         profile?.warrantyAvailable ?? true
+    }
+
+    static func usesUKManufacturerStarters(for profile: VehicleProfile?) -> Bool {
+        (profile?.warrantyAvailable ?? true) && (profile?.warrantyUKMarket ?? true)
+    }
+
+    static func pickerOptions(for profile: VehicleProfile?) -> [WarrantyManufacturerTemplate] {
+        let kind = profile?.kind ?? .caravan
+        if usesUKManufacturerStarters(for: profile) {
+            switch kind {
+            case .caravan:
+                return WarrantyPatternCatalog.pickerOptions
+            case .motorhome:
+                return MotorhomeWarrantyPatternCatalog.pickerOptions
+            }
+        }
+        return [patternOrCustom(id: customTemplateID, kind: kind)]
     }
 
     static func plan(for vehicleID: UUID, from plans: [WarrantyPlan]) -> WarrantyPlan? {

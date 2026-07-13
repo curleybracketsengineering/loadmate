@@ -29,9 +29,85 @@ enum WarrantyOwnershipType: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// UK / NI motorhome roadworthiness test class used to drive MOT schedule generation.
+enum UKMotorhomeMOTClass: String, Codable, CaseIterable, Identifiable {
+    case class4
+    case class7
+    case hgvAnnual
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .class4: return "Class 4 MOT"
+        case .class7: return "Class 7 MOT"
+        case .hgvAnnual: return "HGV annual test"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .class4: return "Class 4"
+        case .class7: return "Class 7"
+        case .hgvAnnual: return "HGV annual"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .class4:
+            return "Most standard motorhomes under 3,500 kg (typical motor caravan Class 4 test)."
+        case .class7:
+            return "Heavier light commercial configuration, usually 3,000–3,500 kg. Some motorhomes in this weight band still use Class 4 depending on body type — confirm with your V5C / test station."
+        case .hgvAnnual:
+            return "Goods / heavy vehicles over 3,500 kg design gross weight — annual test from the first year (not Class 4/7 MOT)."
+        }
+    }
+
+    /// First statutory test year after first registration / purchase anniversary used by LoadMate.
+    var firstTestYear: Int {
+        switch self {
+        case .class4, .class7: return 3
+        case .hgvAnnual: return 1
+        }
+    }
+
+    var daysBefore: Int { 30 }
+    var daysAfter: Int { 0 }
+
+    var requirementDescription: String {
+        switch self {
+        case .class4:
+            return "UK Class 4 MOT for most standard motorhomes under 3,500 kg. First due from the third anniversary of first registration, then annually. Book before the due date. Confirm class with your V5C and test station."
+        case .class7:
+            return "UK Class 7 MOT for heavier light vehicles typically 3,000–3,500 kg. First due from the third anniversary of first registration, then annually. Some motorhomes in this weight band remain Class 4 — confirm with your V5C and test station."
+        case .hgvAnnual:
+            return "UK HGV / goods vehicle annual test for vehicles over 3,500 kg DGW. First due from the first anniversary of first registration, then annually. Book at an authorised goods vehicle testing station and confirm plating/test class for your vehicle."
+        }
+    }
+
+    var eventTitlePrefix: String {
+        switch self {
+        case .class4: return "Class 4 MOT"
+        case .class7: return "Class 7 MOT"
+        case .hgvAnnual: return "HGV annual test"
+        }
+    }
+
+    /// Suggest a starter class from plated MAM / DGW (kg). Owner can override.
+    static func suggested(forPlatedMassKg massKg: Double) -> UKMotorhomeMOTClass {
+        guard massKg > 0 else { return .class4 }
+        if massKg > 3_500 { return .hgvAnnual }
+        if massKg >= 3_000 { return .class7 }
+        return .class4
+    }
+}
+
 enum WarrantyServiceType: String, Codable, CaseIterable, Identifiable {
     case normalService
     case serviceWithBodyCheck
+    case mot
+    case vehicleInspection
     case custom
 
     var id: String { rawValue }
@@ -40,6 +116,8 @@ enum WarrantyServiceType: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .normalService: return "Normal service"
         case .serviceWithBodyCheck: return "Service with body check"
+        case .mot: return "MOT"
+        case .vehicleInspection: return "Vehicle inspection"
         case .custom: return "Custom"
         }
     }
@@ -50,9 +128,17 @@ enum WarrantyServiceType: String, Codable, CaseIterable, Identifiable {
             return "Annual habitation service as required by your warranty terms."
         case .serviceWithBodyCheck:
             return "Annual service including body check as required by your warranty terms."
+        case .mot:
+            return UKMotorhomeMOTClass.class4.requirementDescription
+        case .vehicleInspection:
+            return "Local roadworthiness / vehicle inspection reminder. Rules vary by country and region — confirm the first due date, interval, and test class with your local authority, and edit this schedule to match."
         case .custom:
             return ""
         }
+    }
+
+    var isStatutoryInspection: Bool {
+        self == .mot || self == .vehicleInspection
     }
 }
 
@@ -78,6 +164,8 @@ final class WarrantyPlan {
     var durationYears: Int = 8
     var handbookNotes: String = ""
     var templateID: String?
+    /// UK motorhome MOT / annual test class (`UKMotorhomeMOTClass` raw value). Nil outside UK or when unset.
+    var motClassRaw: String?
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 
@@ -99,6 +187,14 @@ final class WarrantyPlan {
     var ownershipType: WarrantyOwnershipType {
         get { WarrantyOwnershipType(rawValue: ownershipTypeRaw) ?? .original }
         set { ownershipTypeRaw = newValue.rawValue }
+    }
+
+    var motClass: UKMotorhomeMOTClass? {
+        get {
+            guard let motClassRaw else { return nil }
+            return UKMotorhomeMOTClass(rawValue: motClassRaw)
+        }
+        set { motClassRaw = newValue?.rawValue }
     }
 }
 
@@ -167,6 +263,15 @@ extension WarrantyEvent {
     }
 
     var displayTitle: String {
+        if serviceType == .mot {
+            if yearNumber > 0 {
+                return "Year \(yearNumber) \(motTitleSuffix)"
+            }
+            return motTitleSuffix
+        }
+        if serviceType == .vehicleInspection {
+            return yearNumber > 0 ? "Year \(yearNumber) vehicle inspection" : "Vehicle inspection"
+        }
         if yearNumber > 0 {
             return "Year \(yearNumber)"
         }
@@ -174,6 +279,14 @@ extension WarrantyEvent {
             return requirementDescription
         }
         return serviceType.displayName
+    }
+
+    private var motTitleSuffix: String {
+        let text = requirementDescription.lowercased()
+        if text.contains("class 7") { return "Class 7 MOT" }
+        if text.contains("hgv") || text.contains("goods vehicle annual") { return "HGV annual test" }
+        if text.contains("class 4") { return "Class 4 MOT" }
+        return "MOT"
     }
 
     var requirementText: String {

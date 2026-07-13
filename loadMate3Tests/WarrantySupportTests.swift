@@ -145,4 +145,179 @@ final class WarrantySupportTests: XCTestCase {
 
         XCTAssertEqual(plan.eventsList.map(\.yearNumber), [1, 2])
     }
+
+    func testSwiftCaravanPatternAppliesMilestoneWindows() throws {
+        let plan = WarrantyPlan(vehicleID: UUID())
+        plan.durationYears = 10
+        plan.templateID = "swift"
+        context.insert(plan)
+
+        WarrantyStore.generateAnnualEvents(plan: plan, in: context, kind: .caravan)
+
+        XCTAssertEqual(plan.eventsList.count, 10)
+
+        let yearOne = try XCTUnwrap(plan.eventsList.first { $0.yearNumber == 1 })
+        XCTAssertEqual(yearOne.serviceType, .normalService)
+        XCTAssertEqual(yearOne.daysBefore, 90)
+        XCTAssertEqual(yearOne.daysAfter, 60)
+
+        let yearThree = try XCTUnwrap(plan.eventsList.first { $0.yearNumber == 3 })
+        XCTAssertEqual(yearThree.serviceType, .serviceWithBodyCheck)
+        XCTAssertEqual(yearThree.daysBefore, 90)
+        XCTAssertEqual(yearThree.daysAfter, 0)
+    }
+
+    func testTenYearPatternGeneratesTenEvents() throws {
+        let plan = WarrantyPlan(vehicleID: UUID())
+        plan.durationYears = 10
+        plan.templateID = "adria"
+        context.insert(plan)
+
+        WarrantyStore.generateAnnualEvents(plan: plan, in: context, kind: .caravan)
+
+        XCTAssertEqual(plan.eventsList.count, 10)
+    }
+
+    func testPickerOptionsUseMotorhomeCatalogForMotorhomeProfiles() throws {
+        let caravan = TestFixtures.caravanProfile()
+        caravan.warrantyUKMarket = true
+        let motorhome = TestFixtures.motorhomeProfile()
+        motorhome.warrantyUKMarket = true
+
+        let caravanIDs = Set(WarrantySupport.pickerOptions(for: caravan).map(\.id))
+        let motorhomeIDs = Set(WarrantySupport.pickerOptions(for: motorhome).map(\.id))
+
+        XCTAssertFalse(caravanIDs.contains("auto-trail"))
+        XCTAssertFalse(caravanIDs.contains("hobby"))
+        XCTAssertFalse(caravanIDs.contains("bailey-campervan"))
+
+        XCTAssertTrue(motorhomeIDs.isSuperset(of: [
+            "swift", "bailey", "bailey-campervan", "coachman", "elddis",
+            "adria", "auto-trail", "chausson", "burstner", "hobby",
+        ]))
+    }
+
+    func testMotorhomeCatalogIncludesDistinctBrandsAndWindows() throws {
+        let ids = Set(MotorhomeWarrantyPatternCatalog.manufacturerGuides.map(\.id))
+        XCTAssertTrue(ids.isSuperset(of: [
+            "swift", "bailey", "bailey-campervan", "coachman", "elddis",
+            "adria", "auto-trail", "chausson", "burstner", "hobby",
+        ]))
+
+        let autoTrail = try XCTUnwrap(MotorhomeWarrantyPatternCatalog.pattern(id: "auto-trail"))
+        XCTAssertEqual(autoTrail.durationYears, 5)
+        XCTAssertEqual(autoTrail.window(forYear: 1), WarrantyServiceWindow(daysBefore: 30, daysAfter: 30))
+        XCTAssertEqual(autoTrail.window(forYear: 5), WarrantyServiceWindow(daysBefore: 30, daysAfter: 0))
+        XCTAssertEqual(autoTrail.serviceType(forYear: 5), .serviceWithBodyCheck)
+
+        let baileyCamper = try XCTUnwrap(MotorhomeWarrantyPatternCatalog.pattern(id: "bailey-campervan"))
+        XCTAssertEqual(baileyCamper.durationYears, 3)
+        XCTAssertEqual(baileyCamper.window(forYear: 3).daysAfter, 0)
+
+        let hobby = try XCTUnwrap(MotorhomeWarrantyPatternCatalog.pattern(id: "hobby"))
+        XCTAssertEqual(hobby.durationYears, 12)
+    }
+
+    func testMotorhomeAutoTrailPatternGeneratesMilestoneEvents() throws {
+        let plan = WarrantyPlan(vehicleID: UUID())
+        plan.durationYears = 5
+        plan.templateID = "auto-trail"
+        plan.motClass = .class4
+        context.insert(plan)
+
+        WarrantyStore.generateAnnualEvents(plan: plan, in: context, kind: .motorhome, ukMarket: true)
+
+        let habitation = plan.eventsList.filter { !$0.serviceType.isStatutoryInspection }
+        let mots = plan.eventsList.filter { $0.serviceType == .mot }
+
+        XCTAssertEqual(habitation.count, 5)
+        XCTAssertEqual(mots.count, 3)
+        XCTAssertEqual(mots.map(\.yearNumber), [3, 4, 5])
+
+        let yearOne = try XCTUnwrap(habitation.first { $0.yearNumber == 1 })
+        XCTAssertEqual(yearOne.serviceType, .normalService)
+        XCTAssertEqual(yearOne.daysBefore, 30)
+        XCTAssertEqual(yearOne.daysAfter, 30)
+
+        let yearFive = try XCTUnwrap(habitation.first { $0.yearNumber == 5 })
+        XCTAssertEqual(yearFive.serviceType, .serviceWithBodyCheck)
+        XCTAssertEqual(yearFive.daysBefore, 30)
+        XCTAssertEqual(yearFive.daysAfter, 0)
+
+        let firstMOT = try XCTUnwrap(mots.first { $0.yearNumber == 3 })
+        XCTAssertEqual(firstMOT.displayTitle, "Year 3 Class 4 MOT")
+        XCTAssertEqual(firstMOT.daysBefore, UKMotorhomeMOTClass.class4.daysBefore)
+        XCTAssertEqual(firstMOT.daysAfter, UKMotorhomeMOTClass.class4.daysAfter)
+        XCTAssertEqual(firstMOT.sortOrder, 31)
+    }
+
+    func testMotorhomeScheduleAddsMOTFromYearThree() throws {
+        let plan = WarrantyPlan(vehicleID: UUID())
+        plan.durationYears = 6
+        plan.templateID = "bailey"
+        plan.motClass = .class7
+        context.insert(plan)
+
+        WarrantyStore.generateAnnualEvents(plan: plan, in: context, kind: .motorhome, ukMarket: true)
+
+        let mots = plan.eventsList.filter { $0.serviceType == .mot }
+        XCTAssertEqual(mots.map(\.yearNumber), [3, 4, 5, 6])
+        XCTAssertEqual(try XCTUnwrap(mots.first).displayTitle, "Year 3 Class 7 MOT")
+        XCTAssertTrue(mots.allSatisfy { !$0.isManual })
+        XCTAssertEqual(plan.eventsList.count, 10) // 6 habitation + 4 MOT
+    }
+
+    func testUKMotorhomeHGVClassAddsAnnualTestFromYearOne() throws {
+        let plan = WarrantyPlan(vehicleID: UUID())
+        plan.durationYears = 4
+        plan.templateID = "swift"
+        plan.motClass = .hgvAnnual
+        context.insert(plan)
+
+        WarrantyStore.generateAnnualEvents(plan: plan, in: context, kind: .motorhome, ukMarket: true)
+
+        let tests = plan.eventsList.filter { $0.serviceType == .mot }
+        XCTAssertEqual(tests.map(\.yearNumber), [1, 2, 3, 4])
+        XCTAssertEqual(try XCTUnwrap(tests.first).displayTitle, "Year 1 HGV annual test")
+        XCTAssertEqual(plan.motClass, .hgvAnnual)
+    }
+
+    func testSuggestedMOTClassUsesPlatedMass() {
+        XCTAssertEqual(UKMotorhomeMOTClass.suggested(forPlatedMassKg: 2_800), .class4)
+        XCTAssertEqual(UKMotorhomeMOTClass.suggested(forPlatedMassKg: 3_200), .class7)
+        XCTAssertEqual(UKMotorhomeMOTClass.suggested(forPlatedMassKg: 3_500), .class7)
+        XCTAssertEqual(UKMotorhomeMOTClass.suggested(forPlatedMassKg: 3_501), .hgvAnnual)
+        XCTAssertEqual(UKMotorhomeMOTClass.suggested(forPlatedMassKg: 0), .class4)
+    }
+
+    func testNonUKMotorhomeScheduleAddsVehicleInspectionFromYearThree() throws {
+        let plan = WarrantyPlan(vehicleID: UUID())
+        plan.durationYears = 6
+        plan.templateID = "bailey"
+        context.insert(plan)
+
+        WarrantyStore.generateAnnualEvents(plan: plan, in: context, kind: .motorhome, ukMarket: false)
+
+        let inspections = plan.eventsList.filter { $0.serviceType == .vehicleInspection }
+        XCTAssertEqual(inspections.map(\.yearNumber), [3, 4, 5, 6])
+        XCTAssertTrue(plan.eventsList.allSatisfy { $0.serviceType != .mot })
+        XCTAssertEqual(plan.eventsList.count, 10) // 6 habitation + 4 inspections
+
+        let first = try XCTUnwrap(inspections.first { $0.yearNumber == 3 })
+        XCTAssertEqual(first.displayTitle, "Year 3 vehicle inspection")
+        XCTAssertEqual(first.daysBefore, WarrantySupport.motorhomeVehicleInspectionDaysBefore)
+        XCTAssertEqual(first.daysAfter, WarrantySupport.motorhomeVehicleInspectionDaysAfter)
+    }
+
+    func testCaravanScheduleDoesNotAddStatutoryInspectionEvents() throws {
+        let plan = WarrantyPlan(vehicleID: UUID())
+        plan.durationYears = 6
+        plan.templateID = "bailey"
+        context.insert(plan)
+
+        WarrantyStore.generateAnnualEvents(plan: plan, in: context, kind: .caravan, ukMarket: true)
+
+        XCTAssertEqual(plan.eventsList.count, 6)
+        XCTAssertTrue(plan.eventsList.allSatisfy { !$0.serviceType.isStatutoryInspection })
+    }
 }

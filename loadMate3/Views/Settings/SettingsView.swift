@@ -191,18 +191,35 @@ struct SettingsView: View {
             "Warranty",
             caption: "Turn off if this vehicle has no manufacturer warranty to track."
         ) {
-            Toggle(isOn: boolBinding(for: \.warrantyAvailable, on: profile)) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Warranty available")
-                        .font(.subheadline.weight(.medium))
-                    Text(profile.warrantyAvailable
-                        ? "Shows the Warranty tab in Maintenance and Care shortcuts."
-                        : "Hides warranty tracking for this vehicle.")
-                        .font(.caption)
-                        .foregroundStyle(AppColors.textSupporting)
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                Toggle(isOn: boolBinding(for: \.warrantyAvailable, on: profile)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Warranty available")
+                            .font(.subheadline.weight(.medium))
+                        Text(profile.warrantyAvailable
+                            ? "Shows the Warranty tab in Maintenance and Care shortcuts."
+                            : "Hides warranty tracking for this vehicle.")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                    }
+                }
+                .tint(Color.accentColor)
+
+                if profile.warrantyAvailable {
+                    Toggle(isOn: ukMarketBinding(for: profile)) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("UK / Northern Ireland market")
+                                .font(.subheadline.weight(.medium))
+                            Text(profile.warrantyUKMarket
+                                ? "Offers UK manufacturer warranty starters (Swift, Bailey, Coachman, Elddis, Adria)."
+                                : "Manufacturer starters are hidden. Build a custom plan from your local handbook.")
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSupporting)
+                        }
+                    }
+                    .tint(Color.accentColor)
                 }
             }
-            .tint(Color.accentColor)
         }
     }
 
@@ -919,6 +936,19 @@ struct SettingsView: View {
             get: { profile[keyPath: keyPath] },
             set: { newValue in
                 profile[keyPath: keyPath] = newValue
+                viewModel.save(modelContext)
+            }
+        )
+    }
+
+    private func ukMarketBinding(for profile: VehicleProfile) -> Binding<Bool> {
+        Binding(
+            get: { profile.warrantyUKMarket },
+            set: { newValue in
+                profile.warrantyUKMarket = newValue
+                if !newValue {
+                    WarrantyStore.clearManufacturerTemplate(for: profile.id, in: modelContext)
+                }
                 viewModel.save(modelContext)
             }
         )

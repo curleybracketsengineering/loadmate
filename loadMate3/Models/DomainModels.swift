@@ -141,6 +141,9 @@ final class VehicleProfile {
     /// When false, warranty tab and related shortcuts are hidden for this vehicle.
     var warrantyAvailable: Bool = true
 
+    /// When true, UK/NI manufacturer warranty starters are offered. Outside the UK, owners build a custom plan.
+    var warrantyUKMarket: Bool = true
+
     // MARK: External dimensions (handbook / plate — for route and site planning)
 
     /// External body width in metres (e.g. 2.35).
