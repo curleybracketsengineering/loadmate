@@ -11,13 +11,6 @@ struct SafetyCheckItem: Identifiable, Equatable {
     let status: SafetyCheckStatus
 }
 
-struct SafetyActivityItem: Identifiable {
-    let id: String
-    let title: String
-    let subtitle: String
-    let isWarning: Bool
-}
-
 enum SafetySupport {
     static func todayChecklist(
         profile: VehicleProfile?,
@@ -149,27 +142,6 @@ enum SafetySupport {
 
     static func completedCount(in checklist: [SafetyCheckItem]) -> Int {
         checklist.filter { $0.status == .complete }.count
-    }
-
-    static func recentActivity(from checklist: [SafetyCheckItem]) -> [SafetyActivityItem] {
-        var items: [SafetyActivityItem] = []
-        if checklist.contains(where: { $0.id == "lights" && $0.status == .due }) {
-            items.append(SafetyActivityItem(
-                id: "lights-pending",
-                title: "Lights check pending",
-                subtitle: "Today",
-                isWarning: true
-            ))
-        }
-        if checklist.contains(where: { $0.status == .complete }) {
-            items.append(SafetyActivityItem(
-                id: "pretrip-done",
-                title: "Pre-trip check completed",
-                subtitle: "Today 09:12",
-                isWarning: false
-            ))
-        }
-        return items
     }
 
     static func oldestTyreDescription(records: [TyreRecord]) -> String {

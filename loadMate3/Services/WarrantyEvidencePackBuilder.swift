@@ -81,11 +81,15 @@ enum WarrantyEvidencePackBuilder {
             } else {
                 for event in input.events {
                     let status = WarrantySupport.statusDisplayName(for: WarrantySupport.status(for: event))
-                    var line = "\(event.displayTitle) · \(Formatters.date(event.scheduledDate)) · \(status)"
+                    let milestonePrefix = event.isImportantMilestone ? "! Important year · " : ""
+                    var line = "\(milestonePrefix)\(event.displayTitle) · \(Formatters.date(event.scheduledDate)) · \(status)"
                     if let completed = event.completedDate {
                         line += " · Completed \(Formatters.date(completed))"
                     }
                     drawBody(line, bold: true)
+                    if event.isImportantMilestone {
+                        drawBody("Must complete on or before the purchase anniversary — no after-grace under typical published terms.")
+                    }
                     drawBody(event.requirementText)
                     drawBody(WarrantySupport.windowSubtitle(for: event))
                 }

@@ -262,6 +262,11 @@ extension WarrantyEvent {
         (attachments ?? []).sorted { $0.createdAt > $1.createdAt }
     }
 
+    /// Manufacturer milestone year (e.g. Swift 3/6/10) with no after-grace — must finish on/before anniversary.
+    var isImportantMilestone: Bool {
+        serviceType == .serviceWithBodyCheck
+    }
+
     var displayTitle: String {
         if serviceType == .mot {
             if yearNumber > 0 {
@@ -273,7 +278,7 @@ extension WarrantyEvent {
             return yearNumber > 0 ? "Year \(yearNumber) vehicle inspection" : "Vehicle inspection"
         }
         if yearNumber > 0 {
-            return "Year \(yearNumber)"
+            return isImportantMilestone ? "Year \(yearNumber) · Milestone" : "Year \(yearNumber)"
         }
         if !requirementDescription.isEmpty {
             return requirementDescription

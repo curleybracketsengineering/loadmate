@@ -493,12 +493,14 @@ private struct WarrantyTimelineEventRow: View {
         WarrantySupport.status(for: event)
     }
 
+    private var isImportantMilestone: Bool {
+        event.isImportantMilestone
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(spacing: 0) {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 12, height: 12)
+                timelineMarker
                 if !isLast {
                     Rectangle()
                         .fill(Color(.separator))
@@ -506,12 +508,13 @@ private struct WarrantyTimelineEventRow: View {
                         .frame(maxHeight: .infinity)
                 }
             }
-            .frame(width: 12)
+            .frame(width: 16)
 
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(event.displayTitle)
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(isImportantMilestone ? AppColors.purple : Color.primary)
                     Spacer(minLength: 8)
                     Text(WarrantySupport.statusDisplayName(for: status))
                         .font(.caption2.weight(.semibold))
@@ -520,6 +523,13 @@ private struct WarrantyTimelineEventRow: View {
                         .background(statusColor.opacity(0.15))
                         .foregroundStyle(statusColor)
                         .clipShape(Capsule())
+                }
+
+                if isImportantMilestone {
+                    Text("Important year — complete on or before the purchase anniversary")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppColors.purple)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Text(Formatters.date(event.scheduledDate))
@@ -533,7 +543,7 @@ private struct WarrantyTimelineEventRow: View {
 
                 Text(WarrantySupport.windowSubtitle(for: event))
                     .font(.caption2)
-                    .foregroundStyle(AppColors.textSupporting)
+                    .foregroundStyle(isImportantMilestone ? AppColors.purple.opacity(0.9) : AppColors.textSupporting)
 
                 if !event.attachmentsList.isEmpty || !event.linkedDocumentIDs.isEmpty {
                     Text("\(event.attachmentsList.count + event.linkedDocumentIDs.count) evidence item(s)")
@@ -542,7 +552,33 @@ private struct WarrantyTimelineEventRow: View {
                 }
             }
             .padding(.bottom, isLast ? 0 : AppScreenMetrics.sectionSpacing)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(accessibilityLabel)
         }
+    }
+
+    @ViewBuilder
+    private var timelineMarker: some View {
+        if isImportantMilestone {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(AppColors.purple)
+                .frame(width: 16, height: 16)
+                .accessibilityHidden(true)
+        } else {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 12, height: 12)
+                .frame(width: 16, height: 16)
+        }
+    }
+
+    private var accessibilityLabel: String {
+        var parts = [event.displayTitle, WarrantySupport.statusDisplayName(for: status)]
+        if isImportantMilestone {
+            parts.insert("Important year", at: 0)
+        }
+        return parts.joined(separator: ", ")
     }
 
     private var statusColor: Color {

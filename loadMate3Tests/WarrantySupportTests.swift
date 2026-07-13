@@ -160,11 +160,23 @@ final class WarrantySupportTests: XCTestCase {
         XCTAssertEqual(yearOne.serviceType, .normalService)
         XCTAssertEqual(yearOne.daysBefore, 90)
         XCTAssertEqual(yearOne.daysAfter, 60)
+        XCTAssertFalse(yearOne.isImportantMilestone)
+        XCTAssertEqual(yearOne.displayTitle, "Year 1")
+        XCTAssertEqual(
+            WarrantySupport.windowSubtitle(for: yearOne),
+            "Action window: 90 days before – 60 days after due date"
+        )
 
         let yearThree = try XCTUnwrap(plan.eventsList.first { $0.yearNumber == 3 })
         XCTAssertEqual(yearThree.serviceType, .serviceWithBodyCheck)
         XCTAssertEqual(yearThree.daysBefore, 90)
         XCTAssertEqual(yearThree.daysAfter, 0)
+        XCTAssertTrue(yearThree.isImportantMilestone)
+        XCTAssertEqual(yearThree.displayTitle, "Year 3 · Milestone")
+        XCTAssertEqual(
+            WarrantySupport.windowSubtitle(for: yearThree),
+            "Action window: 90 days before – must finish on or before the anniversary (no after-grace)"
+        )
     }
 
     func testTenYearPatternGeneratesTenEvents() throws {

@@ -4,7 +4,6 @@ import SwiftData
 enum SafetySegment: String, CaseIterable, Identifiable {
     case today = "Today"
     case checklists = "Checklists"
-    case history = "History"
 
     var id: String { rawValue }
 }
@@ -96,8 +95,6 @@ struct SafetyView: View {
                         todayContent
                     case .checklists:
                         checklistsContent
-                    case .history:
-                        historyContent
                     }
                 }
                 .padding(.horizontal, AppScreenMetrics.horizontalPadding)
@@ -216,10 +213,7 @@ struct SafetyView: View {
                 vehicleDimensionsSection(profile: profile)
             }
 
-            HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
-                tyreAlertsCard
-                recentActivityCard
-            }
+            tyreAlertsCard
         }
     }
 
@@ -421,28 +415,6 @@ struct SafetyView: View {
         .buttonStyle(.plain)
     }
 
-    private var recentActivityCard: some View {
-        VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
-            Text("Recent Activity")
-                .font(.subheadline.weight(.semibold))
-            ForEach(SafetySupport.recentActivity(from: todayChecklist)) { item in
-                Label {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(item.title).font(.caption)
-                        Text(item.subtitle).font(.caption2).foregroundStyle(AppColors.textSupporting)
-                    }
-                } icon: {
-                    Image(systemName: item.isWarning ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                        .foregroundStyle(item.isWarning ? AppColors.orange : AppColors.green)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
-    }
-
     private var checklistsContent: some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
             Text("Saved checklists for this vehicle.")
@@ -459,25 +431,6 @@ struct SafetyView: View {
             }
             AppPrimaryButton("Open full checklist", systemImage: "checklist") {
                 showChecklist = true
-            }
-        }
-    }
-
-    private var historyContent: some View {
-        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-            ForEach(SafetySupport.recentActivity(from: todayChecklist)) { item in
-                HStack {
-                    Image(systemName: item.isWarning ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                        .foregroundStyle(item.isWarning ? AppColors.orange : AppColors.green)
-                    VStack(alignment: .leading) {
-                        Text(item.title).font(.subheadline.weight(.medium))
-                        Text(item.subtitle).font(.caption).foregroundStyle(AppColors.textSupporting)
-                    }
-                    Spacer()
-                }
-                .padding(AppScreenMetrics.cardInteriorPadding)
-                .background(Color(.secondarySystemGroupedBackground))
-                .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
             }
         }
     }

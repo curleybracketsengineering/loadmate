@@ -46,21 +46,21 @@ enum TyrePosition: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .caravanLeft: return "Left"
-        case .caravanRight: return "Right"
-        case .caravanFrontLeft: return "Front left"
-        case .caravanFrontRight: return "Front right"
-        case .caravanRearLeft: return "Rear left"
-        case .caravanRearRight: return "Rear right"
+        case .caravanLeft: return "Near side"
+        case .caravanRight: return "Off side"
+        case .caravanFrontLeft: return "Front near side"
+        case .caravanFrontRight: return "Front off side"
+        case .caravanRearLeft: return "Rear near side"
+        case .caravanRearRight: return "Rear off side"
         case .caravanSpare: return "Spare"
-        case .motorhomeFrontLeft: return "Front left"
-        case .motorhomeFrontRight: return "Front right"
-        case .motorhomeRearLeft: return "Rear left"
-        case .motorhomeRearRight: return "Rear right"
-        case .motorhomeRearLeftOuter: return "Rear left outer"
-        case .motorhomeRearLeftInner: return "Rear left inner"
-        case .motorhomeRearRightInner: return "Rear right inner"
-        case .motorhomeRearRightOuter: return "Rear right outer"
+        case .motorhomeFrontLeft: return "Front near side"
+        case .motorhomeFrontRight: return "Front off side"
+        case .motorhomeRearLeft: return "Rear near side"
+        case .motorhomeRearRight: return "Rear off side"
+        case .motorhomeRearLeftOuter: return "Rear near side outer"
+        case .motorhomeRearLeftInner: return "Rear near side inner"
+        case .motorhomeRearRightInner: return "Rear off side inner"
+        case .motorhomeRearRightOuter: return "Rear off side outer"
         case .motorhomeSpare: return "Spare"
         }
     }
@@ -341,5 +341,17 @@ extension TyreRecord {
             messages.append("Inspection is more than 90 days old.")
         }
         return messages
+    }
+
+    var dateCodeCaption: String {
+        TyreSupport.dateCodeCaption(for: self)
+    }
+
+    var conditionCallToAction: String {
+        TyreSupport.conditionCallToAction(for: self)
+    }
+
+    var compactAgeText: String {
+        TyreSupport.compactAgeText(for: manufactureDate) ?? "Unknown"
     }
 }

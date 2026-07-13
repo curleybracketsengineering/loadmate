@@ -81,6 +81,43 @@ final class TyreSupportTests: XCTestCase {
         )
     }
 
+    func testLayoutSummaryAndActionCount() {
+        let profile = TestFixtures.caravanProfile()
+        let near = TyreRecord(vehicleID: profile.id, position: .caravanLeft)
+        let off = TyreRecord(vehicleID: profile.id, position: .caravanRight)
+        let spare = TyreRecord(vehicleID: profile.id, position: .caravanSpare)
+        near.manufacturer = "Michelin"
+        near.manufactureDate = Calendar.current.date(byAdding: .year, value: -3, to: Date())
+        near.recommendedPressurePSI = 65
+        near.latestPressurePSI = 65
+        near.condition = .good
+        off.manufacturer = "Michelin"
+        off.manufactureDate = Calendar.current.date(byAdding: .year, value: -3, to: Date())
+        off.recommendedPressurePSI = 65
+        off.latestPressurePSI = 65
+        off.condition = .good
+
+        let records = [near, off, spare]
+        XCTAssertEqual(
+            TyreSupport.layoutSummary(for: profile, records: records),
+            "Caravan • 2 road tyres + spare"
+        )
+        XCTAssertEqual(TyreSupport.actionNeededCount(in: records), 1)
+        XCTAssertEqual(TyreSupport.conditionCallToAction(for: spare), "Record DOT code")
+        XCTAssertEqual(TyreSupport.dateCodeCaption(for: spare), "Date not recorded")
+    }
+
+    func testDateCodeCaptionAndCompactAge() {
+        let record = TyreRecord(vehicleID: UUID(), position: .caravanLeft)
+        record.manufactureWeek = 12
+        record.manufactureYear = 2021
+        record.manufactureDate = TyreSupport.isoWeekStart(year: 2021, week: 12)
+
+        XCTAssertEqual(TyreSupport.dateCodeCaption(for: record), "Week 12 • 2021")
+        XCTAssertNotNil(TyreSupport.compactAgeText(for: record.manufactureDate))
+        XCTAssertFalse(TyreSupport.compactAgeText(for: record.manufactureDate)?.contains("old") == true)
+    }
+
     func testInspectionRollupUpdatesTyreRecord() {
         let record = TyreRecord(vehicleID: UUID(), position: .caravanLeft)
         context.insert(record)

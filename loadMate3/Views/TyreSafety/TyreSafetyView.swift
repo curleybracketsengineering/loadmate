@@ -94,6 +94,8 @@ private struct TyreSafetyEmptyStateView: View {
 }
 
 private struct TyreSafetyOverviewView: View {
+    @AppStorage(TyreSupport.pressureUnitAppStorageKey) private var pressureUnitRaw = PressureUnit.psi.rawValue
+
     let profile: VehicleProfile
     let records: [TyreRecord]
     let onSelectRecord: (TyreRecord) -> Void
@@ -102,233 +104,341 @@ private struct TyreSafetyOverviewView: View {
     let onShowHistory: () -> Void
     let onShowInfo: () -> Void
 
+    private var pressureUnit: PressureUnit {
+        PressureUnit(rawValue: pressureUnitRaw) ?? .psi
+    }
+
+    private var actionNeededCount: Int {
+        TyreSupport.actionNeededCount(in: records)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                AppGroupedCard {
-                    VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                        HStack(alignment: .center, spacing: AppScreenMetrics.tinySpacing) {
-                            Spacer(minLength: 0)
-                            Button(action: onShowQuickCheck) {
-                                Image(systemName: "gauge.with.dots.needle.50percent")
-                                    .font(.body.weight(.medium))
-                                    .foregroundStyle(Color.accentColor)
-                                    .frame(minWidth: 44, minHeight: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .accessibilityLabel("Record tyre check")
-                            .pointerHelp("Record tyre check")
+                header
 
-                            Button(action: onShowHistory) {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .font(.body.weight(.medium))
-                                    .foregroundStyle(Color.accentColor)
-                                    .frame(minWidth: 44, minHeight: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .accessibilityLabel("View inspection history")
-                            .pointerHelp("View inspection history")
+                setupBar
 
-                            Button(action: onShowSetup) {
-                                Image(systemName: "circle.hexagongrid")
-                                    .font(.body.weight(.medium))
-                                    .foregroundStyle(Color.accentColor)
-                                    .frame(minWidth: 44, minHeight: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .accessibilityLabel("Change tyre layout")
-                            .pointerHelp("Change tyre layout")
+                TyreCardsGrid(
+                    records: records,
+                    pressureUnit: pressureUnit,
+                    onSelectRecord: onSelectRecord
+                )
 
-                            Button(action: onShowInfo) {
-                                Image(systemName: "info.circle")
-                                    .font(.body.weight(.medium))
-                                    .foregroundStyle(Color.accentColor)
-                                    .frame(minWidth: 44, minHeight: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .accessibilityLabel("Tyre Safety information")
-                            .pointerHelp("Tyre Safety information")
-                        }
+                quickActionsRow
 
-                        TyreDiagramView(profile: profile, records: records, onSelectRecord: onSelectRecord)
-                    }
-                }
+                recommendedRecordBox
             }
             .padding(.horizontal, AppScreenMetrics.horizontalPadding)
             .padding(.top, AppScreenMetrics.verticalScreenPadding)
             .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
         }
     }
-}
 
-private struct TyreDiagramView: View {
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    private var header: some View {
+        HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                Text("Tyre safety")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(Color.primary)
+                Text("Age, pressure, condition and replacement planning")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: AppScreenMetrics.smallSpacing)
+            if actionNeededCount > 0 {
+                actionNeededBadge
+            }
+        }
+    }
 
-    let profile: VehicleProfile
-    let records: [TyreRecord]
-    let onSelectRecord: (TyreRecord) -> Void
-
-    private var isLandscape: Bool { verticalSizeClass == .compact }
-
-    var body: some View {
-        VStack(spacing: AppScreenMetrics.controlSpacing) {
-            Text(profile.kind == .caravan ? "Front / hitch" : "Front")
+    private var actionNeededBadge: some View {
+        let label = actionNeededCount == 1 ? "1 action needed" : "\(actionNeededCount) actions needed"
+        return HStack(spacing: 6) {
+            Circle()
+                .fill(AppColors.orange)
+                .frame(width: 7, height: 7)
+            Text(label)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(AppColors.textSupporting)
-
-            if profile.kind == .caravan {
-                caravanLayout
-            } else {
-                motorhomeLayout
-            }
+                .foregroundStyle(AppColors.orange)
         }
-    }
-
-    private var caravanLayout: some View {
-        VStack(spacing: AppScreenMetrics.controlSpacing) {
-            if records.contains(where: { $0.position == .caravanLeft || $0.position == .caravanRight }) {
-                HStack(spacing: AppScreenMetrics.controlSpacing) {
-                    tyreButton(.caravanLeft)
-                    tyreButton(.caravanRight)
-                }
-            } else {
-                VStack(spacing: AppScreenMetrics.controlSpacing) {
-                    HStack(spacing: AppScreenMetrics.controlSpacing) {
-                        tyreButton(.caravanFrontLeft)
-                        tyreButton(.caravanFrontRight)
-                    }
-                    HStack(spacing: AppScreenMetrics.controlSpacing) {
-                        tyreButton(.caravanRearLeft)
-                        tyreButton(.caravanRearRight)
-                    }
-                }
-            }
-            if records.contains(where: { $0.position == .caravanSpare }) {
-                tyreButton(.caravanSpare)
-            }
-        }
-    }
-
-    private var motorhomeLayout: some View {
-        VStack(spacing: AppScreenMetrics.controlSpacing) {
-            HStack(spacing: AppScreenMetrics.controlSpacing) {
-                tyreButton(.motorhomeFrontLeft)
-                tyreButton(.motorhomeFrontRight)
-            }
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.tertiarySystemFill))
-                .frame(height: 70)
-                .overlay(Text("Motorhome body").font(.caption))
-
-            if records.contains(where: { $0.position == .motorhomeRearLeftInner || $0.position == .motorhomeRearRightInner }) {
-                HStack(spacing: AppScreenMetrics.smallSpacing) {
-                    tyreButton(.motorhomeRearLeftOuter)
-                    tyreButton(.motorhomeRearLeftInner)
-                    Text("|").foregroundStyle(Color.secondary)
-                    tyreButton(.motorhomeRearRightInner)
-                    tyreButton(.motorhomeRearRightOuter)
-                }
-            } else {
-                HStack(spacing: AppScreenMetrics.controlSpacing) {
-                    tyreButton(.motorhomeRearLeft)
-                    tyreButton(.motorhomeRearRight)
-                }
-            }
-
-            if records.contains(where: { $0.position == .motorhomeSpare }) {
-                tyreButton(.motorhomeSpare)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func tyreButton(_ position: TyrePosition) -> some View {
-        if let record = records.first(where: { $0.position == position && $0.isCurrentlyFitted }) {
-            Button {
-                onSelectRecord(record)
-            } label: {
-                tyreButtonLabel(for: record)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(tyreAccessibilityLabel(for: record))
-        }
-    }
-
-    private func tyreAccessibilityLabel(for record: TyreRecord) -> String {
-        let details = record.alertMessages.isEmpty
-            ? record.ageAssessment.status
-            : record.alertMessages.joined(separator: ". ")
-        return "\(record.displayName), \(details)"
-    }
-
-    @ViewBuilder
-    private func tyreButtonLabel(for record: TyreRecord) -> some View {
-        let statusColor = color(for: record.statusLevel)
-        let imageToTextSpacing = isLandscape ? 0 : AppScreenMetrics.tinySpacing
-        VStack(spacing: imageToTextSpacing) {
-            ZStack(alignment: .topTrailing) {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(.tertiarySystemFill))
-                    .frame(width: 130, height: 130)
-
-                if let image = diagramImage(for: record) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 122, height: 122)
-                } else {
-                    Image(systemName: record.statusLevel.symbolName)
-                        .font(.title2)
-                        .foregroundStyle(statusColor)
-                }
-
-                Image(systemName: record.statusLevel.symbolName)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(5)
-                    .background(Circle().fill(statusColor))
-                    .padding(4)
-            }
-            .frame(maxWidth: .infinity)
-
-            VStack(spacing: isLandscape ? 1 : 2) {
-                if record.alertMessages.isEmpty {
-                    Text(record.ageAssessment.status)
-                        .font(.caption2)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(AppColors.textSupporting)
-                } else {
-                    ForEach(record.alertMessages, id: \.self) { message in
-                        Text(message)
-                            .font(.caption2)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(AppColors.textSupporting)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-            .frame(maxWidth: isLandscape ? 130 : .infinity)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            Capsule(style: .continuous)
+                .fill(AppColors.orange.opacity(0.14))
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+    }
+
+    private var setupBar: some View {
+        HStack(spacing: AppScreenMetrics.smallSpacing) {
+            Text(TyreSupport.layoutSummary(for: profile, records: records))
+                .font(.subheadline)
+                .foregroundStyle(AppColors.textSupporting)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Edit setup", action: onShowSetup)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+                .accessibilityLabel("Edit tyre setup")
+        }
+        .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
                 .fill(Color(.secondarySystemGroupedBackground))
         )
-    }
-
-    private func diagramImage(for record: TyreRecord) -> UIImage? {
-        guard let photo = TyrePhotoStore.diagramPhoto(for: record) else { return nil }
-        return TyrePhotoStore.loadImage(for: photo, vehicleID: profile.id)
-    }
-
-    private func color(for level: TyreStatusLevel) -> Color {
-        switch level {
-        case .current: return AppColors.green
-        case .attention: return .orange
-        case .action: return .red
-        case .incomplete: return .secondary
+        .overlay {
+            RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
+                .strokeBorder(Color(.separator).opacity(0.35), lineWidth: 1)
         }
+    }
+
+    private var quickActionsRow: some View {
+        HStack(spacing: AppScreenMetrics.controlSpacing) {
+            Button(action: onShowQuickCheck) {
+                Label("Record check", systemImage: "gauge.with.dots.needle.50percent")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("Record tyre check")
+
+            Button(action: onShowHistory) {
+                Label("History", systemImage: "clock.arrow.circlepath")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("View inspection history")
+
+            Button(action: onShowInfo) {
+                Image(systemName: "info.circle")
+                    .font(.body.weight(.medium))
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("Tyre Safety information")
+            .pointerHelp("Tyre Safety information")
+        }
+    }
+
+    private var recommendedRecordBox: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
+            Text("Recommended record")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+            Text("DOT manufacture code, target and measured pressure, tread depth, visible damage, position, photo, inspection date and replacement decision.")
+                .font(.caption)
+                .foregroundStyle(AppColors.textSupporting)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AppScreenMetrics.cardInteriorPadding)
+        .background(
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                .fill(Color.accentColor.opacity(0.08))
+        )
+    }
+}
+
+private struct TyreCardsGrid: View {
+    let records: [TyreRecord]
+    let pressureUnit: PressureUnit
+    let onSelectRecord: (TyreRecord) -> Void
+
+    @State private var availableWidth: CGFloat = 0
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: AppScreenMetrics.controlSpacing) {
+            ForEach(records) { record in
+                TyreStatusCard(
+                    record: record,
+                    pressureUnit: pressureUnit,
+                    onSelect: { onSelectRecord(record) }
+                )
+            }
+        }
+        .background(
+            GeometryReader { geometry in
+                Color.clear
+                    .preference(key: TyreGridWidthKey.self, value: geometry.size.width)
+            }
+        )
+        .onPreferenceChange(TyreGridWidthKey.self) { availableWidth = $0 }
+    }
+
+    /// Phone: up to 2 columns. Larger widths: 3, then 4 — so 2–7 tyres wrap cleanly.
+    private var columns: [GridItem] {
+        let maxColumns: Int
+        if availableWidth >= 900 {
+            maxColumns = 4
+        } else if availableWidth >= 560 {
+            maxColumns = 3
+        } else {
+            maxColumns = 2
+        }
+        let columnCount = min(max(records.count, 1), maxColumns)
+        return Array(
+            repeating: GridItem(.flexible(), spacing: AppScreenMetrics.controlSpacing),
+            count: columnCount
+        )
+    }
+}
+
+private struct TyreGridWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct TyreStatusCard: View {
+    let record: TyreRecord
+    let pressureUnit: PressureUnit
+    let onSelect: () -> Void
+
+    private let thumbnailSize: CGFloat = 84
+
+    private var statusColor: Color {
+        switch record.statusLevel {
+        case .current: return AppColors.green
+        case .attention: return AppColors.orange
+        case .action: return AppColors.red
+        case .incomplete: return AppColors.orange
+        }
+    }
+
+    private var targetPressureText: String {
+        guard let recommended = record.recommendedPressurePSI else { return "—" }
+        return Formatters.pressure(recommended, unit: pressureUnit)
+    }
+
+    private var thumbnailImage: UIImage? {
+        guard let photo = TyrePhotoStore.diagramPhoto(for: record) else { return nil }
+        return TyrePhotoStore.loadImage(for: photo, vehicleID: record.vehicleID)
+    }
+
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
+                    Image(systemName: "circle.circle")
+                        .font(.title3)
+                        .foregroundStyle(statusColor)
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(record.displayName)
+                            .font(.headline)
+                            .foregroundStyle(Color.primary)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
+                        Text(record.dateCodeCaption)
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: AppScreenMetrics.tinySpacing)
+
+                    tyreThumbnail
+                }
+
+                HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
+                    metricColumn(title: "Target pressure", value: targetPressureText)
+                    metricColumn(title: "Tyre age", value: record.compactAgeText)
+                }
+
+                VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                    Text("Condition")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
+                    Text(record.conditionCallToAction)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(statusColor)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
+                                .fill(statusColor.opacity(0.12))
+                        )
+                }
+
+                Text("Log pressure or photo")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.12))
+                    )
+            }
+            .padding(AppScreenMetrics.cardInteriorPadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                    .strokeBorder(statusColor.opacity(0.22), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint("Opens tyre details to log pressure or photo")
+    }
+
+    @ViewBuilder
+    private var tyreThumbnail: some View {
+        Group {
+            if let thumbnailImage {
+                Image(uiImage: thumbnailImage)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ZStack {
+                    Color(.tertiarySystemFill)
+                    Image(systemName: "camera.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppColors.textSupporting)
+                }
+            }
+        }
+        .frame(width: thumbnailSize, height: thumbnailSize)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(statusColor.opacity(0.35), lineWidth: 1)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var accessibilityLabel: String {
+        let photoNote = thumbnailImage == nil ? "no photo" : "photo available"
+        return "\(record.displayName), \(record.conditionCallToAction), age \(record.compactAgeText), \(photoNote)"
+    }
+
+    private func metricColumn(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(AppColors.textSupporting)
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.primary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

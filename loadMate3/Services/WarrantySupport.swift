@@ -174,7 +174,10 @@ enum WarrantySupport {
     }
 
     static func windowSubtitle(for event: WarrantyEvent) -> String {
-        "Action window: \(event.daysBefore) days before – \(event.daysAfter) days after due date"
+        if event.isImportantMilestone, event.daysAfter == 0 {
+            return "Action window: \(event.daysBefore) days before – must finish on or before the anniversary (no after-grace)"
+        }
+        return "Action window: \(event.daysBefore) days before – \(event.daysAfter) days after due date"
     }
 
     static func reminderDate(for event: WarrantyEvent) -> Date {

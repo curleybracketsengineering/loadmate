@@ -84,23 +84,98 @@ enum TyreSupport {
     }
 
     static func ageText(for manufactureDate: Date?, now: Date = Date()) -> String {
-        guard let manufactureDate else { return "Age unknown" }
+        guard let compact = compactAgeText(for: manufactureDate, now: now) else {
+            return "Age unknown"
+        }
+        return "\(compact) old"
+    }
+
+    /// Age without the trailing "old", for compact tyre cards.
+    static func compactAgeText(for manufactureDate: Date?, now: Date = Date()) -> String? {
+        guard let manufactureDate else { return nil }
         let calendar = Calendar.current
         let components = calendar.dateComponents([.year, .month], from: manufactureDate, to: now)
         let years = max(components.year ?? 0, 0)
         let months = max(components.month ?? 0, 0)
 
         if years < 1 {
-            let monthText = months == 1 ? "1 month" : "\(months) months"
-            return "\(monthText) old"
+            return months == 1 ? "1 month" : "\(months) months"
         }
 
         let yearText = years == 1 ? "1 year" : "\(years) years"
         if months == 0 {
-            return "\(yearText) old"
+            return yearText
         }
         let monthText = months == 1 ? "1 month" : "\(months) months"
-        return "\(yearText) \(monthText) old"
+        return "\(yearText) \(monthText)"
+    }
+
+    static func dateCodeCaption(for record: TyreRecord) -> String {
+        if let week = record.manufactureWeek, let year = record.manufactureYear {
+            return "Week \(week) • \(year)"
+        }
+        let trimmed = record.dateCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count == 4, let week = Int(trimmed.prefix(2)), let shortYear = Int(trimmed.suffix(2)) {
+            let fullYear = shortYear >= 80 ? 1900 + shortYear : 2000 + shortYear
+            return "Week \(week) • \(fullYear)"
+        }
+        return "Date not recorded"
+    }
+
+    static func conditionCallToAction(for record: TyreRecord) -> String {
+        switch record.statusLevel {
+        case .action:
+            if record.condition == .replace {
+                return "Plan replacement"
+            }
+            if record.ageAssessment.level == .action {
+                return "Inspect / plan replacement"
+            }
+            if record.pressureAssessment.level == .action {
+                return "Check pressure"
+            }
+            return "Needs attention"
+        case .attention:
+            if record.ageAssessment.level == .attention {
+                return record.ageAssessment.status
+            }
+            if record.pressureAssessment.level == .attention {
+                return "Check pressure"
+            }
+            if record.condition == .monitor {
+                return "Monitor"
+            }
+            return "Needs review"
+        case .incomplete:
+            if record.manufactureDate == nil {
+                return "Record DOT code"
+            }
+            if record.recommendedPressurePSI == nil {
+                return "Record target pressure"
+            }
+            if record.condition == .notChecked {
+                return "Record condition"
+            }
+            return "Complete details"
+        case .current:
+            return record.condition == .good ? "Good" : "Current"
+        }
+    }
+
+    static func layoutSummary(for profile: VehicleProfile, records: [TyreRecord]) -> String {
+        let roadCount = records.filter { !$0.isSpare }.count
+        let hasSpare = records.contains(where: \.isSpare)
+        let tyrePart: String
+        if hasSpare {
+            tyrePart = "\(roadCount) road \(roadCount == 1 ? "tyre" : "tyres") + spare"
+        } else {
+            tyrePart = "\(roadCount) \(roadCount == 1 ? "tyre" : "tyres")"
+        }
+        return "\(profile.kind.displayName) • \(tyrePart)"
+    }
+
+    static func actionNeededCount(in records: [TyreRecord]) -> Int {
+        records.filter { $0.statusLevel == .action || $0.statusLevel == .attention || $0.statusLevel == .incomplete }.count
     }
 
     static func ageAssessment(for record: TyreRecord, now: Date = Date()) -> TyreAgeAssessment {
