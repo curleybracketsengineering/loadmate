@@ -26,7 +26,7 @@ struct ChecklistPadLayout: View {
     @State private var expandedGroupIDs: Set<UUID> = []
 
     private var activeProfile: VehicleProfile? {
-        VehicleProfileStore.activeProfile(profiles: profiles, appState: appStates.first)
+        VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
     }
 
     private var profileTrips: [Trip] {
@@ -523,14 +523,14 @@ struct ChecklistPadLayout: View {
     }
 
     private func sortedGroups(for section: ChecklistSection) -> [ChecklistGroup] {
-        section.groups.sorted { $0.sortOrder < $1.sortOrder }
+        section.groupsList.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     private func sortedItems(for group: ChecklistGroup) -> [ChecklistItem] {
-        group.items.sorted { $0.sortOrder < $1.sortOrder }
+        group.itemsList.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     private func legacyItems(for section: ChecklistSection) -> [ChecklistItem] {
-        section.items.filter { $0.group == nil }.sorted { $0.sortOrder < $1.sortOrder }
+        section.itemsList.filter { $0.group == nil }.sorted { $0.sortOrder < $1.sortOrder }
     }
 }

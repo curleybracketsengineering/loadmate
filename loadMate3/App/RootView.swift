@@ -3,10 +3,18 @@ import SwiftData
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
+    
     @Query private var appStates: [AppState]
+    @Query private var profiles: [VehicleProfile]
 
     @StateObject private var disclaimerVM = DisclaimerViewModel()
     @State private var resolvedState: AppState?
+
+    private var profileListToken: String {
+        VehicleProfileStore.uniqueSortedProfiles(profiles)
+            .map { "\($0.id.uuidString):\($0.name)" }
+            .joined(separator: "|")
+    }
 
     var body: some View {
         Group {
@@ -20,22 +28,15 @@ struct RootView: View {
                 ProgressView("Loading...")
             }
         }
-        .task(id: appStates.count) {
-            resolvedState = disclaimerVM.ensureAppState(in: modelContext, existing: appStates.first)
+        .task(id: "\(appStates.count)-\(profileListToken)") {
+            let state = AppStateStore.resolve(in: modelContext, existing: appStates)
+            _ = VehicleProfileSyncReconciliation.reconcile(in: modelContext, appState: state)
+            resolvedState = disclaimerVM.ensureAppState(in: modelContext, existing: state)
         }
     }
 }
 
 #Preview {
     RootView()
-        .modelContainer(for: [
-            VehicleProfile.self,
-            Trip.self,
-            LibraryItem.self,
-            LoadedItem.self,
-            AppState.self,
-            ChecklistSection.self,
-            ChecklistGroup.self,
-            ChecklistItem.self,
-        ], inMemory: true)
+        .modelContainer(try! LoadMateModelContainer.makePreview())
 }

@@ -1,15 +1,22 @@
 import SwiftUI
 import SwiftData
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct SettingsView: View {
     var onNavigateToSummary: (() -> Void)?
 
     @Environment(\.usePadLayout) private var usePadLayout
+    @Environment(\.padTopTabBarActive) private var padTopTabBarActive
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
+    @AppStorage(TyreSupport.pressureUnitAppStorageKey) private var pressureUnitRaw = PressureUnit.psi.rawValue
     @Query(sort: [SortDescriptor(\VehicleProfile.sortOrder)]) private var profiles: [VehicleProfile]
     @Query private var appStates: [AppState]
 
     @StateObject private var viewModel = SettingsViewModel()
+    @StateObject private var cloudSync = CloudSyncMonitor()
     @State private var appState: AppState?
     @State private var editingProfile: VehicleProfile?
     @State private var isWeightFactorsExpanded = false
@@ -19,9 +26,17 @@ struct SettingsView: View {
     @State private var profilePendingRename: VehicleProfile?
     @State private var profileRenameField = ""
     @State private var showNoseSafeZoneHelp = false
+    @State private var showSetupIncompleteAlert = false
+    @State private var setupIncompleteAlertMessage = ""
+    @State private var showSyncDebugPanel = false
 
     private var sortedProfiles: [VehicleProfile] {
-        VehicleProfileStore.sortedProfiles(profiles)
+        VehicleProfileStore.uniqueSortedProfiles(profiles)
+    }
+
+    /// Changes when profiles are added, removed, renamed, or merged — not only when the count changes.
+    private var profileListToken: String {
+        sortedProfiles.map { "\($0.id.uuidString):\($0.name):\($0.kindRaw)" }.joined(separator: "|")
     }
 
     private var activeProfile: VehicleProfile? {
@@ -40,7 +55,7 @@ struct SettingsView: View {
                                 subtitle: profileSubtitle(profile)
                             )
 
-                            vehicleProfilesSection(active: profile)
+                            vehicleProfilesSection(editing: profile)
 
                             if profile.kind == .caravan {
                                 caravanSettings(profile)
@@ -48,7 +63,13 @@ struct SettingsView: View {
                                 motorhomeSettings(profile)
                             }
 
+                            warrantySettings(profile)
+
+                            tyreSafetySettings()
+
                             aboutSection()
+
+                            iCloudSyncSection()
 
                             Text("This app is an estimator only. Always physically measure weight and axle loads on a weighbridge.")
                                 .font(.caption)
@@ -57,8 +78,12 @@ struct SettingsView: View {
 
                             VStack(spacing: AppScreenMetrics.controlSpacing) {
                                 AppPrimaryButton("Save Configuration", systemImage: "checkmark.circle.fill") {
-                                    if viewModel.save(modelContext) {
+                                    guard viewModel.save(modelContext) else { return }
+                                    if let profile = editingProfile, profile.isConfiguredForWeightCalculations {
                                         onNavigateToSummary?()
+                                    } else if let profile = editingProfile {
+                                        setupIncompleteAlertMessage = profile.weightCalculationSetupSummaryMessage
+                                        showSetupIncompleteAlert = true
                                     }
                                 }
                             }
@@ -76,12 +101,29 @@ struct SettingsView: View {
                 }
             }
             .appScreenBackground()
-            .appPrincipalTabTitle("Settings")
+            .modifier(SettingsNavigationTitleModifier())
         }
-        .task(id: profiles.count) {
-            let boot = viewModel.bootstrap(in: modelContext, profiles: profiles, appState: appStates.first)
+        .task(id: profileListToken) {
+            let resolvedState = AppStateStore.resolve(in: modelContext, existing: appStates)
+            _ = VehicleProfileSyncReconciliation.reconcile(in: modelContext, appState: resolvedState)
+
+            let storedProfiles = (try? modelContext.fetch(FetchDescriptor<VehicleProfile>())) ?? profiles
+            let boot = viewModel.bootstrap(
+                in: modelContext,
+                profiles: VehicleProfileStore.uniqueSortedProfiles(storedProfiles),
+                appState: resolvedState
+            )
             appState = boot.appState
-            editingProfile = VehicleProfileStore.activeProfile(profiles: boot.profiles, appState: boot.appState)
+
+            if let editing = editingProfile,
+               let match = boot.profiles.first(where: { $0.id == editing.id }) {
+                editingProfile = match
+            } else {
+                editingProfile = VehicleProfileStore.activeProfile(profiles: boot.profiles, appState: boot.appState)
+            }
+        }
+        .task {
+            await cloudSync.refresh()
         }
         .sheet(isPresented: $showAddVehicle) {
             AddVehicleSheet(
@@ -107,10 +149,22 @@ struct SettingsView: View {
                 }
             )
         }
+        .sheet(isPresented: $showSyncDebugPanel) {
+            SyncDebugPanelView(
+                cloudSync: cloudSync,
+                appState: appState,
+                activeProfileName: activeProfile?.name
+            )
+        }
         .alert("5–7% safe zone", isPresented: $showNoseSafeZoneHelp) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(Self.noseSafeZoneHelpMessage)
+        }
+        .alert("Setup incomplete", isPresented: $showSetupIncompleteAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(setupIncompleteAlertMessage)
         }
         .alert("Rename vehicle", isPresented: Binding(
             get: { profilePendingRename != nil },
@@ -131,6 +185,59 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
+    private func warrantySettings(_ profile: VehicleProfile) -> some View {
+        AppSettingsSection(
+            "Warranty",
+            caption: "Turn off if this vehicle has no manufacturer warranty to track."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                Toggle(isOn: boolBinding(for: \.warrantyAvailable, on: profile)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Warranty available")
+                            .font(.subheadline.weight(.medium))
+                        Text(profile.warrantyAvailable
+                            ? "Shows the Warranty tab in Maintenance and Care shortcuts."
+                            : "Hides warranty tracking for this vehicle.")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                    }
+                }
+                .tint(Color.accentColor)
+
+                if profile.warrantyAvailable {
+                    Toggle(isOn: ukMarketBinding(for: profile)) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("UK / Northern Ireland market")
+                                .font(.subheadline.weight(.medium))
+                            Text(profile.warrantyUKMarket
+                                ? "Offers UK manufacturer warranty starters (Swift, Bailey, Coachman, Elddis, Adria)."
+                                : "Manufacturer starters are hidden. Build a custom plan from your local handbook.")
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSupporting)
+                        }
+                    }
+                    .tint(Color.accentColor)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tyreSafetySettings() -> some View {
+        AppSettingsSection(
+            "Tyre Safety",
+            caption: "App-wide preferences for tyre pressure display."
+        ) {
+            Picker("Pressure unit", selection: $pressureUnitRaw) {
+                ForEach(PressureUnit.allCases) { unit in
+                    Text(unit.displayName).tag(unit.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
     private func profileSubtitle(_ profile: VehicleProfile) -> String {
         "\(profile.kind.displayName) — \(profile.name)"
     }
@@ -138,15 +245,60 @@ struct SettingsView: View {
     private static let developerEmail = "smatheson6@icloude.com"
 
     @ViewBuilder
+    private func iCloudSyncSection() -> some View {
+        AppSettingsSection(
+            "iCloud sync",
+            caption: "Keep your data consistent across your own iPhone and iPad."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
+                    Image(systemName: cloudSync.accountStatus.systemImage)
+                        .font(.title3)
+                        .foregroundStyle(cloudSync.accountStatus == .available ? Color.accentColor : Color.secondary)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                        Text(cloudSync.accountStatus.settingsTitle)
+                            .font(.subheadline.weight(.semibold))
+                        Text(cloudSync.accountStatus.settingsDetail)
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                if cloudSync.accountStatus != .available {
+                    AppSecondaryButton("Open Settings") {
+                        openSystemSettings()
+                    }
+
+                    AppSecondaryButton("Check Again") {
+                        Task {
+                            await cloudSync.refresh()
+                        }
+                    }
+                }
+            }
+        }
+        .onTapGesture(count: 7) {
+            SyncDebugLogger.shared.record(
+                category: "panel",
+                message: "Hidden sync debug panel unlocked from Settings."
+            )
+            showSyncDebugPanel = true
+        }
+    }
+
+    @ViewBuilder
     private func aboutSection() -> some View {
         AppSettingsSection(
             "About",
-            caption: "Who built LoadMate and why it exists."
+            caption: "Who built Lyneqo Caravan & Motorhome and why it exists."
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 Text(
                     """
-                    LoadMate was built for you by Scott Matheson. After four decades in software development, I kept seeing hobby apps — caravanning and motorhomes included — that were either poorly made or mainly about making money. I wanted to put that experience toward something genuinely useful: a free utility to help us all load more safely and sensibly.
+                    Lyneqo Caravan & Motorhome was built for you. After four decades in software development, I kept seeing hobby apps that were either poorly made or mainly about making money. I wanted to put my experience toward something genuinely useful: a free utility to help us all load more safely and sensibly.
 
                     If you have ideas for how to improve it, I'd love to hear from you.
                     """
@@ -168,7 +320,7 @@ struct SettingsView: View {
     // MARK: - Profiles
 
     @ViewBuilder
-    private func vehicleProfilesSection(active: VehicleProfile) -> some View {
+    private func vehicleProfilesSection(editing: VehicleProfile) -> some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
             HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
                 AppSectionHeading(
@@ -196,11 +348,11 @@ struct SettingsView: View {
 
             AppGroupedCard {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(sortedProfiles.enumerated()), id: \.element.id) { index, profile in
-                        if index > 0 {
+                    ForEach(sortedProfiles) { profile in
+                        if profile.id != sortedProfiles.first?.id {
                             Divider()
                         }
-                        vehicleProfileRow(profile, active: active)
+                        vehicleProfileRow(profile, editing: editing)
                     }
                 }
             }
@@ -208,7 +360,8 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
-    private func vehicleProfileRow(_ profile: VehicleProfile, active: VehicleProfile) -> some View {
+    private func vehicleProfileRow(_ profile: VehicleProfile, editing: VehicleProfile) -> some View {
+        let isSelected = activeProfile?.id == profile.id
         HStack(alignment: .center, spacing: AppScreenMetrics.controlSpacing) {
             Button {
                 guard let state = appState else { return }
@@ -218,7 +371,7 @@ struct SettingsView: View {
                 HStack(spacing: AppScreenMetrics.controlSpacing) {
                     Image(systemName: profile.kind.systemImage)
                         .font(.body)
-                        .foregroundStyle(profile.id == active.id ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                         .frame(width: 28)
 
                     VStack(alignment: .leading, spacing: 2) {
@@ -232,7 +385,7 @@ struct SettingsView: View {
 
                     Spacer(minLength: 0)
 
-                    if profile.id == active.id {
+                    if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(Color.accentColor)
                             .accessibilityLabel("Selected")
@@ -538,6 +691,9 @@ struct SettingsView: View {
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 motorhomeAxleWeighbridgeFields(profile)
+                if profile.isMissingMotorhomePlatedAxleLimits {
+                    AppWarningBanner(message: VehicleProfile.motorhomePlatedAxleLimitsRequiredMessage)
+                }
                 MotorhomeWeighbridgeValidationMessages(profile: profile)
             }
         }
@@ -785,6 +941,19 @@ struct SettingsView: View {
         )
     }
 
+    private func ukMarketBinding(for profile: VehicleProfile) -> Binding<Bool> {
+        Binding(
+            get: { profile.warrantyUKMarket },
+            set: { newValue in
+                profile.warrantyUKMarket = newValue
+                if !newValue {
+                    WarrantyStore.clearManufacturerTemplate(for: profile.id, in: modelContext)
+                }
+                viewModel.save(modelContext)
+            }
+        )
+    }
+
     private func noseSafeZoneBasisBinding(on profile: VehicleProfile) -> Binding<NoseSafeZoneBasis> {
         Binding(
             get: { profile.noseSafeZoneBasis },
@@ -809,6 +978,13 @@ struct SettingsView: View {
         let minNose = Formatters.kg(summary.towBallMinKg)
         let limit = Formatters.kg(profile.effectiveMaxTowBallKg)
         return "The 5% minimum nose weight (\(minNose)) meets or exceeds your effective limit (\(limit))—the lower of your car tow ball and caravan hitch limits. You may need a higher car limit, a higher hitch rating (only if the car allows), or a lighter caravan."
+    }
+
+    private func openSystemSettings() {
+#if canImport(UIKit)
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        openURL(url)
+#endif
     }
 
     private static func carTowBallFivePercentHintText(profile: VehicleProfile, summary: WeightSummary) -> String {
@@ -867,5 +1043,17 @@ private struct AddVehicleSheet: View {
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
+    }
+}
+
+private struct SettingsNavigationTitleModifier: ViewModifier {
+    @Environment(\.padTopTabBarActive) private var padTopTabBarActive
+
+    func body(content: Content) -> some View {
+        if padTopTabBarActive {
+            content.toolbar(.hidden, for: .navigationBar)
+        } else {
+            content.appPrincipalTabTitle("Settings")
+        }
     }
 }

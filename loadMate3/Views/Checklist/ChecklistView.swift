@@ -3,8 +3,10 @@ import SwiftData
 
 struct ChecklistView: View {
     @Environment(\.usePadLayout) private var usePadLayout
+    @Environment(\.padTopTabBarActive) private var padTopTabBarActive
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \ChecklistSection.sortOrder) private var sections: [ChecklistSection]
+    @Query private var appStates: [AppState]
 
     @StateObject private var viewModel = ChecklistViewModel()
 
@@ -55,8 +57,9 @@ struct ChecklistView: View {
             showResetAllConfirm: $showResetAllConfirm
         ))
         .task(id: sections.count) {
+            let appState = AppStateStore.resolve(in: modelContext, existing: appStates)
             viewModel.migrateLegacyChecklistIfNeeded(in: modelContext)
-            viewModel.ensureSeedData(in: modelContext, existingSections: sections)
+            viewModel.ensureSeedData(in: modelContext, existingSections: sections, appState: appState)
         }
     }
 
@@ -100,40 +103,42 @@ struct ChecklistView: View {
             Text(checklistHelpMessage)
         }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    showChecklistHelp = true
-                } label: {
-                    Image(systemName: "questionmark.circle")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(Color.secondary)
-                }
-                .accessibilityLabel("Checklist help")
-                .pointerHelp("Help")
-            }
-
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
+            if !padTopTabBarActive {
+                ToolbarItem(placement: .topBarLeading) {
                     Button {
-                        showAddSection = true
-                        newSectionTitle = ""
+                        showChecklistHelp = true
                     } label: {
-                        Label("Add section", systemImage: "folder.badge.plus")
+                        Image(systemName: "questionmark.circle")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Color.secondary)
                     }
-
-                    if !sections.isEmpty {
-                        Button(role: .destructive) {
-                            showResetAllConfirm = true
-                        } label: {
-                            Label("Reset entire checklist", systemImage: "arrow.counterclockwise.circle")
-                        }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(Color.accentColor)
+                    .accessibilityLabel("Checklist help")
+                    .pointerHelp("Help")
                 }
-                .accessibilityLabel("Checklist actions")
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            showAddSection = true
+                            newSectionTitle = ""
+                        } label: {
+                            Label("Add section", systemImage: "folder.badge.plus")
+                        }
+
+                        if !sections.isEmpty {
+                            Button(role: .destructive) {
+                                showResetAllConfirm = true
+                            } label: {
+                                Label("Reset entire checklist", systemImage: "arrow.counterclockwise.circle")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .accessibilityLabel("Checklist actions")
+                }
             }
         }
     }
@@ -259,15 +264,15 @@ struct ChecklistView: View {
     }
 
     private func sortedGroups(for section: ChecklistSection) -> [ChecklistGroup] {
-        section.groups.sorted { $0.sortOrder < $1.sortOrder }
+        section.groupsList.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     private func sortedItems(for group: ChecklistGroup) -> [ChecklistItem] {
-        group.items.sorted { $0.sortOrder < $1.sortOrder }
+        group.itemsList.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     private func legacyItems(for section: ChecklistSection) -> [ChecklistItem] {
-        section.items.filter { $0.group == nil }.sorted { $0.sortOrder < $1.sortOrder }
+        section.itemsList.filter { $0.group == nil }.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     @ViewBuilder
@@ -429,9 +434,13 @@ struct ChecklistView: View {
 
 private struct ChecklistNavigationTitleModifier: ViewModifier {
     @Environment(\.usePadLayout) private var usePadLayout
+    @Environment(\.padTopTabBarActive) private var padTopTabBarActive
 
     func body(content: Content) -> some View {
-        if usePadLayout {
+        if padTopTabBarActive {
+            content
+                .toolbar(.hidden, for: .navigationBar)
+        } else if usePadLayout {
             content
                 .navigationTitle("")
                 .navigationBarTitleDisplayMode(.inline)

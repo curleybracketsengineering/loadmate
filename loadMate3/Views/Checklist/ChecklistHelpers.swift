@@ -2,8 +2,8 @@ import SwiftUI
 
 enum ChecklistProgress {
     static func items(in section: ChecklistSection) -> [ChecklistItem] {
-        let grouped = section.groups.flatMap(\.items)
-        let legacy = section.items.filter { $0.group == nil }
+        let grouped = section.groupsList.flatMap(\.itemsList)
+        let legacy = section.itemsList.filter { $0.group == nil }
         return (grouped + legacy).sorted { $0.sortOrder < $1.sortOrder }
     }
 
@@ -13,7 +13,7 @@ enum ChecklistProgress {
     }
 
     static func counts(in group: ChecklistGroup) -> (completed: Int, total: Int) {
-        let items = group.items.sorted { $0.sortOrder < $1.sortOrder }
+        let items = group.itemsList.sorted { $0.sortOrder < $1.sortOrder }
         return (items.filter(\.isChecked).count, items.count)
     }
 
@@ -23,6 +23,36 @@ enum ChecklistProgress {
             result.0 += counts.completed
             result.1 += counts.total
         }
+    }
+
+    static func isGroupComplete(
+        in sections: [ChecklistSection],
+        sectionTitle: String,
+        groupTitle: String,
+        emptyMeansComplete: Bool = false
+    ) -> Bool {
+        guard
+            let section = sections.first(where: { $0.title == sectionTitle }),
+            let group = section.groupsList.first(where: { $0.title == groupTitle })
+        else {
+            return emptyMeansComplete
+        }
+        let counts = counts(in: group)
+        guard counts.total > 0 else { return emptyMeansComplete }
+        return counts.completed == counts.total
+    }
+
+    static func isSectionComplete(
+        in sections: [ChecklistSection],
+        title: String,
+        emptyMeansComplete: Bool = false
+    ) -> Bool {
+        guard let section = sections.first(where: { $0.title == title }) else {
+            return emptyMeansComplete
+        }
+        let counts = counts(in: section)
+        guard counts.total > 0 else { return emptyMeansComplete }
+        return counts.completed == counts.total
     }
 
     static func fraction(completed: Int, total: Int) -> Double {

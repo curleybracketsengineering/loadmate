@@ -6,10 +6,7 @@ import SwiftData
 final class SettingsViewModel: ObservableObject {
     func ensureAppState(in context: ModelContext, existing: AppState?) -> AppState {
         if let existing { return existing }
-        let state = AppState()
-        context.insert(state)
-        save(context)
-        return state
+        return AppStateStore.resolve(in: context)
     }
 
     func bootstrap(
@@ -62,12 +59,6 @@ final class SettingsViewModel: ObservableObject {
 
     @discardableResult
     func save(_ context: ModelContext) -> Bool {
-        do {
-            try context.save()
-            return true
-        } catch {
-            assertionFailure("SwiftData save failed: \(error.localizedDescription)")
-            return false
-        }
+        SyncDebugSaveHelper.save(context, source: "SettingsViewModel.save")
     }
 }

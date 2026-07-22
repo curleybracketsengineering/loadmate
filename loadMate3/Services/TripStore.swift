@@ -6,7 +6,7 @@ enum TripStore {
 
     static func sortedTrips(for profile: VehicleProfile?) -> [Trip] {
         guard let profile else { return [] }
-        return profile.trips.sorted { lhs, rhs in
+        return profile.tripsList.sorted { lhs, rhs in
             if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
             return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
@@ -40,7 +40,7 @@ enum TripStore {
 
         for profile in profiles {
             let defaultTrip: Trip
-            if profile.trips.isEmpty {
+            if profile.tripsList.isEmpty {
                 let trip = Trip(name: defaultTripName, sortOrder: 0, profile: profile)
                 context.insert(trip)
                 profile.activeTripID = trip.id
@@ -72,7 +72,7 @@ enum TripStore {
         to profile: VehicleProfile,
         in context: ModelContext
     ) -> Trip {
-        let nextOrder = (profile.trips.map(\.sortOrder).max() ?? -1) + 1
+        let nextOrder = (profile.tripsList.map(\.sortOrder).max() ?? -1) + 1
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trip = Trip(
             name: trimmed.isEmpty ? "New trip" : trimmed,
@@ -110,18 +110,34 @@ enum TripStore {
     }
 
     @MainActor
-    static func ensureDefaultTrip(for profile: VehicleProfile, in context: ModelContext) -> Trip {
+    static func ensureDefaultTrip(
+        for profile: VehicleProfile,
+        preferredID: UUID? = nil,
+        in context: ModelContext
+    ) -> Trip {
         if let existing = activeTrip(for: profile) {
             return existing
         }
-        return addTrip(name: defaultTripName, to: profile, in: context)
+
+        if let preferredID,
+           let existing = profile.tripsList.first(where: { $0.id == preferredID }) {
+            profile.activeTripID = existing.id
+            save(context)
+            return existing
+        }
+
+        let trip = Trip(
+            id: preferredID ?? UUID(),
+            name: defaultTripName,
+            sortOrder: 0,
+            profile: profile
+        )
+        context.insert(trip)
+        setActive(trip, on: profile, in: context)
+        return trip
     }
 
     private static func save(_ context: ModelContext) {
-        do {
-            try context.save()
-        } catch {
-            assertionFailure("SwiftData save failed: \(error.localizedDescription)")
-        }
+        _ = SyncDebugSaveHelper.save(context, source: "TripStore.save")
     }
 }

@@ -2,7 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key></key>
-	<string></string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Lyneqo Caravan &amp; Motorhome uses the camera to photograph tyres and maintenance records for your own vehicle documentation.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Lyneqo Caravan &amp; Motorhome can attach existing photos to your tyre and maintenance records.</string>
 </dict>
 </plist>

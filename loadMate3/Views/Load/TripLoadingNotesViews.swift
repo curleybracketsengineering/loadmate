@@ -169,7 +169,7 @@ struct TripLoadingNotesSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            Text("Gauge reading at hitch height. LoadMate’s estimate is for planning only.")
+            Text("Gauge reading at hitch height. Lyneqo Caravan & Motorhome’s estimate is for planning only.")
                 .font(.caption)
                 .foregroundStyle(AppColors.textSupporting)
                 .fixedSize(horizontal: false, vertical: true)
@@ -247,10 +247,6 @@ struct TripLoadingNotesSheet: View {
     }
 
     private func save() {
-        do {
-            try modelContext.save()
-        } catch {
-            assertionFailure("SwiftData save failed: \(error.localizedDescription)")
-        }
+        _ = SyncDebugSaveHelper.save(modelContext, source: "TripLoadingNotesViews.save")
     }
 }

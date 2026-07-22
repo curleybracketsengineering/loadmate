@@ -6,10 +6,7 @@ import SwiftData
 final class DisclaimerViewModel: ObservableObject {
     func ensureAppState(in context: ModelContext, existing: AppState?) -> AppState {
         if let existing { return existing }
-        let state = AppState()
-        context.insert(state)
-        save(context)
-        return state
+        return AppStateStore.resolve(in: context)
     }
 
     func acceptDisclaimer(appState: AppState, in context: ModelContext) {
@@ -19,10 +16,6 @@ final class DisclaimerViewModel: ObservableObject {
     }
 
     private func save(_ context: ModelContext) {
-        do {
-            try context.save()
-        } catch {
-            assertionFailure("SwiftData save failed: \(error.localizedDescription)")
-        }
+        _ = SyncDebugSaveHelper.save(context, source: "DisclaimerViewModel.save")
     }
 }
