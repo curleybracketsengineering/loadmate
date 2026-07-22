@@ -132,7 +132,7 @@ struct CaravanSummaryCheck: Identifiable, Equatable {
         } else {
             steps = [
                 "Payload is room for trip kit on top of your base (MIRO or weighbridge) weight.",
-                "Log heavy items in LoadMate and assign them to locations on the map.",
+                "Log heavy items in Lyneqo Caravan & Motorhome and assign them to locations on the map.",
                 "Full fresh or grey water can use much of your payload — plan tank levels for travel.",
             ]
         }
@@ -183,7 +183,7 @@ struct CaravanSummaryCheck: Identifiable, Equatable {
         } else {
             steps = [
                 "Stay within the 5–7% recommended band where possible — it supports stable towing.",
-                "Always verify with a nose weight gauge; LoadMate figures are estimates.",
+                "Always verify with a nose weight gauge; Lyneqo Caravan & Motorhome figures are estimates.",
                 "Re-check after changing load locations or filling water.",
             ]
         }

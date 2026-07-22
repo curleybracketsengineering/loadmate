@@ -43,7 +43,7 @@ struct TyrePressureAssessment {
 }
 
 enum TyreSupport {
-    static let tyreDisclaimer = "LoadMate helps you record tyre information and identify items that may need attention. It cannot inspect a tyre or confirm that a tyre is safe for use. Always follow the vehicle, caravan and tyre manufacturer’s instructions. If a tyre is damaged, incorrectly inflated, unusually worn or of uncertain condition, have it inspected by a qualified tyre professional before travelling."
+    static let tyreDisclaimer = "Lyneqo Caravan & Motorhome helps you record tyre information and identify items that may need attention. It cannot inspect a tyre or confirm that a tyre is safe for use. Always follow the vehicle, caravan and tyre manufacturer’s instructions. If a tyre is damaged, incorrectly inflated, unusually worn or of uncertain condition, have it inspected by a qualified tyre professional before travelling."
 
     static let pressureUnitAppStorageKey = "tyrePressureUnitRaw"
 

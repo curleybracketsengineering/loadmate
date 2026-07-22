@@ -29,7 +29,7 @@ enum WarrantySupport {
     }
 
     static let warrantyDisclaimer = """
-    LoadMate helps you organise warranty-related records and reminders. It cannot confirm warranty coverage, interpret manufacturer terms, or guarantee that a claim will be accepted. Always follow your owner's handbook and manufacturer instructions. If in doubt, contact your dealer or manufacturer directly.
+    Lyneqo Caravan & Motorhome helps you organise warranty-related records and reminders. It cannot confirm warranty coverage, interpret manufacturer terms, or guarantee that a claim will be accepted. Always follow your owner's handbook and manufacturer instructions. If in doubt, contact your dealer or manufacturer directly.
     """
 
     static let customTemplateID = WarrantyPatternCatalog.customID

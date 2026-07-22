@@ -23,7 +23,7 @@ struct TyreSidewallReviewSheet: View {
                         subtitle: "Suggested values only. Check against the tyre marking before saving."
                     )
 
-                    AppWarningBanner(message: "LoadMate does not confirm that a tyre is safe, road legal, certified, or suitable for continued use. Review every suggested field before applying it.")
+                    AppWarningBanner(message: "Lyneqo Caravan & Motorhome does not confirm that a tyre is safe, road legal, certified, or suitable for continued use. Review every suggested field before applying it.")
 
                     AppSettingsSection("Suggested fields", caption: "Choose which values to copy into the tyre record.") {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {

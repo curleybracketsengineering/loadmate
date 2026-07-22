@@ -1236,7 +1236,7 @@ private struct TyreSafetyInfoView: View {
                         .font(.body)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Tyre photos are stored on this device for your records. LoadMate does not analyse photos or draw conclusions about tyre condition from images.")
+                    Text("Tyre photos are stored on this device for your records. Lyneqo Caravan & Motorhome does not analyse photos or draw conclusions about tyre condition from images.")
                         .font(.body)
                         .fixedSize(horizontal: false, vertical: true)
                 }

@@ -1103,7 +1103,7 @@ private struct WarrantyInfoSheet: View {
                     AppHeroSection(
                         systemImage: "info.circle.fill",
                         title: "About warranty tracking",
-                        subtitle: "LoadMate helps you stay organised — it does not guarantee claim acceptance."
+                        subtitle: "Lyneqo Caravan & Motorhome helps you stay organised — it does not guarantee claim acceptance."
                     )
                     WarrantyDisclaimerBanner()
                 }

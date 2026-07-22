@@ -24,11 +24,11 @@ enum CloudSyncAccountStatus: Equatable {
     case .available:
       return "Your vehicles, trips, load lists, and checklists stay up to date across your iPhone and iPad signed into the same Apple ID."
     case .noAccount:
-      return "Open Settings → Apple Account and sign in to iCloud to sync Load Mate between your devices."
+      return "Open Settings → Apple Account and sign in to iCloud to sync Lyneqo Caravan & Motorhome between your devices."
     case .restricted:
       return "This device cannot use iCloud right now. Check Screen Time or device management restrictions."
     case .couldNotDetermine:
-      return "Load Mate will keep trying to reach iCloud."
+      return "Lyneqo Caravan & Motorhome will keep trying to reach iCloud."
     case .temporarilyUnavailable:
       return "iCloud is not reachable at the moment. Your data is saved on this device and will sync when iCloud is back."
     }

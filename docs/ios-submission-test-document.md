@@ -1,7 +1,7 @@
-# LoadMate iOS Submission Test Document
+# Lyneqo Caravan & Motorhome iOS Submission Test Document
 
 ## Build Information
-- **App Name:** LoadMate
+- **App Name:** Lyneqo Caravan & Motorhome
 - **Platform:** iOS
 - **Build Type:** App Store submission build
 - **Tester:** Apple App Review / QA

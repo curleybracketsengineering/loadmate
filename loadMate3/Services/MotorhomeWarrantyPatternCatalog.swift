@@ -1,6 +1,6 @@
 import Foundation
 
-/// Starter warranty schedules for motorhomes / campervans (LoadMate's self-propelled leisure vehicles).
+/// Starter warranty schedules for motorhomes / campervans (Lyneqo Caravan & Motorhome's self-propelled leisure vehicles).
 /// Not yet wired into the warranty picker — kept as a source for a later vehicle-kind-aware integration.
 enum MotorhomeWarrantyPatternCatalog {
     static let customID = WarrantyPatternCatalog.customID

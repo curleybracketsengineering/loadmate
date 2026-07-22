@@ -64,7 +64,7 @@ enum UKMotorhomeMOTClass: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// First statutory test year after first registration / purchase anniversary used by LoadMate.
+    /// First statutory test year after first registration / purchase anniversary used by Lyneqo Caravan & Motorhome.
     var firstTestYear: Int {
         switch self {
         case .class4, .class7: return 3

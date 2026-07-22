@@ -293,12 +293,12 @@ struct SettingsView: View {
     private func aboutSection() -> some View {
         AppSettingsSection(
             "About",
-            caption: "Who built LoadMate and why it exists."
+            caption: "Who built Lyneqo Caravan & Motorhome and why it exists."
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 Text(
                     """
-                    LoadMate was built for you by Scott Matheson. After four decades in software development, I kept seeing hobby apps — caravanning and motorhomes included — that were either poorly made or mainly about making money. I wanted to put that experience toward something genuinely useful: a free utility to help us all load more safely and sensibly.
+                    Lyneqo Caravan & Motorhome was built for you. After four decades in software development, I kept seeing hobby apps that were either poorly made or mainly about making money. I wanted to put my experience toward something genuinely useful: a free utility to help us all load more safely and sensibly.
 
                     If you have ideas for how to improve it, I'd love to hear from you.
                     """

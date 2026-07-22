@@ -55,7 +55,7 @@ struct MotorhomeSummaryCheck: Identifiable, Equatable {
             steps = [
                 "Keep dense kit low and avoid stacking heavy items high in overhead lockers near the cab.",
                 "Re-check after adding passengers, bikes, or a full fresh-water tank.",
-                "Confirm with a weighbridge before long trips — LoadMate figures are estimates.",
+                "Confirm with a weighbridge before long trips — Lyneqo Caravan & Motorhome figures are estimates.",
             ]
         }
 
@@ -67,7 +67,7 @@ struct MotorhomeSummaryCheck: Identifiable, Equatable {
                 : "Front axle load exceeds the limit",
             isPositive: isPositive,
             whyItMatters: """
-            The front axle carries steering and braking loads. Exceeding its limit can affect grip, tyre wear, and compliance with your vehicle plate. LoadMate estimates axle load from your weighbridge baseline plus where items are placed in the motorhome.
+            The front axle carries steering and braking loads. Exceeding its limit can affect grip, tyre wear, and compliance with your vehicle plate. Lyneqo Caravan & Motorhome estimates axle load from your weighbridge baseline plus where items are placed in the motorhome.
             """,
             actionSteps: steps
         )
@@ -93,7 +93,7 @@ struct MotorhomeSummaryCheck: Identifiable, Equatable {
         } else {
             steps = [
                 "Spread weight evenly left and right where you can.",
-                "Heavy rear loads (bikes, scooters, awnings) have a strong effect — log them in LoadMate.",
+                "Heavy rear loads (bikes, scooters, awnings) have a strong effect — log them in Lyneqo Caravan & Motorhome.",
                 "Leave margin below the limit for fuel, water, and last-minute kit.",
             ]
         }
@@ -162,7 +162,7 @@ struct MotorhomeSummaryCheck: Identifiable, Equatable {
             steps = [
                 "Enter your measured tow bar load in Settings or on the Summary screen.",
                 "Use a calibrated gauge at hitch height with the outfit level.",
-                "LoadMate cannot verify the limit until a value is recorded.",
+                "Lyneqo Caravan & Motorhome cannot verify the limit until a value is recorded.",
             ]
         } else if summary.isOverTowBarLimit {
             steps = [
@@ -215,7 +215,7 @@ struct MotorhomeSummaryCheck: Identifiable, Equatable {
         } else {
             steps = [
                 "Payload is the room left for kit on top of your base (MIRO or weighbridge) weight.",
-                "Log heavy items in LoadMate and assign them to locations on the map.",
+                "Log heavy items in Lyneqo Caravan & Motorhome and assign them to locations on the map.",
                 "Full fresh or grey water can use much of your payload — plan tank levels for travel.",
             ]
         }

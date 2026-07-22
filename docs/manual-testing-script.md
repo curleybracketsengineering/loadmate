@@ -1,4 +1,4 @@
-LoadMate — App Review testing steps
+Lyneqo Caravan & Motorhome — App Review testing steps
 
 No login required. Test Caravan OR Motorhome. Flow: Settings → Load → Locations → Weight.
 

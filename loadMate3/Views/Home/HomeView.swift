@@ -91,7 +91,7 @@ struct HomeView: View {
                 .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
             }
             .appScreenBackground()
-            .navigationTitle("LoadMate")
+            .navigationTitle("Lyneqo Caravan & Motorhome")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
