@@ -209,11 +209,11 @@ struct ChecklistPadLayout: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .fill(isSelected ? AppColors.blue.opacity(0.08) : Color(.secondarySystemGroupedBackground))
+                    .fill(isSelected ? AppColors.blue.opacity(0.08) : LyneqoTheme.card)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .strokeBorder(isSelected ? AppColors.blue.opacity(0.55) : Color(.separator).opacity(0.35), lineWidth: isSelected ? 2 : 1)
+                    .strokeBorder(isSelected ? AppColors.blue.opacity(0.55) : LyneqoTheme.border.opacity(0.35), lineWidth: isSelected ? 2 : 1)
             }
         }
         .buttonStyle(.plain)
@@ -490,10 +490,10 @@ struct ChecklistPadLayout: View {
 
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-            .fill(Color(.secondarySystemGroupedBackground))
+            .fill(LyneqoTheme.card)
             .overlay {
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .strokeBorder(Color(.separator).opacity(0.35), lineWidth: 1)
+                    .strokeBorder(LyneqoTheme.border.opacity(0.35), lineWidth: 1)
             }
     }
 

@@ -23,7 +23,7 @@ private struct AxleWheelGraphic: View {
     var body: some View {
         ZStack {
             Capsule()
-                .fill(Color(.separator).opacity(0.55))
+                .fill(LyneqoTheme.border.opacity(0.55))
                 .frame(width: 28, height: 3)
 
             Circle()

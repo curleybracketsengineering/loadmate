@@ -9,6 +9,6 @@ struct LocationPadRedirectView: View {
             description: Text("On iPad, load items and assign zones from the Load & placement tab.")
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(LyneqoTheme.background)
     }
 }

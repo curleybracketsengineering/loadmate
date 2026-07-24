@@ -216,7 +216,7 @@ struct PlacementPadPanel: View {
                 .monospacedDigit()
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
     }
 
@@ -246,7 +246,7 @@ struct PlacementPadPanel: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(LyneqoTheme.card)
             )
         }
     }

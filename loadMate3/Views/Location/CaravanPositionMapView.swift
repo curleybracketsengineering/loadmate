@@ -57,7 +57,7 @@ struct CaravanPositionMapView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(LyneqoTheme.card)
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel(vehicleKind == .motorhome ? "Motorhome position map" : "Caravan position map")
@@ -89,7 +89,7 @@ struct CaravanPositionMapView: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                .strokeBorder(Color(.separator).opacity(0.45), lineWidth: 1.5)
+                .strokeBorder(LyneqoTheme.border.opacity(0.45), lineWidth: 1.5)
         )
     }
 
@@ -208,7 +208,7 @@ struct CaravanPositionMapView: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                .strokeBorder(Color(.separator).opacity(0.45), lineWidth: 1.5)
+                .strokeBorder(LyneqoTheme.border.opacity(0.45), lineWidth: 1.5)
         )
     }
 

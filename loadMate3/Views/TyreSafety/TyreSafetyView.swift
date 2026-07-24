@@ -188,11 +188,11 @@ private struct TyreSafetyOverviewView: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(LyneqoTheme.card)
         )
         .overlay {
             RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                .strokeBorder(Color(.separator).opacity(0.35), lineWidth: 1)
+                .strokeBorder(LyneqoTheme.border.opacity(0.35), lineWidth: 1)
         }
     }
 
@@ -385,7 +385,7 @@ private struct TyreStatusCard: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(LyneqoTheme.card)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
@@ -406,7 +406,7 @@ private struct TyreStatusCard: View {
                     .scaledToFill()
             } else {
                 ZStack {
-                    Color(.tertiarySystemFill)
+                    LyneqoTheme.softTeal
                     Image(systemName: "camera.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppColors.textSupporting)
@@ -1263,11 +1263,11 @@ private struct AppNotesEditor: View {
         TextEditor(text: $text)
             .frame(minHeight: 120)
             .padding(8)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                    .strokeBorder(Color(.separator), lineWidth: 1)
+                    .strokeBorder(LyneqoTheme.border, lineWidth: 1)
             }
     }
 }

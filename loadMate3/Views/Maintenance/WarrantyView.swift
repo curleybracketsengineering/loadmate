@@ -395,7 +395,7 @@ struct WarrantyDisclaimerBanner: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.tertiarySystemFill))
+        .background(LyneqoTheme.softTeal)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
     }
 }
@@ -466,7 +466,7 @@ private struct WarrantyTimelineAnchorRow: View {
                     .frame(width: 12, height: 12)
                 if !isLast {
                     Rectangle()
-                        .fill(Color(.separator))
+                        .fill(LyneqoTheme.border)
                         .frame(width: 2)
                         .frame(maxHeight: .infinity)
                 }
@@ -503,7 +503,7 @@ private struct WarrantyTimelineEventRow: View {
                 timelineMarker
                 if !isLast {
                     Rectangle()
-                        .fill(Color(.separator))
+                        .fill(LyneqoTheme.border)
                         .frame(width: 2)
                         .frame(maxHeight: .infinity)
                 }
@@ -778,7 +778,7 @@ private struct WarrantyPlanEditorSheet: View {
                         TextEditor(text: $handbookNotes)
                             .frame(minHeight: 100)
                             .padding(8)
-                            .background(Color(.secondarySystemGroupedBackground))
+                            .background(LyneqoTheme.card)
                             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
                     }
 
@@ -916,7 +916,7 @@ private struct WarrantyEventEditorSheet: View {
                             TextEditor(text: $requirementDescription)
                                 .frame(minHeight: 100)
                                 .padding(8)
-                                .background(Color(.secondarySystemGroupedBackground))
+                                .background(LyneqoTheme.card)
                                 .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
                         }
                     }
@@ -1283,7 +1283,7 @@ private struct WarrantyDocumentEditorView: View {
                         TextEditor(text: $notes)
                             .frame(minHeight: 100)
                             .padding(8)
-                            .background(Color(.secondarySystemGroupedBackground))
+                            .background(LyneqoTheme.card)
                             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
                     }
 

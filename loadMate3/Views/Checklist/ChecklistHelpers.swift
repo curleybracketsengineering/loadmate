@@ -158,7 +158,7 @@ struct ChecklistProgressRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color(.tertiarySystemFill), lineWidth: 8)
+                .stroke(LyneqoTheme.softTeal, lineWidth: 8)
             Circle()
                 .trim(from: 0, to: fraction)
                 .stroke(AppColors.blue, style: StrokeStyle(lineWidth: 8, lineCap: .round))
@@ -184,7 +184,7 @@ struct ChecklistLinearProgressBar: View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
                 Capsule(style: .continuous)
-                    .fill(Color(.tertiarySystemFill))
+                    .fill(LyneqoTheme.softTeal)
                 Capsule(style: .continuous)
                     .fill(AppColors.blue)
                     .frame(width: max(0, proxy.size.width * fraction))

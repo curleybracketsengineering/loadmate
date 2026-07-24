@@ -380,7 +380,7 @@ struct CaravanSummaryPhoneLayout: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color(.tertiarySystemFill))
+                    .fill(LyneqoTheme.softTeal)
                 Capsule()
                     .fill(isOverLimit ? AppColors.red : Color.accentColor)
                     .frame(width: max(geo.size.width * fill, fill > 0 ? 4 : 0))

@@ -524,7 +524,7 @@ private struct MaintenanceDashboardCard: View {
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .fill(Color(.tertiarySystemFill))
+                    .fill(LyneqoTheme.softTeal)
             )
         }
         .buttonStyle(.plain)
@@ -1293,7 +1293,7 @@ private struct AttachmentThumbnailView: View {
                     } else {
                         ZStack {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color(.tertiarySystemFill))
+                                .fill(LyneqoTheme.softTeal)
                             Image(systemName: symbolName)
                                 .font(.title2)
                                 .foregroundStyle(Color.secondary)
@@ -1418,11 +1418,11 @@ private struct MaintenanceNotesEditor: View {
         TextEditor(text: $text)
             .frame(minHeight: 120)
             .padding(8)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                    .strokeBorder(Color(.separator), lineWidth: 1)
+                    .strokeBorder(LyneqoTheme.border, lineWidth: 1)
             }
     }
 }

@@ -20,7 +20,7 @@ struct NoseWeightSafeZoneGauge: View {
   var displayStyle: NoseWeightGaugeDisplayStyle = .full
   var showsTitle: Bool = true
 
-  private static let amberFill = Color(red: 0.97, green: 0.73, blue: 0.12)
+  private static let amberFill = Color("StatusWarning")
   private static let barHeight: CGFloat = 12
   private static let estimateLineWidth: CGFloat = 4
   private static let estimateMarkerHeight: CGFloat = 20

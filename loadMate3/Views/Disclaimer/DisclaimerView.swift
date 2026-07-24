@@ -11,11 +11,25 @@ struct DisclaimerView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                    AppHeroSection(
-                        systemImage: "scalemass.fill",
-                        title: "Lyneqo Caravan & Motorhome",
-                        subtitle: "Plan your caravan or motorhome loading with confidence"
-                    )
+                    VStack(spacing: AppScreenMetrics.controlSpacing) {
+                        Image("LyneqoMark")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 72, height: 72)
+                            .accessibilityHidden(true)
+
+                        Text("Lyneqo Caravan & Motorhome")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(LyneqoTheme.primaryText)
+                            .multilineTextAlignment(.center)
+
+                        Text("Plan your caravan or motorhome loading with confidence")
+                            .font(.caption)
+                            .foregroundStyle(LyneqoTheme.secondaryText)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, AppScreenMetrics.smallSpacing)
 
                     VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                         paragraph(

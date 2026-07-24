@@ -386,11 +386,11 @@ struct MotorhomeSummaryPadLayout: View {
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
         .frame(maxWidth: .infinity, minHeight: Self.metricCardHeight, alignment: .topLeading)
-        .background(Color(.systemBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
-                .stroke(Color(.separator).opacity(0.25), lineWidth: 1)
+                .stroke(LyneqoTheme.border.opacity(0.25), lineWidth: 1)
         )
         .accessibilityElement(children: .combine)
     }
@@ -425,11 +425,11 @@ struct MotorhomeSummaryPadLayout: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.systemBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
-                .stroke(Color(.separator).opacity(0.25), lineWidth: 1)
+                .stroke(LyneqoTheme.border.opacity(0.25), lineWidth: 1)
         )
     }
 

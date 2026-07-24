@@ -17,6 +17,7 @@ struct LoadMateNativeApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(cloudSync)
+                .tint(LyneqoTheme.primaryTeal)
         }
         .modelContainer(modelContainer)
     }

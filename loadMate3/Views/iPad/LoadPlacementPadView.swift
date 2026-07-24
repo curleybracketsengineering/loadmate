@@ -24,6 +24,6 @@ struct LoadPlacementPadView: View {
             Spacer(minLength: PadContentLayout.horizontalGutter)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(LyneqoTheme.background)
     }
 }

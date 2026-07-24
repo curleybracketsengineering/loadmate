@@ -181,7 +181,7 @@ struct CaravanSummaryPadLayout: View {
             .multilineTextAlignment(.center)
         .padding(.horizontal, AppScreenMetrics.fieldSpacing)
         .padding(.vertical, AppScreenMetrics.controlSpacing)
-        .background(Color(.systemBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -291,11 +291,11 @@ struct CaravanSummaryPadLayout: View {
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
         .frame(maxWidth: .infinity, minHeight: 168, alignment: .topLeading)
-        .background(Color(.systemBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
-                .stroke(Color(.separator).opacity(0.25), lineWidth: 1)
+                .stroke(LyneqoTheme.border.opacity(0.25), lineWidth: 1)
         )
         .accessibilityElement(children: .combine)
     }
@@ -346,11 +346,11 @@ struct CaravanSummaryPadLayout: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.systemBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
-                .stroke(Color(.separator).opacity(0.25), lineWidth: 1)
+                .stroke(LyneqoTheme.border.opacity(0.25), lineWidth: 1)
         )
     }
 
@@ -479,7 +479,7 @@ private struct HeroSideLimitLabel: View {
 private func summaryProgressBar(fill: CGFloat, color: Color) -> some View {
     GeometryReader { geo in
         ZStack(alignment: .leading) {
-            Capsule().fill(Color(.tertiarySystemFill))
+            Capsule().fill(LyneqoTheme.softTeal)
             Capsule()
                 .fill(color)
                 .frame(width: max(geo.size.width * fill, fill > 0 ? 4 : 0))

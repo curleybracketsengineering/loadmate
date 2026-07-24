@@ -187,7 +187,7 @@ struct CareView: View {
                     .padding(.top, 4)
             }
             .padding(AppScreenMetrics.cardInteriorPadding)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
         }
         .buttonStyle(.plain)

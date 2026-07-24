@@ -192,7 +192,7 @@ enum MotorhomeSummaryContent {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color(.tertiarySystemFill))
+                    .fill(LyneqoTheme.softTeal)
                 Capsule()
                     .fill(isOverLimit ? AppColors.red : Color.accentColor)
                     .frame(width: max(geo.size.width * fill, fill > 0 ? 4 : 0))
@@ -242,7 +242,7 @@ struct SummaryMetricCard<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(LyneqoTheme.card)
             )
             .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
     }

@@ -91,8 +91,8 @@ struct HomeView: View {
                 .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
             }
             .appScreenBackground()
-            .navigationTitle("Lyneqo Caravan & Motorhome")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("Home")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -148,8 +148,13 @@ struct HomeView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
+                .strokeBorder(LyneqoTheme.border, lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
     }
 
     private var quickActionsSection: some View {
@@ -209,8 +214,13 @@ struct HomeView: View {
                     }
                 }
             }
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                    .strokeBorder(LyneqoTheme.border, lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
         }
     }
 }

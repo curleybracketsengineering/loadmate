@@ -174,7 +174,7 @@ struct HomeDashboardPadView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppScreenMetrics.cardInteriorPadding)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -198,7 +198,7 @@ struct HomeDashboardPadView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(AppScreenMetrics.cardInteriorPadding)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
