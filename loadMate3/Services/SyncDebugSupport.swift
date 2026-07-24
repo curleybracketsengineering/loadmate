@@ -24,6 +24,9 @@ struct SyncDebugSnapshot {
     let accountStatus: CloudSyncAccountStatus
     let lastCheckedAt: Date?
     let lastErrorDescription: String?
+    let lastSyncEventSummary: String
+    let lastSuccessfulImportAt: Date?
+    let lastSuccessfulExportAt: Date?
     let deviceName: String
     let bundleID: String
     let appVersion: String
@@ -99,6 +102,9 @@ final class SyncDebugLogger: ObservableObject {
             "iCloud status: \(snapshot.accountStatus.settingsTitle)",
             "Last iCloud check: \(SyncDebugFormatting.string(for: snapshot.lastCheckedAt))",
             "Last iCloud error: \(snapshot.lastErrorDescription ?? "None")",
+            "Last CloudKit event: \(snapshot.lastSyncEventSummary)",
+            "Last successful import: \(SyncDebugFormatting.string(for: snapshot.lastSuccessfulImportAt))",
+            "Last successful export: \(SyncDebugFormatting.string(for: snapshot.lastSuccessfulExportAt))",
             "Active profile: \(snapshot.activeProfileName ?? "None")",
             "Counts: profiles=\(snapshot.vehicleProfileCount), trips=\(snapshot.tripCount), loadedItems=\(snapshot.loadedItemCount), libraryItems=\(snapshot.libraryItemCount), checklistSections=\(snapshot.checklistSectionCount), checklistItems=\(snapshot.checklistItemCount), appStates=\(snapshot.appStateCount)",
             "Sync probe sequence: \(snapshot.syncProbeSequence)",

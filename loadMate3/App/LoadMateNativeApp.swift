@@ -11,9 +11,12 @@ struct LoadMateNativeApp: App {
         }
     }()
 
+    @StateObject private var cloudSync = CloudSyncMonitor()
+
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environmentObject(cloudSync)
         }
         .modelContainer(modelContainer)
     }

@@ -16,7 +16,7 @@ struct SettingsView: View {
     @Query private var appStates: [AppState]
 
     @StateObject private var viewModel = SettingsViewModel()
-    @StateObject private var cloudSync = CloudSyncMonitor()
+    @EnvironmentObject private var cloudSync: CloudSyncMonitor
     @State private var appState: AppState?
     @State private var editingProfile: VehicleProfile?
     @State private var isWeightFactorsExpanded = false
