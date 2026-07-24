@@ -59,6 +59,9 @@ struct SyncDebugPanelView: View {
                 statusRow("iCloud", value: cloudSync.accountStatus.settingsTitle)
                 statusRow("Checked", value: SyncDebugFormatting.string(for: cloudSync.lastCheckedAt))
                 statusRow("Last error", value: cloudSync.lastErrorDescription ?? "None")
+                statusRow("Last CloudKit event", value: lastSyncEventText)
+                statusRow("Last import OK", value: SyncDebugFormatting.string(for: cloudSync.lastSuccessfulImportAt))
+                statusRow("Last export OK", value: SyncDebugFormatting.string(for: cloudSync.lastSuccessfulExportAt))
                 statusRow("Device", value: SyncDebugFormatting.deviceName)
                 statusRow("Bundle", value: SyncDebugFormatting.bundleID)
                 statusRow("Version", value: "\(SyncDebugFormatting.appVersion) (\(SyncDebugFormatting.buildNumber))")
@@ -212,6 +215,9 @@ struct SyncDebugPanelView: View {
             accountStatus: cloudSync.accountStatus,
             lastCheckedAt: cloudSync.lastCheckedAt,
             lastErrorDescription: cloudSync.lastErrorDescription,
+            lastSyncEventSummary: lastSyncEventText,
+            lastSuccessfulImportAt: cloudSync.lastSuccessfulImportAt,
+            lastSuccessfulExportAt: cloudSync.lastSuccessfulExportAt,
             deviceName: SyncDebugFormatting.deviceName,
             bundleID: SyncDebugFormatting.bundleID,
             appVersion: SyncDebugFormatting.appVersion,
@@ -229,6 +235,16 @@ struct SyncDebugPanelView: View {
             syncProbeUpdatedAt: appState?.syncProbeUpdatedAt,
             syncProbeUpdatedBy: appState?.syncProbeUpdatedBy ?? ""
         )
+    }
+
+    private var lastSyncEventText: String {
+        guard let event = cloudSync.lastSyncEvent else { return "None yet" }
+        let result = event.succeeded ? "OK" : "FAILED"
+        let when = SyncDebugFormatting.string(for: event.finishedAt)
+        if let error = event.errorDescription, !error.isEmpty {
+            return "\(event.kind.displayName) \(result) @ \(when) — \(error)"
+        }
+        return "\(event.kind.displayName) \(result) @ \(when)"
     }
 
     @ViewBuilder
