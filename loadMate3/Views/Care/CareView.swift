@@ -7,6 +7,7 @@ enum CareDestination: Hashable {
     case warranty
     case documents
     case checklist
+    case history
 }
 
 struct CareView: View {
@@ -110,6 +111,13 @@ struct CareView: View {
                         systemImage: "checklist",
                         tint: AppColors.blue
                     ) { destination = .checklist }
+
+                    careHubCard(
+                        title: "History",
+                        subtitle: historySubtitle,
+                        systemImage: "clock.arrow.circlepath",
+                        tint: AppColors.teal
+                    ) { destination = .history }
                 }
                 .padding(.horizontal, AppScreenMetrics.horizontalPadding)
                 .padding(.top, AppScreenMetrics.verticalScreenPadding)
@@ -135,6 +143,8 @@ struct CareView: View {
                     MaintenanceView()
                 case .checklist:
                     ChecklistView()
+                case .history:
+                    VehicleHistoryView()
                 }
             }
         }
@@ -153,6 +163,24 @@ struct CareView: View {
             return "Plans, checks and documents."
         }
         return WarrantySupport.careHubSubtitle(plans: warrantyPlans, vehicleID: profile.id)
+    }
+
+    private var historySubtitle: String {
+        guard let profile = activeProfile else {
+            return "Chronological timeline of care and warranty events."
+        }
+        let count = MaintenanceSupport.historyEntries(
+            maintenanceRecords: scopedMaintenance,
+            documents: scopedDocuments,
+            faults: scopedFaults,
+            warrantyPlans: WarrantySupport.showsWarrantyFeatures(for: profile)
+                ? warrantyPlans.filter { $0.vehicleID == profile.id }
+                : []
+        ).count
+        if count == 0 {
+            return "Build a printable timeline as you record care events."
+        }
+        return "\(count) events. Share a full chronological record when selling or claiming."
     }
 
     private func careHubCard(

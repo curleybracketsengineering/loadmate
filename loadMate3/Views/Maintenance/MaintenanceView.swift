@@ -191,7 +191,10 @@ struct MaintenanceView: View {
             MaintenanceHistoryTimelineView(
                 maintenanceRecords: scopedMaintenanceRecords,
                 documentRecords: scopedDocuments,
-                faultRecords: scopedFaults
+                faultRecords: scopedFaults,
+                warrantyPlans: WarrantySupport.showsWarrantyFeatures(for: activeProfile)
+                    ? warrantyPlans.filter { $0.vehicleID == activeProfile?.id }
+                    : []
             )
         }
     }
@@ -656,15 +659,24 @@ private struct MaintenanceHistoryTimelineView: View {
     let maintenanceRecords: [MaintenanceRecord]
     let documentRecords: [DocumentRecord]
     let faultRecords: [FaultRecord]
+    var warrantyPlans: [WarrantyPlan] = []
 
     @State private var filter: MaintenanceHistoryFilter = .all
     @State private var searchText = ""
+
+    private var visibleFilters: [MaintenanceHistoryFilter] {
+        if warrantyPlans.isEmpty {
+            return MaintenanceHistoryFilter.allCases.filter { $0 != .warranty }
+        }
+        return MaintenanceHistoryFilter.allCases
+    }
 
     private var entries: [MaintenanceHistoryEntry] {
         MaintenanceSupport.filteredHistoryEntries(
             maintenanceRecords: maintenanceRecords,
             documents: documentRecords,
             faults: faultRecords,
+            warrantyPlans: warrantyPlans,
             filter: filter,
             searchText: searchText
         )
@@ -675,7 +687,7 @@ private struct MaintenanceHistoryTimelineView: View {
             List {
                 Section {
                     Picker("Filter", selection: $filter) {
-                        ForEach(MaintenanceHistoryFilter.allCases) { option in
+                        ForEach(visibleFilters) { option in
                             Text(option.displayName).tag(option)
                         }
                     }

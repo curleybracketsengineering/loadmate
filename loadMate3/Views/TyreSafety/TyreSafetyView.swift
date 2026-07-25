@@ -272,7 +272,7 @@ private struct TyreCardsGrid: View {
         .onPreferenceChange(TyreGridWidthKey.self) { availableWidth = $0 }
     }
 
-    /// Phone: up to 2 columns. Larger widths: 3, then 4 — so 2–7 tyres wrap cleanly.
+    /// Phone: single column (full-width cards). Larger widths: 3, then 4.
     private var columns: [GridItem] {
         let maxColumns: Int
         if availableWidth >= 900 {
@@ -280,7 +280,7 @@ private struct TyreCardsGrid: View {
         } else if availableWidth >= 560 {
             maxColumns = 3
         } else {
-            maxColumns = 2
+            maxColumns = 1
         }
         let columnCount = min(max(records.count, 1), maxColumns)
         return Array(

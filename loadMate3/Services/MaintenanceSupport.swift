@@ -5,6 +5,7 @@ enum MaintenanceHistoryFilter: String, CaseIterable, Identifiable {
     case maintenance
     case documents
     case faults
+    case warranty
 
     var id: String { rawValue }
 
@@ -14,6 +15,7 @@ enum MaintenanceHistoryFilter: String, CaseIterable, Identifiable {
         case .maintenance: return "Maintenance"
         case .documents: return "Documents"
         case .faults: return "Faults"
+        case .warranty: return "Warranty"
         }
     }
 }
@@ -48,6 +50,8 @@ struct MaintenanceHistoryEntry: Identifiable {
         case document
         case faultRaised
         case faultResolved
+        case warrantyPurchase
+        case warranty
     }
 
     let id: String
@@ -227,7 +231,9 @@ enum MaintenanceSupport {
     static func historyEntries(
         maintenanceRecords: [MaintenanceRecord],
         documents: [DocumentRecord],
-        faults: [FaultRecord]
+        faults: [FaultRecord],
+        warrantyPlans: [WarrantyPlan] = [],
+        ascending: Bool = false
     ) -> [MaintenanceHistoryEntry] {
         var entries: [MaintenanceHistoryEntry] = []
 
@@ -285,15 +291,63 @@ enum MaintenanceSupport {
             }
         }
 
-        return entries.sorted { $0.date > $1.date }
+        for plan in warrantyPlans {
+            let manufacturer = plan.manufacturer.trimmingCharacters(in: .whitespacesAndNewlines)
+            let purchaseSubtitle = manufacturer.isEmpty ? "Warranty plan started" : "\(manufacturer) warranty"
+            entries.append(
+                MaintenanceHistoryEntry(
+                    id: "warranty-purchase-\(plan.id.uuidString)",
+                    date: plan.purchaseDate,
+                    title: "Warranty purchase",
+                    subtitle: purchaseSubtitle,
+                    kind: .warrantyPurchase,
+                    searchText: ["Warranty purchase", purchaseSubtitle, manufacturer, plan.warrantyType, plan.handbookNotes].joined(separator: " ")
+                )
+            )
+
+            for event in plan.eventsList {
+                let status = WarrantySupport.statusDisplayName(for: WarrantySupport.status(for: event))
+                let date = event.completedDate ?? event.scheduledDate
+                var subtitleParts = ["Warranty", status]
+                if event.isImportantMilestone {
+                    subtitleParts.insert("Milestone", at: 1)
+                }
+                entries.append(
+                    MaintenanceHistoryEntry(
+                        id: "warranty-event-\(event.id.uuidString)",
+                        date: date,
+                        title: event.displayTitle,
+                        subtitle: subtitleParts.joined(separator: " · "),
+                        kind: .warranty,
+                        searchText: [
+                            event.displayTitle,
+                            event.requirementText,
+                            status,
+                            manufacturer
+                        ].joined(separator: " ")
+                    )
+                )
+            }
+        }
+
+        return entries.sorted { lhs, rhs in
+            if ascending {
+                if lhs.date != rhs.date { return lhs.date < rhs.date }
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+            if lhs.date != rhs.date { return lhs.date > rhs.date }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
     }
 
     static func filteredHistoryEntries(
         maintenanceRecords: [MaintenanceRecord],
         documents: [DocumentRecord],
         faults: [FaultRecord],
+        warrantyPlans: [WarrantyPlan] = [],
         filter: MaintenanceHistoryFilter,
-        searchText: String
+        searchText: String,
+        ascending: Bool = false
     ) -> [MaintenanceHistoryEntry] {
         let normalizedQuery = searchText
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -302,7 +356,9 @@ enum MaintenanceSupport {
         return historyEntries(
             maintenanceRecords: maintenanceRecords,
             documents: documents,
-            faults: faults
+            faults: faults,
+            warrantyPlans: warrantyPlans,
+            ascending: ascending
         )
         .filter { entry in
             switch filter {
@@ -314,6 +370,8 @@ enum MaintenanceSupport {
                 guard entry.kind == .document else { return false }
             case .faults:
                 guard entry.kind == .faultRaised || entry.kind == .faultResolved else { return false }
+            case .warranty:
+                guard entry.kind == .warranty || entry.kind == .warrantyPurchase else { return false }
             }
             if normalizedQuery.isEmpty {
                 return true
