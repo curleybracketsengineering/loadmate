@@ -3,6 +3,10 @@ import Combine
 import CoreData
 import Foundation
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 enum CloudSyncAccountStatus: Equatable {
   case available
   case noAccount
@@ -71,6 +75,8 @@ struct CloudSyncEventSummary: Equatable {
 
 @MainActor
 final class CloudSyncMonitor: ObservableObject {
+  static let shared = CloudSyncMonitor()
+
   @Published private(set) var accountStatus: CloudSyncAccountStatus = .couldNotDetermine
   @Published private(set) var lastCheckedAt: Date?
   @Published private(set) var lastErrorDescription: String?
@@ -78,12 +84,15 @@ final class CloudSyncMonitor: ObservableObject {
   @Published private(set) var lastSuccessfulImportAt: Date?
   @Published private(set) var lastSuccessfulExportAt: Date?
   @Published private(set) var isObservingSyncEvents = false
+  @Published private(set) var isRegisteredForRemoteNotifications = false
+  @Published private(set) var pushRegistrationDetail = "Waiting for APNs registration…"
+  @Published private(set) var cloudKitSchemaDetail = "Not checked yet"
 
   private var accountObserver: NSObjectProtocol?
   private var syncEventObserver: NSObjectProtocol?
   private var didStart = false
 
-  init() {
+  private init() {
     start()
   }
 
@@ -101,10 +110,12 @@ final class CloudSyncMonitor: ObservableObject {
     didStart = true
     observeAccountChanges()
     observeSyncEvents()
+    refreshPushRegistrationStatus()
     Task { await refresh() }
   }
 
   func refresh() async {
+    refreshPushRegistrationStatus()
     do {
       let status = try await CKContainer(identifier: LoadMateModelContainer.cloudKitContainerID)
         .accountStatus()
@@ -123,6 +134,83 @@ final class CloudSyncMonitor: ObservableObject {
         category: "icloud",
         message: "Account status refresh failed: \(error.localizedDescription)"
       )
+    }
+  }
+
+  func refreshPushRegistrationStatus() {
+    #if canImport(UIKit)
+    let registered = UIApplication.shared.isRegisteredForRemoteNotifications
+    isRegisteredForRemoteNotifications = registered
+    if registered, pushRegistrationDetail.hasPrefix("Waiting") {
+      pushRegistrationDetail = "Registered for remote notifications."
+    } else if !registered, pushRegistrationDetail.hasPrefix("Waiting") {
+      pushRegistrationDetail =
+        "Not registered yet (on Simulator this is often inconclusive; on a real device check the push entitlement)."
+    }
+    #else
+    isRegisteredForRemoteNotifications = false
+    pushRegistrationDetail = "UIKit unavailable."
+    #endif
+  }
+
+  func handlePushRegistrationSuccess(deviceTokenByteCount: Int) {
+    isRegisteredForRemoteNotifications = true
+    pushRegistrationDetail = "Registered for remote notifications (\(deviceTokenByteCount) byte token)."
+    SyncDebugLogger.shared.record(
+      category: "push",
+      message: "Registered for remote notifications (\(deviceTokenByteCount) byte token)."
+    )
+  }
+
+  func handlePushRegistrationFailure(_ error: Error) {
+    isRegisteredForRemoteNotifications = false
+    pushRegistrationDetail = "Push registration failed: \(error.localizedDescription)"
+    lastErrorDescription = pushRegistrationDetail
+    SyncDebugLogger.shared.record(
+      category: "push",
+      message: "Push registration failed: \(error.localizedDescription)"
+    )
+  }
+
+  /// Asks CloudKit whether the Core Data zone and `CD_AppState` record type exist in this build's environment.
+  func probeCloudKitSchema() async {
+    let container = CKContainer(identifier: LoadMateModelContainer.cloudKitContainerID)
+    let database = container.privateCloudDatabase
+    let zoneID = CKRecordZone.ID(zoneName: "com.apple.coredata.cloudkit.zone")
+
+    SyncDebugLogger.shared.record(category: "schema", message: "Probing CloudKit schema…")
+
+    do {
+      let zones = try await database.allRecordZones()
+      let hasCoreDataZone = zones.contains { $0.zoneID.zoneName == zoneID.zoneName }
+
+      guard hasCoreDataZone else {
+        cloudKitSchemaDetail =
+          "No Core Data CloudKit zone yet. Schema may be fine but nothing has mirrored — or this environment is empty."
+        SyncDebugLogger.shared.record(category: "schema", message: cloudKitSchemaDetail)
+        return
+      }
+
+      let query = CKQuery(recordType: "CD_AppState", predicate: NSPredicate(value: true))
+      let (matchResults, _) = try await database.records(matching: query, inZoneWith: zoneID)
+      let recordCount = matchResults.reduce(into: 0) { count, pair in
+        if case .success = pair.1 { count += 1 }
+      }
+      cloudKitSchemaDetail =
+        "Schema OK — CD_AppState reachable in this environment (\(recordCount) record\(recordCount == 1 ? "" : "s"))."
+      SyncDebugLogger.shared.record(category: "schema", message: cloudKitSchemaDetail)
+    } catch let error as CKError where error.code == .unknownItem {
+      cloudKitSchemaDetail =
+        "Schema missing — CD_AppState unknown here. For TestFlight/App Store, deploy the Development schema to Production in CloudKit Console."
+      lastErrorDescription = cloudKitSchemaDetail
+      SyncDebugLogger.shared.record(category: "schema", message: cloudKitSchemaDetail)
+    } catch let error as CKError where error.code == .notAuthenticated {
+      cloudKitSchemaDetail = "Cannot probe schema — sign in to iCloud on this device."
+      SyncDebugLogger.shared.record(category: "schema", message: cloudKitSchemaDetail)
+    } catch {
+      cloudKitSchemaDetail = "Schema probe failed: \(error.localizedDescription)"
+      lastErrorDescription = cloudKitSchemaDetail
+      SyncDebugLogger.shared.record(category: "schema", message: cloudKitSchemaDetail)
     }
   }
 
@@ -150,7 +238,7 @@ final class CloudSyncMonitor: ObservableObject {
           as? NSPersistentCloudKitContainer.Event
       else { return }
 
-      Task { @MainActor in
+      Task { @MainActor [weak self] in
         self?.handleSyncEvent(event)
       }
     }

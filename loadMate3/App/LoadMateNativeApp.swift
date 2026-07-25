@@ -3,6 +3,8 @@ import SwiftData
 
 @main
 struct LoadMateNativeApp: App {
+    @UIApplicationDelegateAdaptor(LoadMateAppDelegate.self) private var appDelegate
+
     private let modelContainer: ModelContainer = {
         do {
             return try LoadMateModelContainer.makeShared()
@@ -11,7 +13,7 @@ struct LoadMateNativeApp: App {
         }
     }()
 
-    @StateObject private var cloudSync = CloudSyncMonitor()
+    @ObservedObject private var cloudSync = CloudSyncMonitor.shared
 
     var body: some Scene {
         WindowGroup {

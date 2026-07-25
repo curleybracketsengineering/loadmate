@@ -41,7 +41,8 @@ enum AppStateStore {
     from allStates: [AppState],
     in context: ModelContext
   ) {
-    let duplicates = allStates.filter { $0 !== canonical && $0.id != canonical.id }
+    // Same stable id on every device — CloudKit can leave multiple rows with identical ids.
+    let duplicates = allStates.filter { $0 !== canonical }
     guard !duplicates.isEmpty else { return }
 
     for duplicate in duplicates {
