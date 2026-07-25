@@ -45,6 +45,39 @@ final class AppStateStoreTests: XCTestCase {
         XCTAssertEqual(fetched?.count, 1)
     }
 
+    func testResolveMergesSameIDCloudKitDuplicates() {
+        let older = AppState(
+            id: LoadMateSyncIDs.appState,
+            disclaimerAccepted: false,
+            syncProbeSequence: 1,
+            syncProbeValue: "older",
+            syncProbeUpdatedAt: Date(timeIntervalSince1970: 1_000),
+            syncProbeUpdatedBy: "iPhone"
+        )
+        let newer = AppState(
+            id: LoadMateSyncIDs.appState,
+            disclaimerAccepted: true,
+            acceptedAt: Date(timeIntervalSince1970: 200),
+            syncProbeSequence: 2,
+            syncProbeValue: "newer",
+            syncProbeUpdatedAt: Date(timeIntervalSince1970: 2_000),
+            syncProbeUpdatedBy: "iPad"
+        )
+        context.insert(older)
+        context.insert(newer)
+
+        let merged = AppStateStore.resolve(in: context)
+
+        XCTAssertEqual(merged.id, LoadMateSyncIDs.appState)
+        XCTAssertTrue(merged.disclaimerAccepted)
+        XCTAssertEqual(merged.syncProbeSequence, 2)
+        XCTAssertEqual(merged.syncProbeValue, "newer")
+        XCTAssertEqual(merged.syncProbeUpdatedBy, "iPad")
+
+        let fetched = try? context.fetch(FetchDescriptor<AppState>())
+        XCTAssertEqual(fetched?.count, 1)
+    }
+
     func testSharedContainerCanBeCreated() throws {
         // Validates CloudKit schema requirements (optional relationships, no unique constraints).
         _ = try LoadMateModelContainer.makeShared()

@@ -44,6 +44,7 @@ struct SyncDebugPanelView: View {
             }
             .task {
                 refreshCounts()
+                cloudSync.refreshPushRegistrationStatus()
                 SyncDebugLogger.shared.record(category: "panel", message: "Opened sync debug panel.")
             }
         }
@@ -62,6 +63,9 @@ struct SyncDebugPanelView: View {
                 statusRow("Last CloudKit event", value: lastSyncEventText)
                 statusRow("Last import OK", value: SyncDebugFormatting.string(for: cloudSync.lastSuccessfulImportAt))
                 statusRow("Last export OK", value: SyncDebugFormatting.string(for: cloudSync.lastSuccessfulExportAt))
+                statusRow("Push registered", value: cloudSync.isRegisteredForRemoteNotifications ? "Yes" : "No")
+                statusRow("Push detail", value: cloudSync.pushRegistrationDetail)
+                statusRow("CloudKit schema", value: cloudSync.cloudKitSchemaDetail)
                 statusRow("Device", value: SyncDebugFormatting.deviceName)
                 statusRow("Bundle", value: SyncDebugFormatting.bundleID)
                 statusRow("Version", value: "\(SyncDebugFormatting.appVersion) (\(SyncDebugFormatting.buildNumber))")
@@ -119,6 +123,12 @@ struct SyncDebugPanelView: View {
                     Task {
                         await cloudSync.refresh()
                         refreshCounts()
+                    }
+                }
+
+                AppSecondaryButton("Check CloudKit Schema") {
+                    Task {
+                        await cloudSync.probeCloudKitSchema()
                     }
                 }
 
@@ -218,6 +228,9 @@ struct SyncDebugPanelView: View {
             lastSyncEventSummary: lastSyncEventText,
             lastSuccessfulImportAt: cloudSync.lastSuccessfulImportAt,
             lastSuccessfulExportAt: cloudSync.lastSuccessfulExportAt,
+            isRegisteredForRemoteNotifications: cloudSync.isRegisteredForRemoteNotifications,
+            pushRegistrationDetail: cloudSync.pushRegistrationDetail,
+            cloudKitSchemaDetail: cloudSync.cloudKitSchemaDetail,
             deviceName: SyncDebugFormatting.deviceName,
             bundleID: SyncDebugFormatting.bundleID,
             appVersion: SyncDebugFormatting.appVersion,

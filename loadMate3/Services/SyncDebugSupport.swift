@@ -27,6 +27,9 @@ struct SyncDebugSnapshot {
     let lastSyncEventSummary: String
     let lastSuccessfulImportAt: Date?
     let lastSuccessfulExportAt: Date?
+    let isRegisteredForRemoteNotifications: Bool
+    let pushRegistrationDetail: String
+    let cloudKitSchemaDetail: String
     let deviceName: String
     let bundleID: String
     let appVersion: String
@@ -105,6 +108,9 @@ final class SyncDebugLogger: ObservableObject {
             "Last CloudKit event: \(snapshot.lastSyncEventSummary)",
             "Last successful import: \(SyncDebugFormatting.string(for: snapshot.lastSuccessfulImportAt))",
             "Last successful export: \(SyncDebugFormatting.string(for: snapshot.lastSuccessfulExportAt))",
+            "Push registered: \(snapshot.isRegisteredForRemoteNotifications ? "Yes" : "No")",
+            "Push detail: \(snapshot.pushRegistrationDetail)",
+            "CloudKit schema: \(snapshot.cloudKitSchemaDetail)",
             "Active profile: \(snapshot.activeProfileName ?? "None")",
             "Counts: profiles=\(snapshot.vehicleProfileCount), trips=\(snapshot.tripCount), loadedItems=\(snapshot.loadedItemCount), libraryItems=\(snapshot.libraryItemCount), checklistSections=\(snapshot.checklistSectionCount), checklistItems=\(snapshot.checklistItemCount), appStates=\(snapshot.appStateCount)",
             "Sync probe sequence: \(snapshot.syncProbeSequence)",
