@@ -103,7 +103,7 @@ final class TyreSupportTests: XCTestCase {
             "Caravan • 2 road tyres + spare"
         )
         XCTAssertEqual(TyreSupport.actionNeededCount(in: records), 1)
-        XCTAssertEqual(TyreSupport.conditionCallToAction(for: spare), "Record DOT code")
+        XCTAssertEqual(TyreSupport.conditionCallToAction(for: spare), "Tyre information required")
         XCTAssertEqual(TyreSupport.dateCodeCaption(for: spare), "Date not recorded")
     }
 
@@ -145,5 +145,108 @@ final class TyreSupportTests: XCTestCase {
 
         let inspections = try? context.fetch(FetchDescriptor<TyreInspection>())
         XCTAssertEqual(inspections?.count, 1)
+    }
+
+    func testCopyableDetailsExcludePerTyreFields() {
+        let record = TyreRecord(vehicleID: UUID(), position: .caravanLeft)
+        record.manufacturer = "Michelin"
+        record.modelName = "Agilis"
+        record.tyreSize = "225/75 R16"
+        record.loadIndex = "121"
+        record.speedRating = "R"
+        record.recommendedPressurePSI = 65
+        record.dateCode = "1221"
+        record.manufactureWeek = 12
+        record.manufactureYear = 2021
+        record.latestPressurePSI = 64
+        record.latestTreadDepthMM = 6.0
+        record.condition = .good
+        record.notes = "Near side note"
+
+        let details = TyreCopyableDetails.from(record)
+
+        XCTAssertTrue(details.hasAnyValue)
+        XCTAssertEqual(details.manufacturer, "Michelin")
+        XCTAssertEqual(details.modelName, "Agilis")
+        XCTAssertEqual(details.tyreSize, "225/75 R16")
+        XCTAssertEqual(details.loadIndex, "121")
+        XCTAssertEqual(details.speedRating, "R")
+        XCTAssertEqual(details.recommendedPressurePSI ?? 0, 65, accuracy: 0.001)
+        XCTAssertEqual(details.dateCode, "1221")
+        XCTAssertEqual(details.summaryLine, "Michelin Agilis • 225/75 R16")
+    }
+
+    func testCopyableDetailsEmptyWhenOnlyPerTyreDataPresent() {
+        let record = TyreRecord(vehicleID: UUID(), position: .caravanRight)
+        record.latestPressurePSI = 65
+        record.notes = "Inspection note"
+
+        let details = TyreCopyableDetails.from(record)
+        XCTAssertFalse(details.hasAnyValue)
+        XCTAssertEqual(details.summaryLine, "No shared details recorded")
+    }
+
+    func testCopyableDetailsIncludeDateCodeAlone() {
+        let record = TyreRecord(vehicleID: UUID(), position: .caravanRight)
+        record.dateCode = "1221"
+
+        let details = TyreCopyableDetails.from(record)
+        XCTAssertTrue(details.hasAnyValue)
+        XCTAssertEqual(details.dateCode, "1221")
+        XCTAssertEqual(details.summaryLine, "Date code 1221")
+    }
+
+    func testDraftProfessionalReviewTracksDefectSwitches() {
+        XCTAssertFalse(
+            TyreSupport.draftRequiresProfessionalReview(
+                hasCuts: false,
+                hasBulges: false,
+                hasCracking: false,
+                hasUnevenWear: false,
+                hasEmbeddedObjects: false,
+                valveAppearsSound: true,
+                wheelNutsChecked: true,
+                overallCondition: .good
+            )
+        )
+
+        XCTAssertTrue(
+            TyreSupport.draftRequiresProfessionalReview(
+                hasCuts: true,
+                hasBulges: false,
+                hasCracking: false,
+                hasUnevenWear: false,
+                hasEmbeddedObjects: false,
+                valveAppearsSound: true,
+                wheelNutsChecked: true,
+                overallCondition: .good
+            )
+        )
+
+        XCTAssertTrue(
+            TyreSupport.draftRequiresProfessionalReview(
+                hasCuts: false,
+                hasBulges: false,
+                hasCracking: false,
+                hasUnevenWear: false,
+                hasEmbeddedObjects: false,
+                valveAppearsSound: false,
+                wheelNutsChecked: true,
+                overallCondition: .good
+            )
+        )
+
+        XCTAssertFalse(
+            TyreSupport.draftRequiresProfessionalReview(
+                hasCuts: false,
+                hasBulges: false,
+                hasCracking: false,
+                hasUnevenWear: false,
+                hasEmbeddedObjects: false,
+                valveAppearsSound: true,
+                wheelNutsChecked: true,
+                overallCondition: .good
+            )
+        )
     }
 }

@@ -13,7 +13,7 @@ struct SafetyPadView: View {
 
 enum MaintenancePadTab: String, CaseIterable, Identifiable {
     case maintenance = "Maintenance"
-    case tyre = "Tyre"
+    case tyre = "Tyre Safety"
     case warranty = "Warranty"
 
     var id: String { rawValue }
@@ -60,7 +60,7 @@ struct MaintenancePadView: View {
             Group {
                 switch tab {
                 case .maintenance:
-                    MaintenanceView(showsEmbeddedTyrePanel: true)
+                    MaintenanceView()
                         .environment(\.usePadLayout, false)
                 case .tyre:
                     TyreSafetyView()

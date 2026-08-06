@@ -99,37 +99,6 @@ enum TyreStore {
         return inspection
     }
 
-    static func saveQuickCheck(
-        records: [TyreRecord],
-        pressureEntriesPSI: [UUID: Double],
-        treadDepthEntries: [UUID: Double],
-        inspectionDate: Date,
-        notes: String,
-        in context: ModelContext
-    ) {
-        for record in records {
-            let pressure = pressureEntriesPSI[record.id]
-            let tread = treadDepthEntries[record.id]
-            guard pressure != nil || tread != nil else { continue }
-            addInspection(
-                to: record,
-                inspectionDate: inspectionDate,
-                pressurePSI: pressure,
-                treadDepthMM: tread,
-                hasCuts: false,
-                hasBulges: false,
-                hasCracking: false,
-                hasUnevenWear: false,
-                hasEmbeddedObjects: false,
-                valveAppearsSound: nil,
-                wheelNutsChecked: nil,
-                overallCondition: record.condition == .notChecked ? .good : record.condition,
-                notes: notes,
-                in: context
-            )
-        }
-    }
-
     static func suggestedLayout(for records: [TyreRecord], kind: VehicleKind) -> TyreLayout? {
         let positions = Set(records.filter(\.isCurrentlyFitted).map(\.position))
         switch kind {

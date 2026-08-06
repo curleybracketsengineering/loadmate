@@ -99,6 +99,13 @@ struct CareView: View {
                     }
 
                     careHubCard(
+                        title: "Tyre Safety",
+                        subtitle: "Pressures, age and condition",
+                        systemImage: "circle.circle.fill",
+                        tint: AppColors.green
+                    ) { destination = .tyreSafety }
+
+                    careHubCard(
                         title: "Documents",
                         subtitle: "\(scopedDocuments.count) files. Insurance, Registration, Manuals & more.",
                         systemImage: "folder.fill",
@@ -126,10 +133,11 @@ struct CareView: View {
             .appScreenBackground()
             .navigationTitle("Care")
             .navigationBarTitleDisplayMode(.large)
-            .onChange(of: pendingDestination) { _, newValue in
-                guard let newValue else { return }
-                destination = newValue
-                pendingDestination = nil
+            .onAppear {
+                consumePendingDestination()
+            }
+            .onChange(of: pendingDestination) { _, _ in
+                consumePendingDestination()
             }
             .navigationDestination(item: $destination) { dest in
                 switch dest {
@@ -147,6 +155,15 @@ struct CareView: View {
                     VehicleHistoryView()
                 }
             }
+        }
+    }
+
+    private func consumePendingDestination() {
+        guard let pending = pendingDestination else { return }
+        pendingDestination = nil
+        // Defer so NavigationStack is ready when arriving via TabView selection.
+        DispatchQueue.main.async {
+            destination = pending
         }
     }
 

@@ -7,8 +7,6 @@ import UniformTypeIdentifiers
 import VisionKit
 
 struct MaintenanceView: View {
-    var showsEmbeddedTyrePanel: Bool = false
-
     @Environment(\.modelContext) private var modelContext
     @Environment(\.usePadLayout) private var usePadLayout
     @Query private var profiles: [VehicleProfile]
@@ -16,7 +14,6 @@ struct MaintenanceView: View {
     @Query private var maintenanceRecords: [MaintenanceRecord]
     @Query private var documentRecords: [DocumentRecord]
     @Query private var faultRecords: [FaultRecord]
-    @Query private var tyreRecords: [TyreRecord]
     @Query private var warrantyPlans: [WarrantyPlan]
 
     @State private var showCreateDialog = false
@@ -27,7 +24,6 @@ struct MaintenanceView: View {
     @State private var showDocumentsList = false
     @State private var showFaultsList = false
     @State private var showHistory = false
-    @State private var showTyreSafety = false
 
     @State private var selectedMaintenanceRecord: MaintenanceRecord?
     @State private var selectedDocumentRecord: DocumentRecord?
@@ -75,10 +71,6 @@ struct MaintenanceView: View {
         .sorted { $0.dueDate < $1.dueDate }
     }
 
-    private var activeTyreRecords: [TyreRecord] {
-        TyreStore.activeRecords(for: activeProfile, from: tyreRecords)
-    }
-
     var body: some View {
         NavigationStack {
             Group {
@@ -95,9 +87,6 @@ struct MaintenanceView: View {
                             remindersSection
                             faultDashboardSection
                             maintenancePreviewSection(profile: profile)
-                            if !showsEmbeddedTyrePanel {
-                                tyrePreviewSection
-                            }
                             documentsPreviewSection
                         }
                         .padding(.horizontal, AppScreenMetrics.horizontalPadding)
@@ -115,9 +104,6 @@ struct MaintenanceView: View {
             }
             .appScreenBackground()
             .appPrincipalTabTitle("Maintenance")
-            .navigationDestination(isPresented: $showTyreSafety) {
-                TyreSafetyView()
-            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -313,35 +299,6 @@ struct MaintenanceView: View {
                 accessibilityLabel: "Maintenance records"
             )
         }
-    }
-
-    private var tyrePreviewSection: some View {
-        MaintenanceCompactSectionRow(
-            caption: tyrePreviewCaption,
-            label: "Tyre Safety",
-            addAccessibilityLabel: "Set up tyres",
-            viewAccessibilityLabel: "View tyre safety",
-            onAdd: { showTyreSafety = true },
-            onView: { showTyreSafety = true }
-        ) {
-            MaintenanceMetricCount(
-                count: activeTyreRecords.count,
-                tint: activeTyreRecords.isEmpty ? .orange : .green,
-                accessibilityLabel: "Active tyres"
-            )
-        }
-    }
-
-    private var tyrePreviewCaption: String {
-        if activeTyreRecords.isEmpty {
-            return "Set up tyres to track pressures, age and condition for this vehicle."
-        }
-        let needsAttention = activeTyreRecords.contains {
-            $0.pressureAssessment.level != .current || $0.ageAssessment.level == .action
-        }
-        return needsAttention
-            ? "Some tyres need attention. Review pressures and age before travel."
-            : "Track pressures, age and inspections for \(activeTyreRecords.count) tyre\(activeTyreRecords.count == 1 ? "" : "s")."
     }
 
     private var documentsPreviewSection: some View {

@@ -42,6 +42,62 @@ struct TyrePressureAssessment {
     let message: String
 }
 
+/// Shared specification fields that can safely be copied between tyre positions.
+/// Excludes readings, condition, notes, photos and position identity.
+struct TyreCopyableDetails: Equatable {
+    var manufacturer: String = ""
+    var modelName: String = ""
+    var tyreSize: String = ""
+    var loadIndex: String = ""
+    var speedRating: String = ""
+    var dateCode: String = ""
+    var recommendedPressurePSI: Double?
+
+    var hasAnyValue: Bool {
+        !trimmed(manufacturer).isEmpty
+            || !trimmed(modelName).isEmpty
+            || !trimmed(tyreSize).isEmpty
+            || !trimmed(loadIndex).isEmpty
+            || !trimmed(speedRating).isEmpty
+            || !trimmed(dateCode).isEmpty
+            || recommendedPressurePSI != nil
+    }
+
+    var summaryLine: String {
+        let brandModel = [trimmed(manufacturer), trimmed(modelName)]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        let size = trimmed(tyreSize)
+        switch (brandModel.isEmpty, size.isEmpty) {
+        case (false, false):
+            return "\(brandModel) • \(size)"
+        case (false, true):
+            return brandModel
+        case (true, false):
+            return size
+        case (true, true):
+            let code = trimmed(dateCode)
+            return code.isEmpty ? "No shared details recorded" : "Date code \(code)"
+        }
+    }
+
+    static func from(_ record: TyreRecord) -> TyreCopyableDetails {
+        TyreCopyableDetails(
+            manufacturer: record.manufacturer,
+            modelName: record.modelName,
+            tyreSize: record.tyreSize,
+            loadIndex: record.loadIndex,
+            speedRating: record.speedRating,
+            dateCode: record.dateCode,
+            recommendedPressurePSI: record.recommendedPressurePSI
+        )
+    }
+
+    private func trimmed(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 enum TyreSupport {
     static let tyreDisclaimer = "Lyneqo Caravan & Motorhome helps you record tyre information and identify items that may need attention. It cannot inspect a tyre or confirm that a tyre is safe for use. Always follow the vehicle, caravan and tyre manufacturer’s instructions. If a tyre is damaged, incorrectly inflated, unusually worn or of uncertain condition, have it inspected by a qualified tyre professional before travelling."
 
@@ -148,7 +204,7 @@ enum TyreSupport {
             return "Needs review"
         case .incomplete:
             if record.manufactureDate == nil {
-                return "Record DOT code"
+                return "Tyre information required"
             }
             if record.recommendedPressurePSI == nil {
                 return "Record target pressure"
@@ -276,6 +332,31 @@ enum TyreSupport {
 
     static func inspectionRequiresProfessionalReview(_ inspection: TyreInspection) -> Bool {
         inspection.hasSeriousDefect || inspection.overallCondition == .monitor || inspection.overallCondition == .replace
+    }
+
+    static func draftRequiresProfessionalReview(
+        hasCuts: Bool,
+        hasBulges: Bool,
+        hasCracking: Bool,
+        hasUnevenWear: Bool,
+        hasEmbeddedObjects: Bool,
+        valveAppearsSound: Bool,
+        wheelNutsChecked: Bool,
+        overallCondition: TyreCondition
+    ) -> Bool {
+        let hasSeriousDefect = hasCuts || hasBulges || hasCracking || hasUnevenWear || hasEmbeddedObjects
+        let checkFailed = !valveAppearsSound || !wheelNutsChecked
+        return hasSeriousDefect || checkFailed || overallCondition == .monitor || overallCondition == .replace
+    }
+
+    static func draftHasSeriousDefect(
+        hasCuts: Bool,
+        hasBulges: Bool,
+        hasCracking: Bool,
+        hasUnevenWear: Bool,
+        hasEmbeddedObjects: Bool
+    ) -> Bool {
+        hasCuts || hasBulges || hasCracking || hasUnevenWear || hasEmbeddedObjects
     }
 
     static func rollLatestInspection(_ inspection: TyreInspection, into record: TyreRecord) {

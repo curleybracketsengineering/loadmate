@@ -9,8 +9,8 @@ struct TyreSafetyView: View {
     @Query private var tyreRecords: [TyreRecord]
 
     @State private var selectedRecord: TyreRecord?
+    @State private var inspectionRecord: TyreRecord?
     @State private var showSetup = false
-    @State private var showQuickCheck = false
     @State private var showHistory = false
     @State private var showInfo = false
 
@@ -35,8 +35,8 @@ struct TyreSafetyView: View {
                             profile: profile,
                             records: activeRecords,
                             onSelectRecord: { selectedRecord = $0 },
+                            onLogPressure: { inspectionRecord = $0 },
                             onShowSetup: { showSetup = true },
-                            onShowQuickCheck: { showQuickCheck = true },
                             onShowHistory: { showHistory = true },
                             onShowInfo: { showInfo = true }
                         )
@@ -58,12 +58,13 @@ struct TyreSafetyView: View {
             }
         }
         .sheet(item: $selectedRecord) { record in
-            TyreDetailView(record: record)
+            TyreDetailView(
+                record: record,
+                siblingRecords: activeRecords.filter { $0.id != record.id }
+            )
         }
-        .sheet(isPresented: $showQuickCheck) {
-            if let profile = activeProfile {
-                TyreQuickCheckView(profile: profile, records: activeRecords)
-            }
+        .sheet(item: $inspectionRecord) { record in
+            TyreInspectionView(record: record)
         }
         .sheet(isPresented: $showHistory) {
             TyreHistoryView(records: activeRecords)
@@ -99,10 +100,13 @@ private struct TyreSafetyOverviewView: View {
     let profile: VehicleProfile
     let records: [TyreRecord]
     let onSelectRecord: (TyreRecord) -> Void
+    let onLogPressure: (TyreRecord) -> Void
     let onShowSetup: () -> Void
-    let onShowQuickCheck: () -> Void
     let onShowHistory: () -> Void
     let onShowInfo: () -> Void
+
+    @State private var showActionsNeeded = false
+    @State private var pendingRecordSelection: TyreRecord?
 
     private var pressureUnit: PressureUnit {
         PressureUnit(rawValue: pressureUnitRaw) ?? .psi
@@ -110,6 +114,10 @@ private struct TyreSafetyOverviewView: View {
 
     private var actionNeededCount: Int {
         TyreSupport.actionNeededCount(in: records)
+    }
+
+    private var recordsNeedingAction: [TyreRecord] {
+        records.filter { $0.statusLevel == .action || $0.statusLevel == .attention || $0.statusLevel == .incomplete }
     }
 
     var body: some View {
@@ -122,7 +130,8 @@ private struct TyreSafetyOverviewView: View {
                 TyreCardsGrid(
                     records: records,
                     pressureUnit: pressureUnit,
-                    onSelectRecord: onSelectRecord
+                    onSelectRecord: onSelectRecord,
+                    onLogPressure: onLogPressure
                 )
 
                 quickActionsRow
@@ -132,6 +141,20 @@ private struct TyreSafetyOverviewView: View {
             .padding(.horizontal, AppScreenMetrics.horizontalPadding)
             .padding(.top, AppScreenMetrics.verticalScreenPadding)
             .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+        }
+        .sheet(isPresented: $showActionsNeeded, onDismiss: {
+            if let pendingRecordSelection {
+                self.pendingRecordSelection = nil
+                onSelectRecord(pendingRecordSelection)
+            }
+        }) {
+            TyreActionsNeededSheet(
+                records: recordsNeedingAction,
+                onSelectRecord: { record in
+                    pendingRecordSelection = record
+                    showActionsNeeded = false
+                }
+            )
         }
     }
 
@@ -148,7 +171,13 @@ private struct TyreSafetyOverviewView: View {
             }
             Spacer(minLength: AppScreenMetrics.smallSpacing)
             if actionNeededCount > 0 {
-                actionNeededBadge
+                Button {
+                    showActionsNeeded = true
+                } label: {
+                    actionNeededBadge
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Shows what needs attention for each tyre")
             }
         }
     }
@@ -198,15 +227,6 @@ private struct TyreSafetyOverviewView: View {
 
     private var quickActionsRow: some View {
         HStack(spacing: AppScreenMetrics.controlSpacing) {
-            Button(action: onShowQuickCheck) {
-                Label("Record check", systemImage: "gauge.with.dots.needle.50percent")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-            }
-            .buttonStyle(.bordered)
-            .accessibilityLabel("Record tyre check")
-
             Button(action: onShowHistory) {
                 Label("History", systemImage: "clock.arrow.circlepath")
                     .font(.subheadline.weight(.semibold))
@@ -232,7 +252,7 @@ private struct TyreSafetyOverviewView: View {
             Text("Recommended record")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.accentColor)
-            Text("DOT manufacture code, target and measured pressure, tread depth, visible damage, position, photo, inspection date and replacement decision.")
+            Text("Manufacture date code, target and measured pressure, tread depth, visible damage, position, photo, inspection date and replacement decision.")
                 .font(.caption)
                 .foregroundStyle(AppColors.textSupporting)
                 .fixedSize(horizontal: false, vertical: true)
@@ -250,6 +270,7 @@ private struct TyreCardsGrid: View {
     let records: [TyreRecord]
     let pressureUnit: PressureUnit
     let onSelectRecord: (TyreRecord) -> Void
+    let onLogPressure: (TyreRecord) -> Void
 
     @State private var availableWidth: CGFloat = 0
 
@@ -259,7 +280,8 @@ private struct TyreCardsGrid: View {
                 TyreStatusCard(
                     record: record,
                     pressureUnit: pressureUnit,
-                    onSelect: { onSelectRecord(record) }
+                    onSelect: { onSelectRecord(record) },
+                    onLogPressure: { onLogPressure(record) }
                 )
             }
         }
@@ -301,6 +323,7 @@ private struct TyreStatusCard: View {
     let record: TyreRecord
     let pressureUnit: PressureUnit
     let onSelect: () -> Void
+    let onLogPressure: () -> Void
 
     private let thumbnailSize: CGFloat = 84
 
@@ -324,53 +347,60 @@ private struct TyreStatusCard: View {
     }
 
     var body: some View {
-        Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
-                    Image(systemName: "circle.circle")
-                        .font(.title3)
-                        .foregroundStyle(statusColor)
-                        .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            Button(action: onSelect) {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                    HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
+                        Image(systemName: "circle.circle")
+                            .font(.title3)
+                            .foregroundStyle(statusColor)
+                            .accessibilityHidden(true)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(record.displayName)
-                            .font(.headline)
-                            .foregroundStyle(Color.primary)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.85)
-                        Text(record.dateCodeCaption)
-                            .font(.caption)
-                            .foregroundStyle(AppColors.textSupporting)
-                            .lineLimit(1)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(record.displayName)
+                                .font(.headline)
+                                .foregroundStyle(Color.primary)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.85)
+                            Text(record.dateCodeCaption)
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSupporting)
+                                .lineLimit(1)
+                        }
+
+                        Spacer(minLength: AppScreenMetrics.tinySpacing)
+
+                        tyreThumbnail
                     }
 
-                    Spacer(minLength: AppScreenMetrics.tinySpacing)
+                    HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
+                        metricColumn(title: "Target pressure", value: targetPressureText)
+                        metricColumn(title: "Tyre age", value: record.compactAgeText)
+                    }
 
-                    tyreThumbnail
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                        Text("Condition")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                        Text(record.conditionCallToAction)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(statusColor)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
+                                    .fill(statusColor.opacity(0.12))
+                            )
+                    }
                 }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityHint("Opens tyre details")
 
-                HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
-                    metricColumn(title: "Target pressure", value: targetPressureText)
-                    metricColumn(title: "Tyre age", value: record.compactAgeText)
-                }
-
-                VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
-                    Text("Condition")
-                        .font(.caption)
-                        .foregroundStyle(AppColors.textSupporting)
-                    Text(record.conditionCallToAction)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(statusColor)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                                .fill(statusColor.opacity(0.12))
-                        )
-                }
-
+            Button(action: onLogPressure) {
                 Text("Log pressure or photo")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
@@ -381,20 +411,20 @@ private struct TyreStatusCard: View {
                             .fill(Color.accentColor.opacity(0.12))
                     )
             }
-            .padding(AppScreenMetrics.cardInteriorPadding)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(
-                RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .fill(LyneqoTheme.card)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .strokeBorder(statusColor.opacity(0.22), lineWidth: 1)
-            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Log pressure or photo for \(record.displayName)")
+            .accessibilityHint("Opens pressure and photo inspection for this tyre")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("Opens tyre details to log pressure or photo")
+        .padding(AppScreenMetrics.cardInteriorPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                .fill(LyneqoTheme.card)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                .strokeBorder(statusColor.opacity(0.22), lineWidth: 1)
+        }
     }
 
     @ViewBuilder
@@ -439,6 +469,111 @@ private struct TyreStatusCard: View {
                 .minimumScaleFactor(0.85)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct TyreActionsNeededSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let records: [TyreRecord]
+    let onSelectRecord: (TyreRecord) -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                    AppHeroSection(
+                        systemImage: "exclamationmark.circle",
+                        title: records.count == 1 ? "1 action needed" : "\(records.count) actions needed",
+                        subtitle: "Tap a tyre to open its details and complete the outstanding items."
+                    )
+
+                    AppSettingsSection("Outstanding items") {
+                        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                            ForEach(records) { record in
+                                Button {
+                                    onSelectRecord(record)
+                                } label: {
+                                    actionRow(for: record)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                .padding(.top, AppScreenMetrics.verticalScreenPadding)
+                .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+            }
+            .appScreenBackground()
+            .navigationTitle("Actions needed")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func actionRow(for record: TyreRecord) -> some View {
+        let messages = actionMessages(for: record)
+        return VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
+            HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.smallSpacing) {
+                Text(record.displayName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.primary)
+                Spacer(minLength: AppScreenMetrics.tinySpacing)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.textSupporting)
+            }
+            Text(record.conditionCallToAction)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColors.orange)
+            ForEach(messages, id: \.self) { message in
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(AppScreenMetrics.cardInteriorPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
+                .fill(AppColors.orange.opacity(0.08))
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens tyre details")
+    }
+
+    private func actionMessages(for record: TyreRecord) -> [String] {
+        var messages: [String] = []
+        switch record.statusLevel {
+        case .incomplete:
+            if record.manufacturer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                messages.append("Add the tyre manufacturer.")
+            }
+            if record.manufactureDate == nil {
+                messages.append("Record the manufacture date code from the sidewall.")
+            }
+            if record.recommendedPressurePSI == nil {
+                messages.append("Record the recommended cold pressure.")
+            }
+            if record.condition == .notChecked {
+                messages.append("Record the overall tyre condition.")
+            }
+        case .attention, .action:
+            messages.append(contentsOf: record.alertMessages)
+        case .current:
+            break
+        }
+        if messages.isEmpty {
+            messages.append(record.conditionCallToAction)
+        }
+        return messages
     }
 }
 
@@ -527,6 +662,7 @@ private struct TyreDetailView: View {
     @AppStorage(TyreSupport.pressureUnitAppStorageKey) private var pressureUnitRaw = PressureUnit.psi.rawValue
 
     let record: TyreRecord
+    let siblingRecords: [TyreRecord]
 
     @State private var manufacturer: String
     @State private var modelName: String
@@ -537,24 +673,22 @@ private struct TyreDetailView: View {
     @State private var recommendedPressure: String
     @State private var latestPressure: String
     @State private var latestPressureDate: Date
-    @State private var treadDepth: String
-    @State private var latestInspectionDate: Date
-    @State private var condition: TyreCondition
     @State private var notes: String
     @State private var installedDate: Date
     @State private var removedDate: Date
     @State private var isCurrentlyFitted: Bool
     @State private var dateCodeError: String?
     @State private var previewManufactureDate: Date?
-    @State private var showInspection = false
     @State private var showHistory = false
     @State private var showReplaceConfirm = false
+    @State private var showCopyFrom = false
     @State private var isAnalyzingSidewall = false
     @State private var sidewallSuggestions: TyreSidewallSuggestions?
     @State private var sidewallAnalysisError: String?
 
-    init(record: TyreRecord) {
+    init(record: TyreRecord, siblingRecords: [TyreRecord]) {
         self.record = record
+        self.siblingRecords = siblingRecords
         let unit = PressureUnit(rawValue: UserDefaults.standard.string(forKey: TyreSupport.pressureUnitAppStorageKey) ?? PressureUnit.psi.rawValue) ?? .psi
         _manufacturer = State(initialValue: record.manufacturer)
         _modelName = State(initialValue: record.modelName)
@@ -565,14 +699,15 @@ private struct TyreDetailView: View {
         _recommendedPressure = State(initialValue: record.recommendedPressurePSI.map { Self.displayPressure($0, unit: unit) } ?? "")
         _latestPressure = State(initialValue: record.latestPressurePSI.map { Self.displayPressure($0, unit: unit) } ?? "")
         _latestPressureDate = State(initialValue: record.latestPressureDate ?? Date())
-        _treadDepth = State(initialValue: record.latestTreadDepthMM.map { String(format: "%.1f", $0) } ?? "")
-        _latestInspectionDate = State(initialValue: record.latestInspectionDate ?? Date())
-        _condition = State(initialValue: record.condition)
         _notes = State(initialValue: record.notes)
         _installedDate = State(initialValue: record.installedDate ?? Date())
         _removedDate = State(initialValue: record.removedDate ?? Date())
         _isCurrentlyFitted = State(initialValue: record.isCurrentlyFitted)
         _previewManufactureDate = State(initialValue: record.manufactureDate)
+    }
+
+    private var canCopyFromSibling: Bool {
+        siblingRecords.contains { TyreCopyableDetails.from($0).hasAnyValue }
     }
 
     private var manufactureDateAgeCaption: String {
@@ -647,26 +782,13 @@ private struct TyreDetailView: View {
                         }
                     }
 
-                    AppSettingsSection("Inspection") {
-                        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                            AppLabeledTextField("Tread depth (mm)", placeholder: "e.g. 6.0", text: $treadDepth, keyboard: .decimalPad)
-                            Picker("Condition", selection: $condition) {
-                                ForEach(TyreCondition.allCases) { option in
-                                    Text(option.displayName).tag(option)
-                                }
-                            }
-                            DatePicker("Date inspected", selection: $latestInspectionDate, displayedComponents: .date)
-                            AppPrimaryButton("Record inspection", systemImage: "checklist") {
-                                showInspection = true
-                            }
-                        }
-                    }
-
                     AppSettingsSection("Installation") {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                             DatePicker("Date fitted", selection: $installedDate, displayedComponents: .date)
                             Toggle("Currently fitted", isOn: $isCurrentlyFitted)
-                            DatePicker("Date removed", selection: $removedDate, displayedComponents: .date)
+                            if !isCurrentlyFitted {
+                                DatePicker("Date removed", selection: $removedDate, displayedComponents: .date)
+                            }
                         }
                     }
 
@@ -677,6 +799,9 @@ private struct TyreDetailView: View {
                     VStack(spacing: AppScreenMetrics.controlSpacing) {
                         AppPrimaryButton("Save tyre details", systemImage: "checkmark.circle.fill") {
                             save()
+                        }
+                        if canCopyFromSibling {
+                            AppSecondaryButton("Copy from another tyre") { showCopyFrom = true }
                         }
                         AppSecondaryButton("View history") { showHistory = true }
                         AppSecondaryButton("Replace tyre") { showReplaceConfirm = true }
@@ -694,11 +819,21 @@ private struct TyreDetailView: View {
                     Button("Close") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showInspection) {
-                TyreInspectionView(record: record)
-            }
             .sheet(isPresented: $showHistory) {
                 TyreRecordHistoryView(record: record)
+            }
+            .sheet(isPresented: $showCopyFrom) {
+                TyreCopyFromSheet(sources: siblingRecords) { manufacturerValue, modelNameValue, tyreSizeValue, loadIndexValue, speedRatingValue, dateCodeValue, recommendedPressureValue in
+                    applyCopiedDetails(
+                        manufacturer: manufacturerValue,
+                        modelName: modelNameValue,
+                        tyreSize: tyreSizeValue,
+                        loadIndex: loadIndexValue,
+                        speedRating: speedRatingValue,
+                        dateCode: dateCodeValue,
+                        recommendedPressurePSI: recommendedPressureValue
+                    )
+                }
             }
             .sheet(item: Binding(
                 get: {
@@ -762,9 +897,6 @@ private struct TyreDetailView: View {
         record.recommendedPressurePSI = parsePressure(recommendedPressure)
         record.latestPressurePSI = parsePressure(latestPressure)
         record.latestPressureDate = record.latestPressurePSI == nil ? nil : latestPressureDate
-        record.latestTreadDepthMM = Double(treadDepth)
-        record.latestInspectionDate = latestInspectionDate
-        record.condition = condition
         record.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         record.installedDate = installedDate
         record.removedDate = isCurrentlyFitted ? nil : removedDate
@@ -832,6 +964,53 @@ private struct TyreDetailView: View {
         }
     }
 
+    private func applyCopiedDetails(
+        manufacturer manufacturerValue: String?,
+        modelName modelNameValue: String?,
+        tyreSize tyreSizeValue: String?,
+        loadIndex loadIndexValue: String?,
+        speedRating speedRatingValue: String?,
+        dateCode dateCodeValue: String?,
+        recommendedPressurePSI recommendedPressureValue: Double?
+    ) {
+        if let manufacturerValue, !manufacturerValue.isEmpty {
+            manufacturer = manufacturerValue
+            record.manufacturer = manufacturerValue
+        }
+        if let modelNameValue, !modelNameValue.isEmpty {
+            modelName = modelNameValue
+            record.modelName = modelNameValue
+        }
+        if let tyreSizeValue, !tyreSizeValue.isEmpty {
+            tyreSize = tyreSizeValue
+            record.tyreSize = tyreSizeValue
+        }
+        if let loadIndexValue, !loadIndexValue.isEmpty {
+            loadIndex = loadIndexValue
+            record.loadIndex = loadIndexValue
+        }
+        if let speedRatingValue, !speedRatingValue.isEmpty {
+            speedRating = speedRatingValue
+            record.speedRating = speedRatingValue
+        }
+        if let dateCodeValue, !dateCodeValue.isEmpty {
+            dateCode = dateCodeValue
+            commitDateCode()
+            if let parsed = TyreSupport.parseDateCode(dateCodeValue) {
+                record.dateCode = parsed.normalized
+                record.manufactureWeek = parsed.week
+                record.manufactureYear = parsed.year
+                record.manufactureDate = parsed.manufactureDate
+            }
+        }
+        if let recommendedPressureValue {
+            recommendedPressure = Self.displayPressure(recommendedPressureValue, unit: pressureUnit)
+            record.recommendedPressurePSI = recommendedPressureValue
+        }
+        record.updatedAt = Date()
+        try? modelContext.save()
+    }
+
     private func commitDateCode() {
         dateCodeError = nil
         let trimmedDateCode = dateCode.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -876,13 +1055,33 @@ struct TyreInspectionView: View {
     @State private var overallCondition: TyreCondition = .good
     @State private var notes = ""
     @State private var pendingPhotos: [(UIImage, TyrePhotoKind)] = []
+    @State private var didAutoEscalateCondition = false
 
     private var pressureUnit: PressureUnit {
         PressureUnit(rawValue: pressureUnitRaw) ?? .psi
     }
 
+    private var hasSeriousDefectDraft: Bool {
+        TyreSupport.draftHasSeriousDefect(
+            hasCuts: hasCuts,
+            hasBulges: hasBulges,
+            hasCracking: hasCracking,
+            hasUnevenWear: hasUnevenWear,
+            hasEmbeddedObjects: hasEmbeddedObjects
+        )
+    }
+
     private var requiresReview: Bool {
-        hasCuts || hasBulges || hasCracking || hasUnevenWear || hasEmbeddedObjects || overallCondition == .monitor || overallCondition == .replace
+        TyreSupport.draftRequiresProfessionalReview(
+            hasCuts: hasCuts,
+            hasBulges: hasBulges,
+            hasCracking: hasCracking,
+            hasUnevenWear: hasUnevenWear,
+            hasEmbeddedObjects: hasEmbeddedObjects,
+            valveAppearsSound: valveAppearsSound,
+            wheelNutsChecked: wheelNutsChecked,
+            overallCondition: overallCondition
+        )
     }
 
     var body: some View {
@@ -910,8 +1109,8 @@ struct TyreInspectionView: View {
                             defectToggle("Cracking or perishing", value: $hasCracking)
                             defectToggle("Uneven wear", value: $hasUnevenWear)
                             defectToggle("Embedded objects", value: $hasEmbeddedObjects)
-                            defectToggle("Valve appears sound", value: $valveAppearsSound, positiveLabel: true)
-                            defectToggle("Wheel nuts checked", value: $wheelNutsChecked, positiveLabel: true)
+                            defectToggle("Valve appears sound", value: $valveAppearsSound)
+                            defectToggle("Wheel nuts checked", value: $wheelNutsChecked)
                             Picker("Overall condition", selection: $overallCondition) {
                                 ForEach(TyreCondition.allCases.filter { $0 != .notChecked }) { option in
                                     Text(option.displayName).tag(option)
@@ -925,6 +1124,7 @@ struct TyreInspectionView: View {
 
                     if requiresReview {
                         AppWarningBanner(message: "Professional inspection recommended before travelling.")
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                     }
 
                     AppPrimaryButton("Save inspection", systemImage: "checkmark.circle.fill") {
@@ -957,6 +1157,7 @@ struct TyreInspectionView: View {
                 .padding(.horizontal, AppScreenMetrics.horizontalPadding)
                 .padding(.top, AppScreenMetrics.verticalScreenPadding)
                 .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+                .animation(.easeInOut(duration: 0.2), value: requiresReview)
             }
             .appScreenBackground()
             .navigationTitle("Inspection")
@@ -966,16 +1167,62 @@ struct TyreInspectionView: View {
                     Button("Close") { dismiss() }
                 }
             }
+            .onChange(of: hasSeriousDefectDraft) { _, hasDefect in
+                syncConditionWithDefects(hasDefect: hasDefect)
+            }
+            .onChange(of: valveAppearsSound) { _, isSound in
+                syncConditionWithChecks(checkFailed: !isSound || !wheelNutsChecked)
+            }
+            .onChange(of: wheelNutsChecked) { _, isChecked in
+                syncConditionWithChecks(checkFailed: !valveAppearsSound || !isChecked)
+            }
+            .onChange(of: overallCondition) { _, newValue in
+                if newValue != .monitor {
+                    didAutoEscalateCondition = false
+                }
+            }
         }
     }
 
+    private func syncConditionWithDefects(hasDefect: Bool) {
+        if hasDefect {
+            escalateConditionIfNeeded()
+        } else if !hasFailedSoundnessChecks {
+            clearAutoEscalatedConditionIfNeeded()
+        }
+    }
+
+    private func syncConditionWithChecks(checkFailed: Bool) {
+        if checkFailed {
+            escalateConditionIfNeeded()
+        } else if !hasSeriousDefectDraft {
+            clearAutoEscalatedConditionIfNeeded()
+        }
+    }
+
+    private var hasFailedSoundnessChecks: Bool {
+        !valveAppearsSound || !wheelNutsChecked
+    }
+
+    private func escalateConditionIfNeeded() {
+        guard overallCondition == .good else { return }
+        overallCondition = .monitor
+        didAutoEscalateCondition = true
+    }
+
+    private func clearAutoEscalatedConditionIfNeeded() {
+        guard didAutoEscalateCondition, overallCondition == .monitor else { return }
+        overallCondition = .good
+        didAutoEscalateCondition = false
+    }
+
     @ViewBuilder
-    private func defectToggle(_ title: String, value: Binding<Bool>, positiveLabel: Bool = false) -> some View {
+    private func defectToggle(_ title: String, value: Binding<Bool>) -> some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
             Picker(title, selection: value) {
-                Text(positiveLabel ? "No" : "No").tag(false)
+                Text("No").tag(false)
                 Text("Yes").tag(true)
             }
             .pickerStyle(.segmented)
@@ -986,124 +1233,6 @@ struct TyreInspectionView: View {
     private func parsePressure(_ input: String) -> Double? {
         guard let displayValue = Double(input) else { return nil }
         return TyreSupport.convertPressure(displayValue, from: pressureUnit, to: .psi)
-    }
-}
-
-private struct TyreQuickCheckView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
-    @AppStorage(TyreSupport.pressureUnitAppStorageKey) private var pressureUnitRaw = PressureUnit.psi.rawValue
-
-    let profile: VehicleProfile
-    let records: [TyreRecord]
-
-    @State private var inspectionDate = Date()
-    @State private var notes = ""
-    @State private var pressureEntries: [UUID: String]
-    @State private var treadEntries: [UUID: String]
-
-    init(profile: VehicleProfile, records: [TyreRecord]) {
-        self.profile = profile
-        self.records = records
-        var pressureEntries: [UUID: String] = [:]
-        var treadEntries: [UUID: String] = [:]
-        let unit = PressureUnit(rawValue: UserDefaults.standard.string(forKey: TyreSupport.pressureUnitAppStorageKey) ?? PressureUnit.psi.rawValue) ?? .psi
-        for record in records {
-            if let latest = record.latestPressurePSI {
-                let converted = TyreSupport.convertPressure(latest, from: .psi, to: unit)
-                pressureEntries[record.id] = String(format: unit == .psi ? "%.0f" : "%.1f", converted)
-            }
-            if let tread = record.latestTreadDepthMM {
-                treadEntries[record.id] = String(format: "%.1f", tread)
-            }
-        }
-        _pressureEntries = State(initialValue: pressureEntries)
-        _treadEntries = State(initialValue: treadEntries)
-    }
-
-    private var pressureUnit: PressureUnit {
-        PressureUnit(rawValue: pressureUnitRaw) ?? .psi
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                    AppHeroSection(
-                        systemImage: "gauge.with.dots.needle.50percent",
-                        title: "Record tyre check",
-                        subtitle: profile.name
-                    )
-
-                    AppSettingsSection("Check details") {
-                        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                            DatePicker("Check date", selection: $inspectionDate, displayedComponents: .date)
-                            AppNotesEditor(text: $notes)
-                        }
-                    }
-
-                    AppSettingsSection("Pressures") {
-                        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                            ForEach(records) { record in
-                                VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
-                                    Text(record.displayName)
-                                        .font(.subheadline.weight(.semibold))
-                                    AppBoundedTextField(
-                                        placeholder: pressureUnit == .psi ? "PSI" : "Bar",
-                                        text: Binding(
-                                            get: { pressureEntries[record.id] ?? "" },
-                                            set: { pressureEntries[record.id] = $0 }
-                                        ),
-                                        keyboard: .decimalPad
-                                    )
-                                    AppBoundedTextField(
-                                        placeholder: "Optional tread depth (mm)",
-                                        text: Binding(
-                                            get: { treadEntries[record.id] ?? "" },
-                                            set: { treadEntries[record.id] = $0 }
-                                        ),
-                                        keyboard: .decimalPad
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    AppPrimaryButton("Save all readings", systemImage: "checkmark.circle.fill") {
-                        var pressurePSI: [UUID: Double] = [:]
-                        var treadMM: [UUID: Double] = [:]
-                        for record in records {
-                            if let entry = pressureEntries[record.id], let value = Double(entry) {
-                                pressurePSI[record.id] = TyreSupport.convertPressure(value, from: pressureUnit, to: .psi)
-                            }
-                            if let entry = treadEntries[record.id], let value = Double(entry) {
-                                treadMM[record.id] = value
-                            }
-                        }
-                        TyreStore.saveQuickCheck(
-                            records: records,
-                            pressureEntriesPSI: pressurePSI,
-                            treadDepthEntries: treadMM,
-                            inspectionDate: inspectionDate,
-                            notes: notes,
-                            in: modelContext
-                        )
-                        dismiss()
-                    }
-                }
-                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                .padding(.top, AppScreenMetrics.verticalScreenPadding)
-                .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
-            }
-            .appScreenBackground()
-            .navigationTitle("Quick check")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                }
-            }
-        }
     }
 }
 
