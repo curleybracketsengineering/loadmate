@@ -219,6 +219,44 @@ a:hover {
   color: var(--navy);
 }
 
+.app-store-button {
+  background: #123747;
+  box-shadow: 0 8px 20px rgba(18, 55, 71, 0.22);
+  padding: 10px 18px 10px 14px;
+  gap: 10px;
+}
+
+.app-store-button:hover {
+  background: #0d2a36;
+}
+
+.app-store-button .apple-logo {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.app-store-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.05;
+  text-align: left;
+}
+
+.app-store-kicker {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  opacity: 0.92;
+}
+
+.app-store-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
 .trust {
   display: flex;
   flex-wrap: wrap;
@@ -383,6 +421,21 @@ a:hover {
   font-size: 0.88rem;
   font-weight: 600;
   color: var(--muted);
+}
+
+.shot-strip {
+  margin: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: 0 4px 16px rgba(18, 55, 71, 0.04);
+}
+
+.shot-strip img {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
 }
 
 .split {
