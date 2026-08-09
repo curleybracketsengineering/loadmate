@@ -345,7 +345,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 Text(
                     """
-                    Lyneqo Caravan & Motorhome was built for you. After four decades in software development, I kept seeing hobby apps that were either poorly made or mainly about making money. I wanted to put my experience toward something genuinely useful: a free utility to help us all load more safely and sensibly.
+                    Lyneqo Caravan & Motorhome was built to give owners one clear place to look after their vehicle. After four decades in software development, I wanted to put that experience into a free utility that covers the full life of your rig: from safe loading and trip readiness through to maintenance, tyres, documents and warranty.
 
                     If you have ideas for how to improve it, I'd love to hear from you.
                     """

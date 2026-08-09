@@ -330,34 +330,33 @@ enum WarrantyStore {
             for event in existingInsurance where event.completedDate == nil {
                 delete(event: event, in: context)
             }
+            plan.updatedAt = Date()
+            try? context.save()
             return []
         }
 
         let targetDays = Set(
             WarrantySupport.insuranceRenewalDates(from: start, now: now).map { calendar.startOfDay(for: $0) }
         )
-        let completedDays = Set(
-            existingInsurance
-                .filter { $0.completedDate != nil }
+
+        // Drop open insurance rows that no longer match the anniversary schedule.
+        for event in existingInsurance where event.completedDate == nil {
+            let day = calendar.startOfDay(for: event.scheduledDate)
+            let requirementMatches = event.requirementDescription.trimmingCharacters(in: .whitespacesAndNewlines) == requirement
+            if !targetDays.contains(day) || !requirementMatches {
+                delete(event: event, in: context)
+            }
+        }
+
+        let occupiedDays = Set(
+            plan.eventsList
+                .filter { $0.serviceType == .insuranceRenewal }
                 .map { calendar.startOfDay(for: $0.scheduledDate) }
         )
 
-        for event in existingInsurance where event.completedDate == nil {
-            delete(event: event, in: context)
-        }
-
         var created: [WarrantyEvent] = []
-        var nextOrder = (plan.events ?? []).map(\.sortOrder).max().map { $0 + 1 } ?? 0
-
-        for day in targetDays.sorted() {
-            if completedDays.contains(day) { continue }
-
-            let event = WarrantyEvent(vehicleID: vehicleID)
-            event.plan = plan
-            event.sortOrder = nextOrder
-            nextOrder += 1
-            context.insert(event)
-
+        for day in targetDays.sorted() where !occupiedDays.contains(day) {
+            let event = createEvent(for: plan, in: context)
             let yearNumber = WarrantySupport.yearNumber(for: day, purchaseDate: plan.purchaseDate)
             save(
                 event: event,
@@ -378,6 +377,16 @@ enum WarrantyStore {
             created.append(event)
         }
 
+        // Keep wording fresh on existing open insurance rows.
+        for event in plan.eventsList where event.serviceType == .insuranceRenewal && event.completedDate == nil {
+            if event.requirementDescription != requirement {
+                event.requirementDescription = requirement
+                event.updatedAt = Date()
+            }
+        }
+
+        plan.updatedAt = Date()
+        try? context.save()
         return created
     }
 

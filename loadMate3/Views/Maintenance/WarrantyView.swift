@@ -33,6 +33,12 @@ struct WarrantyView: View {
         )
     }
 
+    private var insuranceSyncToken: String {
+        guard let profile = activeProfile else { return "none" }
+        let dateToken = profile.insuranceStartDate.map { String(Int($0.timeIntervalSince1970)) } ?? "nil"
+        return "\(profile.id.uuidString)-\(dateToken)"
+    }
+
     private var activePlan: WarrantyPlan? {
         guard let profile = activeProfile else { return nil }
         return WarrantySupport.plan(for: profile.id, from: warrantyPlans)
@@ -147,7 +153,7 @@ struct WarrantyView: View {
                 WarrantyEvidenceShareSheet(pdfData: exportPDFData)
             }
         }
-        .task(id: activeProfile?.id) {
+        .task(id: insuranceSyncToken) {
             if let profile = activeProfile {
                 WarrantyStore.syncInsuranceRenewalEvents(for: profile, in: modelContext)
             }
@@ -246,7 +252,7 @@ struct WarrantyView: View {
 
                 AppSettingsSection(
                     "Service timeline",
-                    caption: "Tap an event to edit or add evidence. Use Add service event for new work anytime."
+                    caption: "Tap a service to edit. Insurance rows use the switch when done."
                 ) {
                     VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                         WarrantyTimelineView(
@@ -457,16 +463,79 @@ private struct WarrantyTimelineView: View {
             )
 
             ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
-                Button { onSelectEvent(event) } label: {
-                    WarrantyTimelineEventRow(
-                        event: event,
-                        events: events,
-                        isLast: index == events.count - 1
-                    )
+                let isLast = index == events.count - 1
+                if event.serviceType == .insuranceRenewal {
+                    WarrantyTimelineInsuranceRow(event: event, isLast: isLast)
+                } else {
+                    Button { onSelectEvent(event) } label: {
+                        WarrantyTimelineEventRow(
+                            event: event,
+                            events: events,
+                            isLast: isLast
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
+    }
+}
+
+private struct WarrantyTimelineInsuranceRow: View {
+    @Environment(\.modelContext) private var modelContext
+
+    let event: WarrantyEvent
+    let isLast: Bool
+
+    private var isDone: Binding<Bool> {
+        Binding(
+            get: { event.completedDate != nil },
+            set: { done in
+                event.completedDate = done ? (event.completedDate ?? Date()) : nil
+                event.updatedAt = Date()
+                try? modelContext.save()
+            }
+        )
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(spacing: 0) {
+                Circle()
+                    .fill(event.completedDate != nil ? AppColors.green : Color.secondary.opacity(0.85))
+                    .frame(width: 12, height: 12)
+                    .frame(width: 16, height: 16)
+                if !isLast {
+                    Rectangle()
+                        .fill(LyneqoTheme.border)
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                }
+            }
+            .frame(width: 16)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text("Insurance")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer(minLength: 8)
+                    Text(Formatters.date(event.scheduledDate))
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
+                    Toggle("Done", isOn: isDone)
+                        .labelsHidden()
+                        .tint(AppColors.green)
+                        .accessibilityLabel("Insurance done")
+                }
+
+                Text(event.requirementText)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.bottom, isLast ? 0 : AppScreenMetrics.sectionSpacing)
+        }
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -634,6 +703,7 @@ private struct WarrantyPlanEditorSheet: View {
     @State private var selectedTemplateID: String
     @State private var selectedMOTClass: UKMotorhomeMOTClass
     @State private var showInfo = false
+    @State private var showMOTClassInfo = false
 
     init(profile: VehicleProfile, plan: WarrantyPlan?, onSaved: (() -> Void)? = nil) {
         self.profile = profile
@@ -756,10 +826,24 @@ private struct WarrantyPlanEditorSheet: View {
                             caption: "Drives when statutory tests are added to the timeline. Suggested from plated MAM when available — confirm with your V5C."
                         ) {
                             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                                Picker("MOT class", selection: $selectedMOTClass) {
-                                    ForEach(UKMotorhomeMOTClass.allCases) { option in
-                                        Text(option.displayName).tag(option)
+                                HStack(alignment: .center, spacing: AppScreenMetrics.smallSpacing) {
+                                    Picker("MOT class", selection: $selectedMOTClass) {
+                                        ForEach(UKMotorhomeMOTClass.allCases) { option in
+                                            Text(option.displayName).tag(option)
+                                        }
                                     }
+
+                                    Button {
+                                        showMOTClassInfo = true
+                                    } label: {
+                                        Image(systemName: "info.circle")
+                                            .font(.body.weight(.medium))
+                                            .foregroundStyle(Color.secondary)
+                                            .frame(minWidth: 44, minHeight: 44)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("About MOT types")
+                                    .accessibilityHint("Explains Class 4, Class 7, and HGV annual tests")
                                 }
 
                                 Text(selectedMOTClass.summary)
@@ -826,6 +910,9 @@ private struct WarrantyPlanEditorSheet: View {
             }
             .sheet(isPresented: $showInfo) {
                 WarrantyInfoSheet()
+            }
+            .sheet(isPresented: $showMOTClassInfo) {
+                MOTClassInfoSheet()
             }
         }
     }
@@ -1225,6 +1312,56 @@ private struct WarrantyInfoSheet: View {
             }
             .appScreenBackground()
             .navigationTitle("Service & warranty")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct MOTClassInfoSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                    AppHeroSection(
+                        systemImage: "info.circle.fill",
+                        title: "UK MOT types",
+                        subtitle: "Choose the class that matches your motorhome’s plated mass and body type. Always confirm with your V5C and test station."
+                    )
+
+                    ForEach(UKMotorhomeMOTClass.allCases) { motClass in
+                        AppGroupedCard {
+                            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                                Text(motClass.displayName)
+                                    .font(.headline.weight(.semibold))
+                                Text(motClass.summary)
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppColors.textSupporting)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text("First test: year \(motClass.firstTestYear), then annually.")
+                                    .font(.caption)
+                                    .foregroundStyle(AppColors.textSupporting)
+                            }
+                        }
+                    }
+
+                    Text("Lyneqo suggests a class from plated MAM when available, but some vehicles in the 3,000–3,500 kg band remain Class 4 depending on body type. Edit the class if your handbook or test station says otherwise.")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                .padding(.top, AppScreenMetrics.verticalScreenPadding)
+                .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+            }
+            .appScreenBackground()
+            .navigationTitle("MOT types")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

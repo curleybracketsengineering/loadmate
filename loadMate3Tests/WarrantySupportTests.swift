@@ -496,7 +496,7 @@ final class WarrantySupportTests: XCTestCase {
             "Ensure your vehicle, ensure your reg, ensure your caravan."
         )
         XCTAssertEqual(insuranceEvents.first?.daysBefore, WarrantySupport.insuranceRenewalDaysBefore)
-        XCTAssertTrue(insuranceEvents.first?.displayTitle.hasPrefix("Insurance check") == true)
+        XCTAssertEqual(insuranceEvents.first?.displayTitle, "Insurance")
     }
 
     func testInsuranceStartDateUsesMotorhomeWording() throws {

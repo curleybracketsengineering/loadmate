@@ -145,7 +145,7 @@ final class VehicleProfile {
     var warrantyUKMarket: Bool = true
 
     /// Policy start / renewal anniversary. Nil when not set. Used for yearly insurance check actions.
-    var insuranceStartDate: Date?
+    var insuranceStartDate: Date? = nil
 
     // MARK: External dimensions (handbook / plate — for route and site planning)
 

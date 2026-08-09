@@ -288,8 +288,7 @@ extension WarrantyEvent {
             return yearNumber > 0 ? "Year \(yearNumber) vehicle inspection" : "Vehicle inspection"
         }
         if serviceType == .insuranceRenewal {
-            let year = Calendar.current.component(.year, from: scheduledDate)
-            return "Insurance check \(year)"
+            return "Insurance"
         }
         if yearNumber > 0 {
             return isImportantMilestone ? "Year \(yearNumber) · Milestone" : "Year \(yearNumber)"
