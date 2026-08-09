@@ -13,10 +13,9 @@ struct CaravanHitchHeroView: View {
     private static let noseWeightCenterYFraction: CGFloat = 0.20
     private static let noseWeightCenterXOffset: CGFloat = -15
     private static let noseWeightCenterYOffset: CGFloat = 55
-    /// Side limit labels sit under the tow ball (car) and hitch (caravan).
-    private static let carTowBallLimitCenterXFraction: CGFloat = 0.37
-    private static let caravanHitchLimitCenterXFraction: CGFloat = 0.54
     private static let sideLimitCenterYFraction: CGFloat = 0.82
+    /// Below this width the pad fractions collide, so use a wider phone layout.
+    private static let compactWidthThreshold: CGFloat = 520
 
     private var towBallLimitKg: Double { profile.effectiveMaxTowBallKg }
     private var layoutScale: CGFloat { maxHeight / Self.referenceHeight }
@@ -31,6 +30,11 @@ struct CaravanHitchHeroView: View {
                 .accessibilityHidden(true)
 
             GeometryReader { geo in
+                let isCompact = geo.size.width < Self.compactWidthThreshold
+                let carXFraction: CGFloat = isCompact ? 0.28 : 0.37
+                // Phone: sit left of the jockey wheel under the hitch (pad keeps hitch-trailing alignment).
+                let hitchXFraction: CGFloat = isCompact ? 0.50 : 0.54
+
                 noseWeightOverlay
                     .position(
                         x: geo.size.width * 0.5 + Self.noseWeightCenterXOffset * layoutScale,
@@ -43,7 +47,7 @@ struct CaravanHitchHeroView: View {
                         accessibilityLabel: "Car tow ball maximum \(Self.displayKg(profile.carMaxTowBallKg))"
                     )
                     .position(
-                        x: geo.size.width * Self.carTowBallLimitCenterXFraction,
+                        x: geo.size.width * carXFraction,
                         y: geo.size.height * Self.sideLimitCenterYFraction
                     )
                 }
@@ -52,10 +56,12 @@ struct CaravanHitchHeroView: View {
                     CaravanHitchSideLimitLabel(
                         text: Self.displayKg(profile.caravanMaxNoseKg),
                         accessibilityLabel: "Caravan hitch maximum \(Self.displayKg(profile.caravanMaxNoseKg))",
-                        offsetLeftByOwnWidth: true
+                        // Pad only: keep trailing edge near the hitch. On phone this shift
+                        // collapses the two labels on top of each other.
+                        offsetLeftByOwnWidth: !isCompact
                     )
                     .position(
-                        x: geo.size.width * Self.caravanHitchLimitCenterXFraction,
+                        x: geo.size.width * hitchXFraction,
                         y: geo.size.height * Self.sideLimitCenterYFraction
                     )
                 }
