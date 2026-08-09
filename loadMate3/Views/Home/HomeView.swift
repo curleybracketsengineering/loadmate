@@ -73,6 +73,14 @@ struct HomeView: View {
                     }
 
                     if let profile = activeProfile, profile.isConfiguredForWeightCalculations {
+                        if profile.kind == .caravan, let summary = viewModel.caravanSummary {
+                            CaravanHitchHeroView(
+                                profile: profile,
+                                summary: summary,
+                                maxHeight: 200
+                            )
+                        }
+
                         LoadOverviewCard(
                             profile: profile,
                             caravanSummary: viewModel.caravanSummary,

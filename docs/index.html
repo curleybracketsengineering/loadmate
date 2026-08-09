@@ -3,180 +3,179 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lyneqo Caravan &amp; Motorhome - Caravan Loading App</title>
-  <style>
-:root {
-  --bg: #f6f8fb;
-  --card: #ffffff;
-  --text: #182033;
-  --muted: #5f6b7a;
-  --accent: #1f6feb;
-  --accent-dark: #174ea6;
-  --border: #d8dee9;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.6;
-}
-
-header {
-  background: linear-gradient(135deg, #182033, #1f6feb);
-  color: white;
-  padding: 40px 20px;
-  text-align: center;
-}
-
-header h1 {
-  margin: 0 0 8px;
-  font-size: 2.4rem;
-}
-
-header p {
-  margin: 0;
-  color: #e8eef8;
-  font-size: 1.1rem;
-}
-
-nav {
-  background: white;
-  border-bottom: 1px solid var(--border);
-  padding: 12px 20px;
-  text-align: center;
-}
-
-nav a {
-  color: var(--accent);
-  text-decoration: none;
-  margin: 0 12px;
-  font-weight: 600;
-}
-
-nav a:hover {
-  text-decoration: underline;
-}
-
-main {
-  max-width: 920px;
-  margin: 32px auto;
-  padding: 0 20px;
-}
-
-.card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 28px;
-  margin-bottom: 24px;
-  box-shadow: 0 8px 24px rgba(24, 32, 51, 0.06);
-}
-
-h2 {
-  margin-top: 0;
-  color: var(--text);
-}
-
-.button {
-  display: inline-block;
-  background: var(--accent);
-  color: white;
-  padding: 12px 18px;
-  border-radius: 10px;
-  text-decoration: none;
-  font-weight: 700;
-}
-
-.button:hover {
-  background: var(--accent-dark);
-}
-
-.notice {
-  background: #fff8e6;
-  border: 1px solid #f1d48a;
-  border-radius: 12px;
-  padding: 16px;
-  color: #594300;
-}
-
-footer {
-  text-align: center;
-  padding: 32px 20px;
-  color: var(--muted);
-  font-size: 0.95rem;
-}
-
-ul {
-  padding-left: 22px;
-}
-
-.meta {
-  color: var(--muted);
-  font-size: 0.95rem;
-}
-
-@media (max-width: 640px) {
-  header h1 {
-    font-size: 2rem;
-  }
-
-  nav a {
-    display: inline-block;
-    margin: 6px 8px;
-  }
-
-  .card {
-    padding: 22px;
-  }
-}
-</style>
+  <title>Lyneqo — Safer loads, care and documents</title>
+  <meta name="description" content="Plan safer loads, track tyres and maintenance, keep warranty and documents in one place. Free, no account, no ads. Optional iCloud sync.">
+  <link rel="icon" href="assets/lyneqo-mark.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header>
-    <h1>Lyneqo Caravan &amp; Motorhome</h1>
-    <p>Caravan loading and weight planning</p>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html">
+        <img src="assets/app-icon.png" alt="" width="36" height="36">
+        Lyneqo
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="index.html" aria-current="page">Home</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html">Support</a>
+        <a href="eula.html">EULA</a>
+      </nav>
+    </div>
   </header>
 
-  <nav>
-    <a href="index.html">Home</a>
-    <a href="privacy.html">Privacy</a>
-    <a href="support.html">Support</a>
-    <a href="eula.html">EULA</a>
-  </nav>
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <p class="brand-hero">Lyneqo</p>
+        <p class="eyebrow">Caravan &amp; Motorhome</p>
+        <h1>Plan safer loads</h1>
+        <p class="hero-lead">Track tyres and maintenance, keep warranty and documents in one place — free, no account, no ads.</p>
+        <p class="hero-note">Optional iCloud sync across your devices.</p>
+        <div class="cta-row">
+          <a class="button" href="support.html">Get support</a>
+          <a class="button button-secondary" href="privacy.html">Privacy-first design</a>
+        </div>
+        <div class="trust" aria-label="Product promises">
+          <span>Free</span>
+          <span>No account</span>
+          <span>No ads</span>
+          <span>Optional iCloud</span>
+        </div>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="phone-frame">
+          <img src="assets/shot-home.png" alt="Lyneqo Home screen showing load overview and care shortcuts">
+        </div>
+      </div>
+    </div>
+  </section>
 
-  <main>
-    <section class="card">
-      <h2>Plan your caravan load with more confidence</h2>
-      <p>Lyneqo Caravan &amp; Motorhome is a simple caravan and Motorhome loading and weight planning app designed to help owners think clearly about payload, loading positions, nose weight and overall caravan and Motorhome balancing.</p>
-      <p>The app is intended as a practical planning aid. It does not replace manufacturer limits, legal requirements, weighbridge measurements or professional towing advice.</p>
-      <p><a class="button" href="support.html">Get Support</a></p>
-    </section>
+  <section class="section" id="features">
+    <div class="section-head">
+      <h2>Everything you need before you travel</h2>
+      <p>Load planning, safety checks, and vehicle care — organised the same way as in the app.</p>
+    </div>
+    <div class="feature-list">
+      <article class="feature-row">
+        <div class="icon-tile icon-teal" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M8 8h8v10H8z"/><path d="M10 8V6h4v2"/><path d="M8 12h8"/></svg>
+        </div>
+        <div>
+          <h3>Load</h3>
+          <p>Build your trip load, place items by zone, and check payload, axle and nose weight before you leave.</p>
+        </div>
+      </article>
+      <article class="feature-row">
+        <div class="icon-tile icon-green" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+        </div>
+        <div>
+          <h3>Safety</h3>
+          <p>See what still needs attention today — limits, nose weight, tyres and departure checklists.</p>
+        </div>
+      </article>
+      <article class="feature-row">
+        <div class="icon-tile icon-cyan" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M14 7l3 3-8 8H6v-3l8-8z"/><path d="M12 5l2-2 3 3-2 2"/></svg>
+        </div>
+        <div>
+          <h3>Maintenance</h3>
+          <p>Track services, faults and reminders so outstanding work does not sneak up on you.</p>
+        </div>
+      </article>
+      <article class="feature-row">
+        <div class="icon-tile icon-green" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2"/></svg>
+        </div>
+        <div>
+          <h3>Tyre safety</h3>
+          <p>Keep pressures, age and condition in view — not buried in a notebook.</p>
+        </div>
+      </article>
+      <article class="feature-row">
+        <div class="icon-tile icon-purple" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3z"/></svg>
+        </div>
+        <div>
+          <h3>Service &amp; warranty</h3>
+          <p>Follow the service timeline and know when cover windows and milestone services are due.</p>
+        </div>
+      </article>
+      <article class="feature-row">
+        <div class="icon-tile icon-orange" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 7h6l2 2h8v10H4V7z"/><path d="M4 11h16"/></svg>
+        </div>
+        <div>
+          <h3>Documents</h3>
+          <p>Insurance, registration, manuals and more — kept with the vehicle, ready when you need them.</p>
+        </div>
+      </article>
+    </div>
+  </section>
 
-    <section class="card">
-      <h2>What Lyneqo Caravan &amp; Motorhome helps with</h2>
-      <ul>
-        <li>Record caravan/Motorhome loading information.</li>
-        <li>Plan where items are positioned.</li>
-        <li>Review estimated loading impact before travelling.</li>
-        <li>Keep key caravan weight information in one place.</li>
-      </ul>
-    </section>
+  <section class="section" style="padding-top: 0;">
+    <div class="section-head">
+      <h2>Designed to feel like the app</h2>
+      <p>Soft surfaces, clear status colours, and the same Load · Safety · Care structure you use on iPhone and iPad.</p>
+    </div>
+    <div class="gallery">
+      <figure>
+        <img src="assets/shot-load.png" alt="Load tab with trip weight summary and item list">
+        <figcaption>Load</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/shot-safety.png" alt="Safety tab with due checks and departure checklist">
+        <figcaption>Safety</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/shot-care.png" alt="Care tab with maintenance, warranty, tyres and documents">
+        <figcaption>Care</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/shot-summary.png" alt="Motorhome summary with axle loads and balance">
+        <figcaption>Summary</figcaption>
+      </figure>
+    </div>
+  </section>
 
-    <section class="card">
-      <h2>Privacy-first design</h2>
-      <p>Lyneqo Caravan &amp; Motorhome does not require an account and is designed for local use on your device.</p>
-      <p><a href="privacy.html">Read the privacy policy</a></p>
-    </section>
+  <section class="section" style="padding-top: 8px;">
+    <div class="split">
+      <div class="panel">
+        <h2>Private by default</h2>
+        <p>Lyneqo does not require an account and does not show ads. Your loading, care and document data stays on your device.</p>
+        <p>When you choose to, optional iCloud sync keeps trips and records consistent across your own Apple devices.</p>
+        <div class="pill-list">
+          <span>No account</span>
+          <span>No ads</span>
+          <span>Local-first</span>
+          <span>Optional iCloud</span>
+        </div>
+        <p style="margin-top: 18px;"><a class="button button-secondary" href="privacy.html">Read the privacy policy</a></p>
+      </div>
+      <div class="device-shot">
+        <img src="assets/shot-summary.png" alt="Motorhome summary screen on iPad">
+      </div>
+    </div>
+  </section>
 
-  </main>
+  <section class="section" style="padding-top: 0;">
+    <div class="panel notice">
+      <h2>Planning aid only</h2>
+      <p>Lyneqo helps you think clearly about payload, balance, maintenance and paperwork. It does not replace manufacturer limits, legal requirements, weighbridge measurements or professional advice.</p>
+    </div>
+  </section>
 
-  <footer>
+  <footer class="site-footer">
+    <nav aria-label="Footer">
+      <a href="index.html">Home</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="eula.html">EULA</a>
+    </nav>
     <p>&copy; 2026 Curley Brackets Engineering. All rights reserved.</p>
   </footer>
 </body>

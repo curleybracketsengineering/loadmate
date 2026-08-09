@@ -3,156 +3,40 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lyneqo Caravan &amp; Motorhome Support</title>
-  <style>
-:root {
-  --bg: #f6f8fb;
-  --card: #ffffff;
-  --text: #182033;
-  --muted: #5f6b7a;
-  --accent: #1f6feb;
-  --accent-dark: #174ea6;
-  --border: #d8dee9;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.6;
-}
-
-header {
-  background: linear-gradient(135deg, #182033, #1f6feb);
-  color: white;
-  padding: 40px 20px;
-  text-align: center;
-}
-
-header h1 {
-  margin: 0 0 8px;
-  font-size: 2.4rem;
-}
-
-header p {
-  margin: 0;
-  color: #e8eef8;
-  font-size: 1.1rem;
-}
-
-nav {
-  background: white;
-  border-bottom: 1px solid var(--border);
-  padding: 12px 20px;
-  text-align: center;
-}
-
-nav a {
-  color: var(--accent);
-  text-decoration: none;
-  margin: 0 12px;
-  font-weight: 600;
-}
-
-nav a:hover {
-  text-decoration: underline;
-}
-
-main {
-  max-width: 920px;
-  margin: 32px auto;
-  padding: 0 20px;
-}
-
-.card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 28px;
-  margin-bottom: 24px;
-  box-shadow: 0 8px 24px rgba(24, 32, 51, 0.06);
-}
-
-h2 {
-  margin-top: 0;
-  color: var(--text);
-}
-
-.button {
-  display: inline-block;
-  background: var(--accent);
-  color: white;
-  padding: 12px 18px;
-  border-radius: 10px;
-  text-decoration: none;
-  font-weight: 700;
-}
-
-.button:hover {
-  background: var(--accent-dark);
-}
-
-.notice {
-  background: #fff8e6;
-  border: 1px solid #f1d48a;
-  border-radius: 12px;
-  padding: 16px;
-  color: #594300;
-}
-
-footer {
-  text-align: center;
-  padding: 32px 20px;
-  color: var(--muted);
-  font-size: 0.95rem;
-}
-
-ul {
-  padding-left: 22px;
-}
-
-.meta {
-  color: var(--muted);
-  font-size: 0.95rem;
-}
-
-@media (max-width: 640px) {
-  header h1 {
-    font-size: 2rem;
-  }
-
-  nav a {
-    display: inline-block;
-    margin: 6px 8px;
-  }
-
-  .card {
-    padding: 22px;
-  }
-}
-</style>
+  <title>Support — Lyneqo</title>
+  <meta name="description" content="Get help with Lyneqo Caravan & Motorhome.">
+  <link rel="icon" href="assets/lyneqo-mark.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header>
-    <h1>Lyneqo Caravan &amp; Motorhome</h1>
-    <p>Caravan loading and weight planning</p>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html">
+        <img src="assets/app-icon.png" alt="" width="36" height="36">
+        Lyneqo
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="index.html">Home</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html" aria-current="page">Support</a>
+        <a href="eula.html">EULA</a>
+      </nav>
+    </div>
   </header>
 
-  <nav>
-    <a href="index.html">Home</a>
-    <a href="privacy.html">Privacy</a>
-    <a href="support.html">Support</a>
-    <a href="eula.html">EULA</a>
-  </nav>
+  <div class="page-hero">
+    <div class="page-hero-inner">
+      <h1>Support</h1>
+      <p>Help with Lyneqo Caravan &amp; Motorhome.</p>
+    </div>
+  </div>
 
-  <main>
+  <main class="page">
     <section class="card">
-      <h2>Support</h2>
+      <h2>Contact</h2>
       <p>For help with Lyneqo Caravan &amp; Motorhome, please contact:</p>
       <p><a class="button" href="mailto:smatheson6@icloude.com">smatheson6@icloude.com</a></p>
     </section>
@@ -172,10 +56,15 @@ ul {
       <h2>Important safety note</h2>
       <p>Lyneqo Caravan &amp; Motorhome is a planning aid only. Always check your caravan handbook, manufacturer limits, legal requirements and actual measured weights where appropriate.</p>
     </section>
-
   </main>
 
-  <footer>
+  <footer class="site-footer">
+    <nav aria-label="Footer">
+      <a href="index.html">Home</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="eula.html">EULA</a>
+    </nav>
     <p>&copy; 2026 Curley Brackets Engineering. All rights reserved.</p>
   </footer>
 </body>
