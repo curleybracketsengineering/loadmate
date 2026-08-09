@@ -80,7 +80,7 @@ struct MainTabView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(LyneqoTheme.background)
     }
 
     @ViewBuilder
@@ -119,7 +119,7 @@ struct MainTabView: View {
                 onNavigateToCare: { selectedTab = .care },
                 onNavigateToMaintenance: { navigateToPhoneMaintenance() },
                 onNavigateToTyreSafety: { navigateToPhoneTyreSafety() },
-                onNavigateToWarranty: { selectedTab = .care }
+                onNavigateToWarranty: { navigateToPhoneWarranty() }
             )
             .tag(AppTab.home)
             .tabItem { Label("Home", systemImage: "house") }
@@ -170,6 +170,11 @@ struct MainTabView: View {
     private func navigateToPhoneTyreSafety() {
         selectedTab = .care
         pendingCareDestination = .tyreSafety
+    }
+
+    private func navigateToPhoneWarranty() {
+        selectedTab = .care
+        pendingCareDestination = .warranty
     }
 }
 

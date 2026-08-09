@@ -89,7 +89,7 @@ struct SummaryCheckDetailSheet<Check: SummaryCheckGuidance>: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollBounceBehavior(.basedOnSize)
-            .background(Color(.systemGroupedBackground))
+            .background(LyneqoTheme.background)
             .navigationTitle(check.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -115,7 +115,7 @@ struct SummaryCheckDetailSheet<Check: SummaryCheckGuidance>: View {
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
     }
 }

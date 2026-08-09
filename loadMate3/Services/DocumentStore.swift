@@ -18,6 +18,7 @@ enum DocumentStore {
         expiryDate: Date?,
         reminderDate: Date?,
         notes: String,
+        isWarrantyRelated: Bool = false,
         in context: ModelContext
     ) {
         record.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -26,6 +27,8 @@ enum DocumentStore {
         record.expiryDate = expiryDate
         record.reminderDate = reminderDate
         record.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        record.isWarrantyRelated = isWarrantyRelated
+            || WarrantySupport.warrantyDocumentCategories.contains(category)
         record.updatedAt = Date()
         try? context.save()
     }

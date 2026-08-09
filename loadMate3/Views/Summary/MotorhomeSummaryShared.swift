@@ -15,7 +15,7 @@ enum MotorhomeSummaryMetrics {
     static func progressBar(fill: CGFloat, color: Color) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color(.tertiarySystemFill))
+                Capsule().fill(LyneqoTheme.softTeal)
                 Capsule()
                     .fill(color)
                     .frame(width: max(geo.size.width * fill, fill > 0 ? 4 : 0))
@@ -48,7 +48,7 @@ struct MotorhomeSummaryCard<Content: View>: View {
         content()
             .padding(AppScreenMetrics.cardInteriorPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.systemBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
             .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
     }

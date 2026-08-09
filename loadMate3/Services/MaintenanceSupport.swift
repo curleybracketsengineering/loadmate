@@ -5,6 +5,7 @@ enum MaintenanceHistoryFilter: String, CaseIterable, Identifiable {
     case maintenance
     case documents
     case faults
+    case warranty
 
     var id: String { rawValue }
 
@@ -14,6 +15,7 @@ enum MaintenanceHistoryFilter: String, CaseIterable, Identifiable {
         case .maintenance: return "Maintenance"
         case .documents: return "Documents"
         case .faults: return "Faults"
+        case .warranty: return "Warranty"
         }
     }
 }
@@ -48,6 +50,8 @@ struct MaintenanceHistoryEntry: Identifiable {
         case document
         case faultRaised
         case faultResolved
+        case warrantyPurchase
+        case warranty
     }
 
     let id: String
@@ -152,22 +156,34 @@ enum MaintenanceSupport {
         documents: [DocumentRecord],
         warrantyPlans: [WarrantyPlan] = [],
         vehicleID: UUID? = nil,
-        warrantyAvailable: Bool = true
+        warrantyAvailable: Bool = true,
+        profile: VehicleProfile? = nil,
+        now: Date = Date()
     ) -> [MaintenanceReminderItem] {
         var items: [MaintenanceReminderItem] = []
 
+        // Habitation / damp / warranty-repair work is tracked on the warranty timeline —
+        // don't also surface those maintenance reminders when a plan is active.
+        let suppressWarrantyCoveredMaintenance: Bool = {
+            guard warrantyAvailable, let vehicleID else { return false }
+            return WarrantySupport.plan(for: vehicleID, from: warrantyPlans) != nil
+        }()
+
         for record in maintenanceRecords {
-            if let reminderDate = record.reminderDate {
-                items.append(
-                    MaintenanceReminderItem(
-                        id: "maintenance-\(record.id.uuidString)",
-                        title: record.title.isEmpty ? record.category.displayName : record.title,
-                        dueDate: reminderDate,
-                        subtitle: record.category.displayName,
-                        kind: .maintenance
-                    )
-                )
+            guard let reminderDate = record.reminderDate else { continue }
+            if suppressWarrantyCoveredMaintenance,
+               WarrantySupport.warrantyMaintenanceCategories.contains(record.category) {
+                continue
             }
+            items.append(
+                MaintenanceReminderItem(
+                    id: "maintenance-\(record.id.uuidString)",
+                    title: record.title.isEmpty ? record.category.displayName : record.title,
+                    dueDate: reminderDate,
+                    subtitle: record.category.displayName,
+                    kind: .maintenance
+                )
+            )
         }
 
         for document in documents {
@@ -209,7 +225,51 @@ enum MaintenanceSupport {
             }
         }
 
+        if let profile,
+           let start = profile.insuranceStartDate,
+           shouldAddStandaloneInsuranceReminder(
+            profile: profile,
+            warrantyPlans: warrantyPlans,
+            warrantyAvailable: warrantyAvailable
+           ),
+           let nextDue = nextInsuranceReminderDate(from: start, now: now) {
+            items.append(
+                MaintenanceReminderItem(
+                    id: "insurance-\(profile.id.uuidString)",
+                    title: "Insurance check",
+                    dueDate: nextDue,
+                    subtitle: WarrantySupport.insuranceRenewalRequirement(for: profile.kind),
+                    kind: .warrantyEvent
+                )
+            )
+        }
+
         return items
+    }
+
+    private static func shouldAddStandaloneInsuranceReminder(
+        profile: VehicleProfile,
+        warrantyPlans: [WarrantyPlan],
+        warrantyAvailable: Bool
+    ) -> Bool {
+        guard warrantyAvailable else { return true }
+        guard let plan = WarrantySupport.plan(for: profile.id, from: warrantyPlans) else { return true }
+        return !plan.eventsList.contains(where: { $0.serviceType == .insuranceRenewal && $0.completedDate == nil })
+    }
+
+    /// Reminder fires `insuranceRenewalDaysBefore` before the next anniversary on or after today.
+    private static func nextInsuranceReminderDate(from start: Date, now: Date) -> Date? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        let dates = WarrantySupport.insuranceRenewalDates(from: start, now: now)
+        guard let nextAnniversary = dates.first(where: { calendar.startOfDay(for: $0) >= today })
+            ?? dates.last
+        else { return nil }
+        return calendar.date(
+            byAdding: .day,
+            value: -WarrantySupport.insuranceRenewalDaysBefore,
+            to: calendar.startOfDay(for: nextAnniversary)
+        ) ?? nextAnniversary
     }
 
     static func highPriorityFaultCount(_ faults: [FaultRecord]) -> Int {
@@ -227,7 +287,9 @@ enum MaintenanceSupport {
     static func historyEntries(
         maintenanceRecords: [MaintenanceRecord],
         documents: [DocumentRecord],
-        faults: [FaultRecord]
+        faults: [FaultRecord],
+        warrantyPlans: [WarrantyPlan] = [],
+        ascending: Bool = false
     ) -> [MaintenanceHistoryEntry] {
         var entries: [MaintenanceHistoryEntry] = []
 
@@ -285,15 +347,63 @@ enum MaintenanceSupport {
             }
         }
 
-        return entries.sorted { $0.date > $1.date }
+        for plan in warrantyPlans {
+            let manufacturer = plan.manufacturer.trimmingCharacters(in: .whitespacesAndNewlines)
+            let purchaseSubtitle = manufacturer.isEmpty ? "Warranty plan started" : "\(manufacturer) warranty"
+            entries.append(
+                MaintenanceHistoryEntry(
+                    id: "warranty-purchase-\(plan.id.uuidString)",
+                    date: plan.purchaseDate,
+                    title: "Warranty purchase",
+                    subtitle: purchaseSubtitle,
+                    kind: .warrantyPurchase,
+                    searchText: ["Warranty purchase", purchaseSubtitle, manufacturer, plan.warrantyType, plan.handbookNotes].joined(separator: " ")
+                )
+            )
+
+            for event in plan.eventsList {
+                let status = WarrantySupport.statusDisplayName(for: WarrantySupport.status(for: event))
+                let date = event.completedDate ?? event.scheduledDate
+                var subtitleParts = ["Warranty", status]
+                if event.isImportantMilestone {
+                    subtitleParts.insert("Milestone", at: 1)
+                }
+                entries.append(
+                    MaintenanceHistoryEntry(
+                        id: "warranty-event-\(event.id.uuidString)",
+                        date: date,
+                        title: event.displayTitle,
+                        subtitle: subtitleParts.joined(separator: " · "),
+                        kind: .warranty,
+                        searchText: [
+                            event.displayTitle,
+                            event.requirementText,
+                            status,
+                            manufacturer
+                        ].joined(separator: " ")
+                    )
+                )
+            }
+        }
+
+        return entries.sorted { lhs, rhs in
+            if ascending {
+                if lhs.date != rhs.date { return lhs.date < rhs.date }
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+            if lhs.date != rhs.date { return lhs.date > rhs.date }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
     }
 
     static func filteredHistoryEntries(
         maintenanceRecords: [MaintenanceRecord],
         documents: [DocumentRecord],
         faults: [FaultRecord],
+        warrantyPlans: [WarrantyPlan] = [],
         filter: MaintenanceHistoryFilter,
-        searchText: String
+        searchText: String,
+        ascending: Bool = false
     ) -> [MaintenanceHistoryEntry] {
         let normalizedQuery = searchText
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -302,7 +412,9 @@ enum MaintenanceSupport {
         return historyEntries(
             maintenanceRecords: maintenanceRecords,
             documents: documents,
-            faults: faults
+            faults: faults,
+            warrantyPlans: warrantyPlans,
+            ascending: ascending
         )
         .filter { entry in
             switch filter {
@@ -314,6 +426,8 @@ enum MaintenanceSupport {
                 guard entry.kind == .document else { return false }
             case .faults:
                 guard entry.kind == .faultRaised || entry.kind == .faultResolved else { return false }
+            case .warranty:
+                guard entry.kind == .warranty || entry.kind == .warrantyPurchase else { return false }
             }
             if normalizedQuery.isEmpty {
                 return true

@@ -50,7 +50,7 @@ struct PadTabBar: View {
             .frame(width: pillWidth)
             .background {
                 Capsule(style: .continuous)
-                    .fill(Color(.systemBackground))
+                    .fill(LyneqoTheme.card)
                     .shadow(
                         color: Color.black.opacity(0.1),
                         radius: PadContentLayout.tabBarShadowRadius,
@@ -63,7 +63,7 @@ struct PadTabBar: View {
         .padding(.horizontal, PadContentLayout.tabBarOuterHorizontalPadding)
         .padding(.top, PadContentLayout.tabBarTopPadding)
         .padding(.bottom, PadContentLayout.tabBarBottomPadding)
-        .background(Color(.systemGroupedBackground))
+        .background(LyneqoTheme.background)
     }
 
     private func tabButton(_ tab: TabDescriptor) -> some View {
@@ -84,14 +84,14 @@ struct PadTabBar: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
-            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+            .foregroundStyle(isSelected ? LyneqoTheme.primaryTeal : LyneqoTheme.primaryText)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, PadContentLayout.tabBarItemHorizontalPadding)
             .padding(.vertical, PadContentLayout.tabBarItemVerticalPadding)
             .background {
                 if isSelected {
                     Capsule(style: .continuous)
-                        .fill(Color.accentColor.opacity(0.14))
+                        .fill(LyneqoTheme.softTeal)
                 }
             }
             .contentShape(Capsule())

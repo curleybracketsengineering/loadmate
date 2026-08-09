@@ -59,14 +59,14 @@ struct LoadSummaryStepView: View {
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color(.tertiarySystemFill))
+                    Capsule().fill(LyneqoTheme.softTeal)
                     Capsule().fill(Color.accentColor).frame(width: geo.size.width * fraction)
                 }
             }
             .frame(height: 8)
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
     }
 
@@ -91,7 +91,7 @@ struct LoadSummaryStepView: View {
             )
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
     }
 
@@ -117,7 +117,7 @@ struct LoadSummaryStepView: View {
             }
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
     }
 

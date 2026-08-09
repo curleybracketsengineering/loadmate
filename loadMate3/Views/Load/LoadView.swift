@@ -122,7 +122,7 @@ struct LoadTabContent: View {
                 standardBody
             }
         }
-        .background(Color(.systemGroupedBackground))
+        .background(LyneqoTheme.background)
         .task(id: profiles.map(\.id)) {
             TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
         }
@@ -397,7 +397,7 @@ struct LoadTabContent: View {
         .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
         .background(
             RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(LyneqoTheme.card)
         )
         .contextMenu {
             Button {

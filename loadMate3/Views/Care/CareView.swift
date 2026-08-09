@@ -7,6 +7,7 @@ enum CareDestination: Hashable {
     case warranty
     case documents
     case checklist
+    case history
 }
 
 struct CareView: View {
@@ -61,7 +62,8 @@ struct CareView: View {
             documents: scopedDocuments,
             warrantyPlans: warrantyPlans,
             vehicleID: profile.id,
-            warrantyAvailable: profile.warrantyAvailable
+            warrantyAvailable: profile.warrantyAvailable,
+            profile: profile
         )
     }
 
@@ -90,7 +92,7 @@ struct CareView: View {
 
                     if WarrantySupport.showsWarrantyFeatures(for: activeProfile) {
                         careHubCard(
-                            title: "Warranty",
+                            title: "Service & warranty",
                             subtitle: warrantySubtitle,
                             systemImage: "shield.fill",
                             tint: AppColors.purple
@@ -98,8 +100,15 @@ struct CareView: View {
                     }
 
                     careHubCard(
+                        title: "Tyre Safety",
+                        subtitle: "Pressures, age and condition",
+                        systemImage: "circle.circle.fill",
+                        tint: AppColors.green
+                    ) { destination = .tyreSafety }
+
+                    careHubCard(
                         title: "Documents",
-                        subtitle: "\(scopedDocuments.count) files. Insurance, Registration, Manuals & more.",
+                        subtitle: documentsSubtitle,
                         systemImage: "folder.fill",
                         tint: AppColors.orange
                     ) { destination = .documents }
@@ -110,6 +119,13 @@ struct CareView: View {
                         systemImage: "checklist",
                         tint: AppColors.blue
                     ) { destination = .checklist }
+
+                    careHubCard(
+                        title: "History",
+                        subtitle: historySubtitle,
+                        systemImage: "clock.arrow.circlepath",
+                        tint: AppColors.teal
+                    ) { destination = .history }
                 }
                 .padding(.horizontal, AppScreenMetrics.horizontalPadding)
                 .padding(.top, AppScreenMetrics.verticalScreenPadding)
@@ -118,10 +134,11 @@ struct CareView: View {
             .appScreenBackground()
             .navigationTitle("Care")
             .navigationBarTitleDisplayMode(.large)
-            .onChange(of: pendingDestination) { _, newValue in
-                guard let newValue else { return }
-                destination = newValue
-                pendingDestination = nil
+            .onAppear {
+                consumePendingDestination()
+            }
+            .onChange(of: pendingDestination) { _, _ in
+                consumePendingDestination()
             }
             .navigationDestination(item: $destination) { dest in
                 switch dest {
@@ -132,12 +149,32 @@ struct CareView: View {
                 case .warranty:
                     WarrantyView()
                 case .documents:
-                    MaintenanceView()
+                    DocumentsView()
                 case .checklist:
                     ChecklistView()
+                case .history:
+                    VehicleHistoryView()
                 }
             }
         }
+    }
+
+    private func consumePendingDestination() {
+        guard let pending = pendingDestination else { return }
+        pendingDestination = nil
+        // Defer so NavigationStack is ready when arriving via TabView selection.
+        DispatchQueue.main.async {
+            destination = pending
+        }
+    }
+
+    private var documentsSubtitle: String {
+        let count = scopedDocuments.count
+        if count == 0 {
+            return "Insurance, registration, manuals, photos & more."
+        }
+        let noun = count == 1 ? "file" : "files"
+        return "\(count) \(noun). Insurance, Registration, Manuals & more."
     }
 
     private var maintenanceSubtitle: String {
@@ -153,6 +190,24 @@ struct CareView: View {
             return "Plans, checks and documents."
         }
         return WarrantySupport.careHubSubtitle(plans: warrantyPlans, vehicleID: profile.id)
+    }
+
+    private var historySubtitle: String {
+        guard let profile = activeProfile else {
+            return "Chronological timeline of care and warranty events."
+        }
+        let count = MaintenanceSupport.historyEntries(
+            maintenanceRecords: scopedMaintenance,
+            documents: scopedDocuments,
+            faults: scopedFaults,
+            warrantyPlans: WarrantySupport.showsWarrantyFeatures(for: profile)
+                ? warrantyPlans.filter { $0.vehicleID == profile.id }
+                : []
+        ).count
+        if count == 0 {
+            return "Build a printable timeline as you record care events."
+        }
+        return "\(count) events. Share a full chronological record when selling or claiming."
     }
 
     private func careHubCard(
@@ -187,7 +242,7 @@ struct CareView: View {
                     .padding(.top, 4)
             }
             .padding(AppScreenMetrics.cardInteriorPadding)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
         }
         .buttonStyle(.plain)

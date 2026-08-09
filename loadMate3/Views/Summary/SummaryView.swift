@@ -58,7 +58,7 @@ struct SummaryView: View {
                         description: Text(setupRequiredMessage)
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(.systemGroupedBackground))
+                    .background(LyneqoTheme.background)
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -132,7 +132,7 @@ struct SummaryView: View {
             .padding(.bottom, 36)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Color(.systemGroupedBackground))
+        .background(LyneqoTheme.background)
     }
 
 }

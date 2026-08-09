@@ -48,7 +48,7 @@ struct SummaryPadView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemGroupedBackground))
+            .background(LyneqoTheme.background)
             .toolbar(.hidden, for: .navigationBar)
             .task(id: refreshToken) {
                 viewModel.refresh(profile: activeProfile, trip: activeTrip, loadedItems: profileLoadedItems)

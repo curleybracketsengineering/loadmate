@@ -6,9 +6,7 @@ enum TyreStore {
         guard let profile else { return [] }
         return allRecords
             .filter { $0.vehicleID == profile.id && $0.isCurrentlyFitted }
-            .sorted { lhs, rhs in
-                TyrePosition.allCases.firstIndex(of: lhs.position) ?? 0 < TyrePosition.allCases.firstIndex(of: rhs.position) ?? 0
-            }
+            .sorted(by: positionSort)
     }
 
     static func activeRecords(for profile: VehicleProfile?, in context: ModelContext) -> [TyreRecord] {
@@ -16,6 +14,41 @@ enum TyreStore {
         let descriptor = FetchDescriptor<TyreRecord>()
         let all = (try? context.fetch(descriptor)) ?? []
         return activeRecords(for: profile, from: all)
+    }
+
+    /// Replaced or otherwise unfitted tyres for a vehicle, newest removal first.
+    static func archivedRecords(for profile: VehicleProfile?, from allRecords: [TyreRecord]) -> [TyreRecord] {
+        guard let profile else { return [] }
+        return allRecords
+            .filter { $0.vehicleID == profile.id && !$0.isCurrentlyFitted }
+            .sorted(by: removalSort)
+    }
+
+    /// Earlier tyres at the same vehicle position as `record` (for example after Replace tyre).
+    static func previousRecords(for record: TyreRecord, from allRecords: [TyreRecord]) -> [TyreRecord] {
+        allRecords
+            .filter {
+                $0.id != record.id
+                    && $0.vehicleID == record.vehicleID
+                    && $0.position == record.position
+                    && $0.isSpare == record.isSpare
+                    && !$0.isCurrentlyFitted
+            }
+            .sorted(by: removalSort)
+    }
+
+    static func previousRecords(for record: TyreRecord, in context: ModelContext) -> [TyreRecord] {
+        let all = (try? context.fetch(FetchDescriptor<TyreRecord>())) ?? []
+        return previousRecords(for: record, from: all)
+    }
+
+    private static func positionSort(_ lhs: TyreRecord, _ rhs: TyreRecord) -> Bool {
+        TyrePosition.allCases.firstIndex(of: lhs.position) ?? 0
+            < TyrePosition.allCases.firstIndex(of: rhs.position) ?? 0
+    }
+
+    private static func removalSort(_ lhs: TyreRecord, _ rhs: TyreRecord) -> Bool {
+        (lhs.removedDate ?? lhs.updatedAt) > (rhs.removedDate ?? rhs.updatedAt)
     }
 
     static func createLayout(
@@ -97,37 +130,6 @@ enum TyreStore {
         context.insert(inspection)
         try? context.save()
         return inspection
-    }
-
-    static func saveQuickCheck(
-        records: [TyreRecord],
-        pressureEntriesPSI: [UUID: Double],
-        treadDepthEntries: [UUID: Double],
-        inspectionDate: Date,
-        notes: String,
-        in context: ModelContext
-    ) {
-        for record in records {
-            let pressure = pressureEntriesPSI[record.id]
-            let tread = treadDepthEntries[record.id]
-            guard pressure != nil || tread != nil else { continue }
-            addInspection(
-                to: record,
-                inspectionDate: inspectionDate,
-                pressurePSI: pressure,
-                treadDepthMM: tread,
-                hasCuts: false,
-                hasBulges: false,
-                hasCracking: false,
-                hasUnevenWear: false,
-                hasEmbeddedObjects: false,
-                valveAppearsSound: nil,
-                wheelNutsChecked: nil,
-                overallCondition: record.condition == .notChecked ? .good : record.condition,
-                notes: notes,
-                in: context
-            )
-        }
     }
 
     static func suggestedLayout(for records: [TyreRecord], kind: VehicleKind) -> TyreLayout? {

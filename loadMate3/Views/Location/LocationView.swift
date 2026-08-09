@@ -120,7 +120,7 @@ struct LocationView: View {
                     }
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .background(LyneqoTheme.background)
             .modifier(OptionalPrincipalTabTitle(title: screenTitle))
             .task(id: profiles.map(\.id)) {
                 TripStore.ensureTripsMigrated(in: modelContext, profiles: profiles)
@@ -254,7 +254,7 @@ struct LocationView: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(LyneqoTheme.card)
             )
         }
     }
@@ -304,7 +304,7 @@ struct LocationView: View {
         .padding(AppScreenMetrics.cardInteriorPadding)
         .background(
             RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(LyneqoTheme.card)
         )
     }
 
@@ -440,7 +440,7 @@ private struct LocationZoneBadge: View {
                 .padding(.vertical, 5)
                 .background(
                     Capsule()
-                        .fill(Color(.tertiarySystemFill))
+                        .fill(LyneqoTheme.softTeal)
                 )
         } else {
             Text(zone.locationBadgeTitle(for: vehicleKind))

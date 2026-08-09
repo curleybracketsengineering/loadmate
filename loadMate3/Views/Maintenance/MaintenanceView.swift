@@ -7,8 +7,6 @@ import UniformTypeIdentifiers
 import VisionKit
 
 struct MaintenanceView: View {
-    var showsEmbeddedTyrePanel: Bool = false
-
     @Environment(\.modelContext) private var modelContext
     @Environment(\.usePadLayout) private var usePadLayout
     @Query private var profiles: [VehicleProfile]
@@ -16,7 +14,6 @@ struct MaintenanceView: View {
     @Query private var maintenanceRecords: [MaintenanceRecord]
     @Query private var documentRecords: [DocumentRecord]
     @Query private var faultRecords: [FaultRecord]
-    @Query private var tyreRecords: [TyreRecord]
     @Query private var warrantyPlans: [WarrantyPlan]
 
     @State private var showCreateDialog = false
@@ -27,7 +24,6 @@ struct MaintenanceView: View {
     @State private var showDocumentsList = false
     @State private var showFaultsList = false
     @State private var showHistory = false
-    @State private var showTyreSafety = false
 
     @State private var selectedMaintenanceRecord: MaintenanceRecord?
     @State private var selectedDocumentRecord: DocumentRecord?
@@ -70,13 +66,10 @@ struct MaintenanceView: View {
             documents: scopedDocuments,
             warrantyPlans: warrantyPlans,
             vehicleID: profile.id,
-            warrantyAvailable: profile.warrantyAvailable
+            warrantyAvailable: profile.warrantyAvailable,
+            profile: profile
         )
         .sorted { $0.dueDate < $1.dueDate }
-    }
-
-    private var activeTyreRecords: [TyreRecord] {
-        TyreStore.activeRecords(for: activeProfile, from: tyreRecords)
     }
 
     var body: some View {
@@ -85,19 +78,10 @@ struct MaintenanceView: View {
                 if let profile = activeProfile {
                     ScrollView {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                            AppHeroSection(
-                                systemImage: "wrench.and.screwdriver",
-                                title: "Maintenance",
-                                subtitle: "\(profile.name) \(profile.kind.displayName.lowercased())"
-                            )
-
                             summarySection
                             remindersSection
                             faultDashboardSection
                             maintenancePreviewSection(profile: profile)
-                            if !showsEmbeddedTyrePanel {
-                                tyrePreviewSection
-                            }
                             documentsPreviewSection
                         }
                         .padding(.horizontal, AppScreenMetrics.horizontalPadding)
@@ -115,9 +99,6 @@ struct MaintenanceView: View {
             }
             .appScreenBackground()
             .appPrincipalTabTitle("Maintenance")
-            .navigationDestination(isPresented: $showTyreSafety) {
-                TyreSafetyView()
-            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -149,7 +130,8 @@ struct MaintenanceView: View {
             if let profile = activeProfile {
                 FaultRecordEditorView(
                     profile: profile,
-                    maintenanceRecords: scopedMaintenanceRecords
+                    maintenanceRecords: scopedMaintenanceRecords,
+                    defaultWarrantyRelated: WarrantySupport.plan(for: profile.id, from: warrantyPlans) != nil
                 )
             }
         }
@@ -191,7 +173,10 @@ struct MaintenanceView: View {
             MaintenanceHistoryTimelineView(
                 maintenanceRecords: scopedMaintenanceRecords,
                 documentRecords: scopedDocuments,
-                faultRecords: scopedFaults
+                faultRecords: scopedFaults,
+                warrantyPlans: WarrantySupport.showsWarrantyFeatures(for: activeProfile)
+                    ? warrantyPlans.filter { $0.vehicleID == activeProfile?.id }
+                    : []
             )
         }
     }
@@ -310,35 +295,6 @@ struct MaintenanceView: View {
                 accessibilityLabel: "Maintenance records"
             )
         }
-    }
-
-    private var tyrePreviewSection: some View {
-        MaintenanceCompactSectionRow(
-            caption: tyrePreviewCaption,
-            label: "Tyre Safety",
-            addAccessibilityLabel: "Set up tyres",
-            viewAccessibilityLabel: "View tyre safety",
-            onAdd: { showTyreSafety = true },
-            onView: { showTyreSafety = true }
-        ) {
-            MaintenanceMetricCount(
-                count: activeTyreRecords.count,
-                tint: activeTyreRecords.isEmpty ? .orange : .green,
-                accessibilityLabel: "Active tyres"
-            )
-        }
-    }
-
-    private var tyrePreviewCaption: String {
-        if activeTyreRecords.isEmpty {
-            return "Set up tyres to track pressures, age and condition for this vehicle."
-        }
-        let needsAttention = activeTyreRecords.contains {
-            $0.pressureAssessment.level != .current || $0.ageAssessment.level == .action
-        }
-        return needsAttention
-            ? "Some tyres need attention. Review pressures and age before travel."
-            : "Track pressures, age and inspections for \(activeTyreRecords.count) tyre\(activeTyreRecords.count == 1 ? "" : "s")."
     }
 
     private var documentsPreviewSection: some View {
@@ -524,7 +480,7 @@ private struct MaintenanceDashboardCard: View {
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .fill(Color(.tertiarySystemFill))
+                    .fill(LyneqoTheme.softTeal)
             )
         }
         .buttonStyle(.plain)
@@ -656,15 +612,24 @@ private struct MaintenanceHistoryTimelineView: View {
     let maintenanceRecords: [MaintenanceRecord]
     let documentRecords: [DocumentRecord]
     let faultRecords: [FaultRecord]
+    var warrantyPlans: [WarrantyPlan] = []
 
     @State private var filter: MaintenanceHistoryFilter = .all
     @State private var searchText = ""
+
+    private var visibleFilters: [MaintenanceHistoryFilter] {
+        if warrantyPlans.isEmpty {
+            return MaintenanceHistoryFilter.allCases.filter { $0 != .warranty }
+        }
+        return MaintenanceHistoryFilter.allCases
+    }
 
     private var entries: [MaintenanceHistoryEntry] {
         MaintenanceSupport.filteredHistoryEntries(
             maintenanceRecords: maintenanceRecords,
             documents: documentRecords,
             faults: faultRecords,
+            warrantyPlans: warrantyPlans,
             filter: filter,
             searchText: searchText
         )
@@ -675,7 +640,7 @@ private struct MaintenanceHistoryTimelineView: View {
             List {
                 Section {
                     Picker("Filter", selection: $filter) {
-                        ForEach(MaintenanceHistoryFilter.allCases) { option in
+                        ForEach(visibleFilters) { option in
                             Text(option.displayName).tag(option)
                         }
                     }
@@ -859,7 +824,7 @@ private struct MaintenanceRecordEditorView: View {
     }
 }
 
-private struct DocumentRecordEditorView: View {
+struct DocumentRecordEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -973,7 +938,7 @@ private struct DocumentRecordEditorView: View {
     }
 }
 
-private struct FaultRecordEditorView: View {
+struct FaultRecordEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -997,7 +962,9 @@ private struct FaultRecordEditorView: View {
     init(
         profile: VehicleProfile,
         record: FaultRecord? = nil,
-        maintenanceRecords: [MaintenanceRecord]
+        maintenanceRecords: [MaintenanceRecord],
+        defaultWarrantyRelated: Bool = false,
+        suggestAsWarrantyItem: Bool = false
     ) {
         self.profile = profile
         self.record = record
@@ -1012,7 +979,10 @@ private struct FaultRecordEditorView: View {
         _estimatedRepairCost = State(initialValue: record?.estimatedRepairCost.map { Self.currencyInputString($0) } ?? "")
         _actualRepairCost = State(initialValue: record?.actualRepairCost.map { Self.currencyInputString($0) } ?? "")
         _linkedMaintenanceID = State(initialValue: record?.linkedMaintenanceRecord?.id)
-        _isWarrantyRelated = State(initialValue: record?.isWarrantyRelated ?? false)
+        let existingFlag = record?.isWarrantyRelated ?? false
+        _isWarrantyRelated = State(
+            initialValue: existingFlag || suggestAsWarrantyItem || (record == nil && defaultWarrantyRelated)
+        )
     }
 
     var body: some View {
@@ -1024,6 +994,13 @@ private struct FaultRecordEditorView: View {
                         title: record == nil ? "New fault" : "Fault details",
                         subtitle: "Track issues until they are repaired, invoiced and closed."
                     )
+
+                    AppSettingsSection(
+                        "Warranty",
+                        caption: "Turn this on if the issue is covered by or claimed under warranty. It appears on the Warranty screen — open or completed."
+                    ) {
+                        Toggle("Warranty item", isOn: $isWarrantyRelated)
+                    }
 
                     AppSettingsSection("Details") {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
@@ -1054,7 +1031,6 @@ private struct FaultRecordEditorView: View {
                                         .tag(Optional.some(maintenance.id))
                                 }
                             }
-                            Toggle("Warranty-related fault", isOn: $isWarrantyRelated)
                         }
                     }
 
@@ -1125,7 +1101,7 @@ private struct FaultRecordEditorView: View {
     }
 }
 
-private struct MaintenanceAttachmentEditorSection: View {
+struct MaintenanceAttachmentEditorSection: View {
     @Binding var pendingAttachments: [MaintenanceAttachmentDraft]
     let existingAttachments: [MaintenanceAttachment]
     let onDeleteExisting: (MaintenanceAttachment) -> Void
@@ -1275,7 +1251,7 @@ private struct MaintenanceAttachmentEditorSection: View {
     }
 }
 
-private struct AttachmentThumbnailView: View {
+struct AttachmentThumbnailView: View {
     let title: String
     let image: UIImage?
     let symbolName: String
@@ -1293,7 +1269,7 @@ private struct AttachmentThumbnailView: View {
                     } else {
                         ZStack {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color(.tertiarySystemFill))
+                                .fill(LyneqoTheme.softTeal)
                             Image(systemName: symbolName)
                                 .font(.title2)
                                 .foregroundStyle(Color.secondary)
@@ -1319,7 +1295,7 @@ private struct AttachmentThumbnailView: View {
     }
 }
 
-private enum AttachmentPreviewSource: Identifiable {
+enum AttachmentPreviewSource: Identifiable {
     case saved(MaintenanceAttachment)
     case pending(MaintenanceAttachmentDraft)
 
@@ -1333,7 +1309,7 @@ private enum AttachmentPreviewSource: Identifiable {
     }
 }
 
-private struct AttachmentPreviewView: View {
+struct AttachmentPreviewView: View {
     @Environment(\.dismiss) private var dismiss
     let preview: AttachmentPreviewSource
 
@@ -1394,7 +1370,7 @@ private struct AttachmentPreviewView: View {
     }
 }
 
-private struct PDFDocumentView: UIViewRepresentable {
+struct PDFDocumentView: UIViewRepresentable {
     let data: Data
 
     func makeUIView(context: Context) -> PDFView {
@@ -1418,16 +1394,16 @@ private struct MaintenanceNotesEditor: View {
         TextEditor(text: $text)
             .frame(minHeight: 120)
             .padding(8)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                    .strokeBorder(Color(.separator), lineWidth: 1)
+                    .strokeBorder(LyneqoTheme.border, lineWidth: 1)
             }
     }
 }
 
-private struct MaintenanceImagePicker: UIViewControllerRepresentable {
+struct MaintenanceImagePicker: UIViewControllerRepresentable {
     @Environment(\.dismiss) private var dismiss
 
     let sourceType: UIImagePickerController.SourceType
@@ -1476,13 +1452,13 @@ private struct MaintenanceImagePicker: UIViewControllerRepresentable {
     }
 }
 
-private struct ScannedDocumentResult {
+struct ScannedDocumentResult {
     let pdfData: Data
     let pageCount: Int
     let displayName: String
 }
 
-private struct MaintenanceDocumentScanner: UIViewControllerRepresentable {
+struct MaintenanceDocumentScanner: UIViewControllerRepresentable {
     @Environment(\.dismiss) private var dismiss
     let onScanComplete: (ScannedDocumentResult) -> Void
 

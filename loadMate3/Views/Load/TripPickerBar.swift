@@ -86,7 +86,7 @@ struct TripPickerBar: View {
             .padding(.vertical, 8)
             .background(
                 Capsule(style: .continuous)
-                    .fill(isActive ? Color.accentColor : Color(.secondarySystemGroupedBackground))
+                    .fill(isActive ? Color.accentColor : LyneqoTheme.card)
             )
         }
         .buttonStyle(.plain)

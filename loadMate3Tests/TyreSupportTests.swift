@@ -103,7 +103,7 @@ final class TyreSupportTests: XCTestCase {
             "Caravan • 2 road tyres + spare"
         )
         XCTAssertEqual(TyreSupport.actionNeededCount(in: records), 1)
-        XCTAssertEqual(TyreSupport.conditionCallToAction(for: spare), "Record DOT code")
+        XCTAssertEqual(TyreSupport.conditionCallToAction(for: spare), "Tyre information required")
         XCTAssertEqual(TyreSupport.dateCodeCaption(for: spare), "Date not recorded")
     }
 
@@ -145,5 +145,162 @@ final class TyreSupportTests: XCTestCase {
 
         let inspections = try? context.fetch(FetchDescriptor<TyreInspection>())
         XCTAssertEqual(inspections?.count, 1)
+    }
+
+    func testCopyableDetailsExcludePerTyreFields() {
+        let record = TyreRecord(vehicleID: UUID(), position: .caravanLeft)
+        record.manufacturer = "Michelin"
+        record.modelName = "Agilis"
+        record.tyreSize = "225/75 R16"
+        record.loadIndex = "121"
+        record.speedRating = "R"
+        record.recommendedPressurePSI = 65
+        record.dateCode = "1221"
+        record.manufactureWeek = 12
+        record.manufactureYear = 2021
+        record.latestPressurePSI = 64
+        record.latestTreadDepthMM = 6.0
+        record.condition = .good
+        record.notes = "Near side note"
+
+        let details = TyreCopyableDetails.from(record)
+
+        XCTAssertTrue(details.hasAnyValue)
+        XCTAssertEqual(details.manufacturer, "Michelin")
+        XCTAssertEqual(details.modelName, "Agilis")
+        XCTAssertEqual(details.tyreSize, "225/75 R16")
+        XCTAssertEqual(details.loadIndex, "121")
+        XCTAssertEqual(details.speedRating, "R")
+        XCTAssertEqual(details.recommendedPressurePSI ?? 0, 65, accuracy: 0.001)
+        XCTAssertEqual(details.dateCode, "1221")
+        XCTAssertEqual(details.summaryLine, "Michelin Agilis • 225/75 R16")
+    }
+
+    func testCopyableDetailsEmptyWhenOnlyPerTyreDataPresent() {
+        let record = TyreRecord(vehicleID: UUID(), position: .caravanRight)
+        record.latestPressurePSI = 65
+        record.notes = "Inspection note"
+
+        let details = TyreCopyableDetails.from(record)
+        XCTAssertFalse(details.hasAnyValue)
+        XCTAssertEqual(details.summaryLine, "No shared details recorded")
+    }
+
+    func testCopyableDetailsIncludeDateCodeAlone() {
+        let record = TyreRecord(vehicleID: UUID(), position: .caravanRight)
+        record.dateCode = "1221"
+
+        let details = TyreCopyableDetails.from(record)
+        XCTAssertTrue(details.hasAnyValue)
+        XCTAssertEqual(details.dateCode, "1221")
+        XCTAssertEqual(details.summaryLine, "Date code 1221")
+    }
+
+    func testReplaceTyreKeepsPreviousBasicDetailsInHistory() {
+        let profile = TestFixtures.caravanProfile()
+        let original = TyreRecord(vehicleID: profile.id, position: .caravanLeft)
+        original.manufacturer = "Michelin"
+        original.modelName = "Agilis"
+        original.tyreSize = "225/75 R16"
+        original.loadIndex = "121"
+        original.speedRating = "R"
+        original.dateCode = "3323"
+        original.manufactureWeek = 33
+        original.manufactureYear = 2023
+        original.manufactureDate = TyreSupport.isoWeekStart(year: 2023, week: 33)
+        original.installedDate = Date(timeIntervalSince1970: 1_700_000_000)
+        original.recommendedPressurePSI = 65
+        original.latestPressurePSI = 64
+        original.condition = .monitor
+        context.insert(original)
+
+        let replacement = TyreStore.replaceTyre(original, copyManufacturerAndModel: false, in: context)
+
+        XCTAssertFalse(original.isCurrentlyFitted)
+        XCTAssertNotNil(original.removedDate)
+        XCTAssertTrue(replacement.isCurrentlyFitted)
+        XCTAssertEqual(replacement.position, .caravanLeft)
+
+        let all = (try? context.fetch(FetchDescriptor<TyreRecord>())) ?? []
+        let previous = TyreStore.previousRecords(for: replacement, from: all)
+        XCTAssertEqual(previous.count, 1)
+        XCTAssertEqual(previous.first?.id, original.id)
+        XCTAssertEqual(
+            previous.first?.historyIdentitySummary,
+            "Michelin Agilis • 225/75 R16 • LI/SR 121/R"
+        )
+        XCTAssertEqual(previous.first?.dateCodeCaption, "Week 33 • 2023")
+        XCTAssertTrue(previous.first?.historyServicePeriod.contains("Fitted") == true)
+        XCTAssertTrue(previous.first?.historyServicePeriod.contains("Removed") == true)
+
+        let archived = TyreStore.archivedRecords(for: profile, from: all)
+        XCTAssertEqual(archived.map(\.id), [original.id])
+        XCTAssertEqual(TyreStore.activeRecords(for: profile, from: all).map(\.id), [replacement.id])
+    }
+
+    func testHistoryIdentitySummaryOmitsPressureReadings() {
+        let record = TyreRecord(vehicleID: UUID(), position: .caravanRight)
+        record.manufacturer = "Continental"
+        record.tyreSize = "215/70 R15"
+        record.latestPressurePSI = 58
+        record.notes = "Should not appear in identity summary"
+
+        XCTAssertEqual(record.historyIdentitySummary, "Continental • 215/70 R15")
+        XCTAssertFalse(record.historyIdentitySummary.contains("58"))
+        XCTAssertFalse(record.historyIdentitySummary.contains("Should not"))
+    }
+
+    func testDraftProfessionalReviewTracksDefectSwitches() {
+        XCTAssertFalse(
+            TyreSupport.draftRequiresProfessionalReview(
+                hasCuts: false,
+                hasBulges: false,
+                hasCracking: false,
+                hasUnevenWear: false,
+                hasEmbeddedObjects: false,
+                valveAppearsSound: true,
+                wheelNutsChecked: true,
+                overallCondition: .good
+            )
+        )
+
+        XCTAssertTrue(
+            TyreSupport.draftRequiresProfessionalReview(
+                hasCuts: true,
+                hasBulges: false,
+                hasCracking: false,
+                hasUnevenWear: false,
+                hasEmbeddedObjects: false,
+                valveAppearsSound: true,
+                wheelNutsChecked: true,
+                overallCondition: .good
+            )
+        )
+
+        XCTAssertTrue(
+            TyreSupport.draftRequiresProfessionalReview(
+                hasCuts: false,
+                hasBulges: false,
+                hasCracking: false,
+                hasUnevenWear: false,
+                hasEmbeddedObjects: false,
+                valveAppearsSound: false,
+                wheelNutsChecked: true,
+                overallCondition: .good
+            )
+        )
+
+        XCTAssertFalse(
+            TyreSupport.draftRequiresProfessionalReview(
+                hasCuts: false,
+                hasBulges: false,
+                hasCracking: false,
+                hasUnevenWear: false,
+                hasEmbeddedObjects: false,
+                valveAppearsSound: true,
+                wheelNutsChecked: true,
+                overallCondition: .good
+            )
+        )
     }
 }

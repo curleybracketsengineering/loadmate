@@ -174,7 +174,7 @@ struct SafetyView: View {
                     }
                 }
                 .padding(AppScreenMetrics.cardInteriorPadding)
-                .background(Color(.secondarySystemGroupedBackground))
+                .background(LyneqoTheme.card)
                 .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
 
                 if tyreChecklistItem?.status == .due {
@@ -298,7 +298,7 @@ struct SafetyView: View {
                     .foregroundStyle(Color(.tertiaryLabel))
             }
             .padding(AppScreenMetrics.cardInteriorPadding)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -409,7 +409,7 @@ struct SafetyView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(AppScreenMetrics.cardInteriorPadding)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)

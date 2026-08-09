@@ -66,8 +66,13 @@ struct HomeTripSelectorBar: View {
             .foregroundStyle(Color.accentColor)
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                .strokeBorder(LyneqoTheme.border, lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
     }
 }
 
@@ -163,7 +168,7 @@ struct LoadOverviewCard: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(Color(.tertiarySystemFill))
+                        .fill(LyneqoTheme.softTeal)
                     Capsule()
                         .fill(isSafe ? Color.accentColor : AppColors.orange)
                         .frame(width: geo.size.width * fillFraction)
@@ -186,8 +191,13 @@ struct LoadOverviewCard: View {
             }
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
+                .strokeBorder(LyneqoTheme.border, lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
     }
 
     private func metricColumn(title: String, value: String, caption: String?) -> some View {
@@ -235,8 +245,13 @@ struct HomeQuickActionButton: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, AppScreenMetrics.cardInteriorPadding)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                    .strokeBorder(LyneqoTheme.border, lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(0.04), radius: 8, y: 3)
         }
         .buttonStyle(.plain)
     }
@@ -321,8 +336,13 @@ struct LoadWorkflowMetricsStrip: View {
             stripMetric(title: profile.kind == .caravan ? "Est. Nose Weight" : "Tow Ball Load", value: Formatters.kg(noseKg), caption: noseCaption)
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                .strokeBorder(LyneqoTheme.border, lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
     }
 
     private func stripMetric(title: String, value: String, caption: String?) -> some View {

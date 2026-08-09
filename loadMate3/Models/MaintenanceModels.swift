@@ -204,6 +204,7 @@ final class DocumentRecord {
     var expiryDate: Date?
     var reminderDate: Date?
     var notes: String = ""
+    var isWarrantyRelated: Bool = false
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 

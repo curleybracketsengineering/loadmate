@@ -19,10 +19,34 @@ enum WarrantySupport {
     static let defaultDaysBefore = 60
     static let defaultDaysAfter = 30
 
+    /// Reminder window ahead of the insurance anniversary.
+    static let insuranceRenewalDaysBefore = 30
+    static let insuranceRenewalDaysAfter = 0
+
     /// Starter statutory inspection schedule for non-UK motorhomes (confirm local rules).
     static let motorhomeVehicleInspectionFirstYear = 3
     static let motorhomeVehicleInspectionDaysBefore = 30
     static let motorhomeVehicleInspectionDaysAfter = 0
+
+    static func insuranceRenewalRequirement(for kind: VehicleKind) -> String {
+        switch kind {
+        case .caravan:
+            return "Ensure your vehicle, ensure your reg, ensure your caravan."
+        case .motorhome:
+            return "Ensure your vehicle, ensure your reg, ensure your motorhome."
+        }
+    }
+
+    /// Inclusive yearly insurance dates from the policy start through at least 10 years ahead of today.
+    static func insuranceRenewalDates(from start: Date, now: Date = Date()) -> [Date] {
+        let calendar = Calendar.current
+        let startDay = calendar.startOfDay(for: start)
+        let today = calendar.startOfDay(for: now)
+        let decadeFromStart = calendar.date(byAdding: .year, value: 10, to: startDay) ?? startDay
+        let decadeFromToday = calendar.date(byAdding: .year, value: 10, to: today) ?? today
+        let end = max(decadeFromStart, decadeFromToday)
+        return yearlyOccurrenceDates(from: startDay, through: end)
+    }
 
     static func suggestedMOTClass(for profile: VehicleProfile) -> UKMotorhomeMOTClass {
         UKMotorhomeMOTClass.suggested(forPlatedMassKg: profile.mtplmKg)
@@ -100,6 +124,26 @@ enum WarrantySupport {
         return Calendar.current.date(byAdding: .year, value: plan.durationYears, to: plan.purchaseDate)
     }
 
+    /// Year label for a service event from purchase date to due date (0 = custom / not a clear year anniversary).
+    static func yearNumber(for scheduledDate: Date, purchaseDate: Date) -> Int {
+        let calendar = Calendar.current
+        let purchase = calendar.startOfDay(for: purchaseDate)
+        let due = calendar.startOfDay(for: scheduledDate)
+        guard due > purchase else { return 0 }
+
+        let components = calendar.dateComponents([.year, .month, .day], from: purchase, to: due)
+        let years = components.year ?? 0
+        guard years > 0 else { return 0 }
+
+        // Prefer the anniversary year when the due date is within ~6 months of purchase + N years.
+        let months = components.month ?? 0
+        let days = components.day ?? 0
+        if months > 6 || (months == 6 && days > 0) {
+            return years + 1
+        }
+        return years
+    }
+
     static func isCoverageActive(plan: WarrantyPlan, now: Date = Date()) -> Bool {
         guard plan.isUnderWarranty else { return false }
         guard let expiry = expiresOn(plan: plan) else { return plan.isUnderWarranty }
@@ -108,30 +152,57 @@ enum WarrantySupport {
 
     static func coverageStatusText(plan: WarrantyPlan?, now: Date = Date()) -> (title: String, detail: String, tintIsPositive: Bool) {
         guard let plan else {
-            return ("Warranty not configured", "Set up a personalised warranty plan for this vehicle.", false)
+            return ("Service timeline not set up", "Create a plan to track annual services, inspections and warranty cover.", false)
         }
 
         if !plan.isUnderWarranty {
-            return ("Not under warranty", "You have marked this vehicle as not under warranty.", false)
+            return (
+                "Owner-funded servicing",
+                "Not marked as under warranty. Keep logging services on the timeline — the same work still needs doing.",
+                false
+            )
         }
 
         if isCoverageActive(plan: plan, now: now), let expiry = expiresOn(plan: plan) {
             return (
                 "Under warranty",
-                "Coverage recorded until \(Formatters.date(expiry)).",
+                "Cover recorded until \(Formatters.date(expiry)). Services still go on this timeline whether the manufacturer pays or not.",
                 true
             )
         }
 
         if let expiry = expiresOn(plan: plan) {
             return (
-                "Warranty expired",
-                "Recorded coverage ended on \(Formatters.date(expiry)).",
+                "Warranty ended",
+                "Cover ended \(Formatters.date(expiry)). Keep using this timeline for ongoing services and repairs.",
                 false
             )
         }
 
-        return ("Under warranty", "Coverage status recorded for this vehicle.", true)
+        return ("Under warranty", "Coverage recorded. Keep logging every service on this timeline.", true)
+    }
+
+    static func reminderItems(
+        plans: [WarrantyPlan],
+        vehicleID: UUID,
+        now: Date = Date()
+    ) -> [WarrantyReminderItem] {
+        guard let plan = plan(for: vehicleID, from: plans) else {
+            return []
+        }
+
+        return plan.eventsList.compactMap { event in
+            guard event.completedDate == nil else { return nil }
+            let due = reminderDate(for: event)
+            return WarrantyReminderItem(
+                id: "warranty-\(event.id.uuidString)",
+                title: event.displayTitle,
+                dueDate: due,
+                subtitle: event.requirementText,
+                eventID: event.id
+            )
+        }
+        .sorted { $0.dueDate < $1.dueDate }
     }
 
     static func windowStart(for event: WarrantyEvent) -> Date {
@@ -142,7 +213,33 @@ enum WarrantySupport {
         Calendar.current.date(byAdding: .day, value: event.daysAfter, to: event.scheduledDate.startOfDay) ?? event.scheduledDate
     }
 
-    static func status(for event: WarrantyEvent, now: Date = Date()) -> WarrantyEventStatus {
+    static func status(
+        for event: WarrantyEvent,
+        among events: [WarrantyEvent] = [],
+        now: Date = Date()
+    ) -> WarrantyEventStatus {
+        let base = baseStatus(for: event, now: now)
+        guard base == .upcoming else { return base }
+
+        // Without sibling context, keep calling a future event "Upcoming".
+        guard !events.isEmpty else { return .upcoming }
+
+        let nextUpcomingID = events
+            .filter { baseStatus(for: $0, now: now) == .upcoming }
+            .sorted {
+                let lhs = reminderDate(for: $0)
+                let rhs = reminderDate(for: $1)
+                if lhs != rhs { return lhs < rhs }
+                return $0.scheduledDate < $1.scheduledDate
+            }
+            .first?
+            .id
+
+        return nextUpcomingID == event.id ? .upcoming : .planned
+    }
+
+    /// Status before distinguishing the next future event from later planned ones.
+    private static func baseStatus(for event: WarrantyEvent, now: Date) -> WarrantyEventStatus {
         if event.completedDate != nil {
             return .completed
         }
@@ -170,6 +267,7 @@ enum WarrantySupport {
         case .overdue: return "Overdue"
         case .inWindow: return "In window"
         case .upcoming: return "Upcoming"
+        case .planned: return "Planned"
         }
     }
 
@@ -184,27 +282,34 @@ enum WarrantySupport {
         windowStart(for: event)
     }
 
-    static func reminderItems(
-        plans: [WarrantyPlan],
-        vehicleID: UUID,
-        now: Date = Date()
-    ) -> [WarrantyReminderItem] {
-        guard let plan = plan(for: vehicleID, from: plans), plan.isUnderWarranty else {
-            return []
-        }
+    /// End date for yearly repeats: later of plan cover end and 10 years after the start date.
+    static func yearlyRepeatEndDate(for plan: WarrantyPlan, startingFrom start: Date) -> Date {
+        let calendar = Calendar.current
+        let startDay = calendar.startOfDay(for: start)
+        let planEnd = expiresOn(plan: plan)
+            ?? calendar.date(byAdding: .year, value: max(plan.durationYears, 1), to: plan.purchaseDate)
+            ?? startDay
+        let decadeOut = calendar.date(byAdding: .year, value: 10, to: startDay) ?? startDay
+        return max(calendar.startOfDay(for: planEnd), calendar.startOfDay(for: decadeOut))
+    }
 
-        return plan.eventsList.compactMap { event in
-            guard event.completedDate == nil else { return nil }
-            let reminderDate = reminderDate(for: event)
-            return WarrantyReminderItem(
-                id: "warranty-\(event.id.uuidString)",
-                title: event.displayTitle,
-                dueDate: reminderDate,
-                subtitle: event.requirementText,
-                eventID: event.id
-            )
+    /// Inclusive yearly dates from `start` through `end` (same month/day each year).
+    static func yearlyOccurrenceDates(from start: Date, through end: Date) -> [Date] {
+        let calendar = Calendar.current
+        let startDay = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+        guard startDay <= endDay else { return [] }
+
+        var dates: [Date] = []
+        var cursor = startDay
+        var guardCount = 0
+        while cursor <= endDay, guardCount < 40 {
+            dates.append(cursor)
+            guard let next = calendar.date(byAdding: .year, value: 1, to: cursor) else { break }
+            cursor = calendar.startOfDay(for: next)
+            guardCount += 1
         }
-        .sorted { $0.dueDate < $1.dueDate }
+        return dates
     }
 
     static func nextActionableEvent(
@@ -236,18 +341,18 @@ enum WarrantySupport {
         now: Date = Date()
     ) -> String {
         guard let plan = plan(for: vehicleID, from: plans) else {
-            return "Set up your personalised warranty plan."
+            return "Set up a service timeline for this vehicle."
         }
 
         if let event = nextActionableEvent(plans: plans, vehicleID: vehicleID, now: now) {
-            let eventStatus = status(for: event, now: now)
+            let eventStatus = status(for: event, among: plan.eventsList, now: now)
             switch eventStatus {
             case .inWindow:
-                return "\(event.displayTitle) is in its action window now."
+                return "\(event.displayTitle) is in its service window now."
             case .overdue:
-                return "\(event.displayTitle) is overdue — review your warranty plan."
-            case .upcoming:
-                return "Next: \(event.displayTitle) · \(MaintenanceSupport.relativeDueText(for: reminderDate(for: event), now: now))."
+                return "\(event.displayTitle) is overdue — check the service timeline."
+            case .upcoming, .planned:
+                return "Next service: \(event.displayTitle) · \(MaintenanceSupport.relativeDueText(for: reminderDate(for: event), now: now))."
             case .completed:
                 break
             }
@@ -255,6 +360,71 @@ enum WarrantySupport {
 
         let coverage = coverageStatusText(plan: plan, now: now)
         return coverage.detail
+    }
+
+    // MARK: - Prepared evidence filters
+
+    static let warrantyDocumentCategories: Set<DocumentCategory> = [
+        .warranty, .batteryWarranty, .dampReport, .serviceHistory, .purchaseInvoice, .habitationCertificate
+    ]
+
+    static let warrantyMaintenanceCategories: Set<MaintenanceCategory> = [
+        .warrantyRepair, .dampInspection, .annualHabitationService
+    ]
+
+    static func warrantyDocuments(
+        from documents: [DocumentRecord],
+        events: [WarrantyEvent]
+    ) -> [DocumentRecord] {
+        let linkedIDs = Set(events.flatMap(\.linkedDocumentIDs))
+        return documents.filter {
+            $0.isWarrantyRelated
+                || warrantyDocumentCategories.contains($0.category)
+                || linkedIDs.contains($0.id)
+        }
+    }
+
+    /// Documents on Care/Maintenance that are not yet included in warranty evidence.
+    static func unflaggedDocuments(
+        from documents: [DocumentRecord],
+        events: [WarrantyEvent]
+    ) -> [DocumentRecord] {
+        let includedIDs = Set(warrantyDocuments(from: documents, events: events).map(\.id))
+        return documents.filter { !includedIDs.contains($0.id) }
+    }
+
+    static func warrantyFaults(
+        from faults: [FaultRecord],
+        events: [WarrantyEvent]
+    ) -> [FaultRecord] {
+        let linkedIDs = Set(events.compactMap(\.linkedFaultID))
+        return faults.filter { $0.isWarrantyRelated || linkedIDs.contains($0.id) }
+    }
+
+    /// Faults that appear on Care/Maintenance but are not yet included in warranty evidence.
+    static func unflaggedFaults(
+        from faults: [FaultRecord],
+        events: [WarrantyEvent]
+    ) -> [FaultRecord] {
+        let includedIDs = Set(warrantyFaults(from: faults, events: events).map(\.id))
+        return faults.filter { !includedIDs.contains($0.id) }
+    }
+
+    static func warrantyRepairs(
+        from records: [MaintenanceRecord],
+        events: [WarrantyEvent]
+    ) -> [MaintenanceRecord] {
+        let linkedIDs = Set(events.compactMap(\.linkedMaintenanceID))
+        return records.filter {
+            warrantyMaintenanceCategories.contains($0.category) || linkedIDs.contains($0.id)
+        }
+    }
+
+    static func eventEvidenceItems(from events: [WarrantyEvent]) -> [(event: WarrantyEvent, attachment: MaintenanceAttachment)] {
+        events.flatMap { event in
+            event.attachmentsList.map { (event: event, attachment: $0) }
+        }
+        .sorted { $0.attachment.createdAt > $1.attachment.createdAt }
     }
 }
 

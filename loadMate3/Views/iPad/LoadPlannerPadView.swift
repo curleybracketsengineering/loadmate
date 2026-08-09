@@ -269,7 +269,7 @@ private struct LoadPlannerNoseGuidePanel: View {
                 )
             }
             .padding(AppScreenMetrics.cardInteriorPadding)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
         }
         .scrollDismissesKeyboard(.interactively)
@@ -317,7 +317,7 @@ private struct LoadPlannerMotorhomeGuidePanel: View {
                     .foregroundStyle(AppColors.textSupporting)
             }
             .padding(AppScreenMetrics.cardInteriorPadding)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
         }
         .loadPlannerScrollPanel()
@@ -333,7 +333,7 @@ private struct LoadPlannerMotorhomeGuidePanel: View {
             let fraction = limit > 0 ? min(current / limit, 1) : 0
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color(.tertiarySystemFill))
+                    Capsule().fill(LyneqoTheme.softTeal)
                     Capsule()
                         .fill(isOver ? AppColors.red : Color.accentColor)
                         .frame(width: geo.size.width * fraction)

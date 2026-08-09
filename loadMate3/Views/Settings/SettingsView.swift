@@ -65,6 +65,8 @@ struct SettingsView: View {
 
                             warrantySettings(profile)
 
+                            insuranceSettings(profile)
+
                             tyreSafetySettings()
 
                             aboutSection()
@@ -79,6 +81,9 @@ struct SettingsView: View {
                             VStack(spacing: AppScreenMetrics.controlSpacing) {
                                 AppPrimaryButton("Save Configuration", systemImage: "checkmark.circle.fill") {
                                     guard viewModel.save(modelContext) else { return }
+                                    if let profile = editingProfile {
+                                        WarrantyStore.syncInsuranceRenewalEvents(for: profile, in: modelContext)
+                                    }
                                     if let profile = editingProfile, profile.isConfiguredForWeightCalculations {
                                         onNavigateToSummary?()
                                     } else if let profile = editingProfile {
@@ -188,17 +193,17 @@ struct SettingsView: View {
     @ViewBuilder
     private func warrantySettings(_ profile: VehicleProfile) -> some View {
         AppSettingsSection(
-            "Warranty",
-            caption: "Turn off if this vehicle has no manufacturer warranty to track."
+            "Service & warranty",
+            caption: "Turn off only if you do not want a service timeline for this vehicle. Cover is optional — services still need logging."
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 Toggle(isOn: boolBinding(for: \.warrantyAvailable, on: profile)) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Warranty available")
+                        Text("Show service & warranty")
                             .font(.subheadline.weight(.medium))
                         Text(profile.warrantyAvailable
-                            ? "Shows the Warranty tab in Maintenance and Care shortcuts."
-                            : "Hides warranty tracking for this vehicle.")
+                            ? "Shows the service timeline in Care, with optional manufacturer cover."
+                            : "Hides the service & warranty area for this vehicle.")
                             .font(.caption)
                             .foregroundStyle(AppColors.textSupporting)
                     }
@@ -218,6 +223,48 @@ struct SettingsView: View {
                         }
                     }
                     .tint(Color.accentColor)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func insuranceSettings(_ profile: VehicleProfile) -> some View {
+        AppSettingsSection(
+            "Insurance",
+            caption: "Optional. Set a date to add a yearly insurance check; leave blank to skip."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                if profile.insuranceStartDate != nil {
+                    DatePicker(
+                        "Insurance",
+                        selection: insuranceStartDateBinding(on: profile),
+                        displayedComponents: .date
+                    )
+                    Button("Clear date") {
+                        profile.insuranceStartDate = nil
+                        viewModel.save(modelContext)
+                        WarrantyStore.syncInsuranceRenewalEvents(for: profile, in: modelContext)
+                    }
+                    .font(.subheadline)
+                } else {
+                    Button {
+                        profile.insuranceStartDate = Calendar.current.startOfDay(for: Date())
+                        viewModel.save(modelContext)
+                        WarrantyStore.syncInsuranceRenewalEvents(for: profile, in: modelContext)
+                    } label: {
+                        HStack {
+                            Text("Insurance")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(AppColors.textPrimary)
+                            Spacer()
+                            Text("Not set")
+                                .font(.subheadline)
+                                .foregroundStyle(AppColors.textSupporting)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Set insurance date")
                 }
             }
         }
@@ -298,7 +345,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 Text(
                     """
-                    Lyneqo Caravan & Motorhome was built for you. After four decades in software development, I kept seeing hobby apps that were either poorly made or mainly about making money. I wanted to put my experience toward something genuinely useful: a free utility to help us all load more safely and sensibly.
+                    Lyneqo Caravan & Motorhome was built to give owners one clear place to look after their vehicle. After four decades in software development, I wanted to put that experience into a free utility that covers the full life of your rig: from safe loading and trip readiness through to maintenance, tyres, documents and warranty.
 
                     If you have ideas for how to improve it, I'd love to hear from you.
                     """
@@ -937,6 +984,17 @@ struct SettingsView: View {
             set: { newValue in
                 profile[keyPath: keyPath] = newValue
                 viewModel.save(modelContext)
+            }
+        )
+    }
+
+    private func insuranceStartDateBinding(on profile: VehicleProfile) -> Binding<Date> {
+        Binding(
+            get: { profile.insuranceStartDate ?? Calendar.current.startOfDay(for: Date()) },
+            set: { newValue in
+                profile.insuranceStartDate = Calendar.current.startOfDay(for: newValue)
+                viewModel.save(modelContext)
+                WarrantyStore.syncInsuranceRenewalEvents(for: profile, in: modelContext)
             }
         )
     }

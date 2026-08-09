@@ -80,7 +80,9 @@ enum WarrantyEvidencePackBuilder {
                 drawBody("No warranty events recorded.")
             } else {
                 for event in input.events {
-                    let status = WarrantySupport.statusDisplayName(for: WarrantySupport.status(for: event))
+                    let status = WarrantySupport.statusDisplayName(
+                        for: WarrantySupport.status(for: event, among: input.events)
+                    )
                     let milestonePrefix = event.isImportantMilestone ? "! Important year · " : ""
                     var line = "\(milestonePrefix)\(event.displayTitle) · \(Formatters.date(event.scheduledDate)) · \(status)"
                     if let completed = event.completedDate {
@@ -96,32 +98,33 @@ enum WarrantyEvidencePackBuilder {
             }
 
             drawBody("Linked documents", bold: true)
-            let linkedDocs = input.documents.filter { doc in
-                input.events.contains { $0.linkedDocumentIDs.contains(doc.id) }
-            }
-            if linkedDocs.isEmpty {
-                drawBody("No linked warranty documents.")
+            let linkedDocs = WarrantySupport.warrantyDocuments(from: input.documents, events: input.events)
+            let eventEvidence = WarrantySupport.eventEvidenceItems(from: input.events)
+            if linkedDocs.isEmpty && eventEvidence.isEmpty {
+                drawBody("No warranty documents or event evidence recorded.")
             } else {
                 for doc in linkedDocs {
                     drawBody("• \(doc.title.isEmpty ? doc.category.displayName : doc.title) · \(Formatters.date(doc.dateAdded))")
                 }
-            }
-
-            drawBody("Warranty faults", bold: true)
-            let warrantyFaults = input.faults.filter(\.isWarrantyRelated)
-            if warrantyFaults.isEmpty {
-                drawBody("No warranty-related faults recorded.")
-            } else {
-                for fault in warrantyFaults {
-                    drawBody("• \(fault.title.isEmpty ? "Fault" : fault.title) · \(fault.status.displayName) · \(Formatters.date(fault.discoveredDate))")
+                for item in eventEvidence {
+                    let name = item.attachment.displayName.isEmpty ? "Attachment" : item.attachment.displayName
+                    drawBody("• \(name) · attached to \(item.event.displayTitle)")
                 }
             }
 
-            drawBody("Warranty repairs", bold: true)
-            let repairs = input.maintenanceRecords.filter { $0.category == .warrantyRepair }
-            if repairs.isEmpty {
-                drawBody("No warranty repair records.")
+            drawBody("Warranty items", bold: true)
+            let warrantyItems = WarrantySupport.warrantyFaults(from: input.faults, events: input.events)
+            if warrantyItems.isEmpty {
+                drawBody("No warranty items recorded.")
             } else {
+                for fault in warrantyItems {
+                    drawBody("• \(fault.title.isEmpty ? "Item" : fault.title) · \(fault.status.displayName) · \(Formatters.date(fault.discoveredDate))")
+                }
+            }
+
+            let repairs = WarrantySupport.warrantyRepairs(from: input.maintenanceRecords, events: input.events)
+            if !repairs.isEmpty {
+                drawBody("Related service records", bold: true)
                 for repair in repairs {
                     drawBody("• \(repair.title.isEmpty ? repair.category.displayName : repair.title) · \(Formatters.date(repair.serviceDate))")
                 }

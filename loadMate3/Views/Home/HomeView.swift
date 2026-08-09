@@ -91,8 +91,8 @@ struct HomeView: View {
                 .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
             }
             .appScreenBackground()
-            .navigationTitle("Lyneqo Caravan & Motorhome")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("Home")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -148,8 +148,13 @@ struct HomeView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(LyneqoTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cardCornerRadiusLarge, style: .continuous)
+                .strokeBorder(LyneqoTheme.border, lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
     }
 
     private var quickActionsSection: some View {
@@ -179,38 +184,57 @@ struct HomeView: View {
             Text("More")
                 .font(.headline.weight(.semibold))
 
-            VStack(spacing: 0) {
-                HomeHubListRow(
-                    title: "Maintenance",
-                    subtitle: "Services, checks and history",
-                    systemImage: "wrench.and.screwdriver.fill",
-                    tint: AppColors.blue
+            moreHubGroup(
+                title: "Maintenance",
+                subtitle: "Services, checks and history",
+                systemImage: "wrench.and.screwdriver.fill",
+                tint: AppColors.blue
+            ) {
+                onNavigateToMaintenance?()
+            }
+
+            if activeProfile.map({ WarrantySupport.showsWarrantyFeatures(for: $0) }) ?? false {
+                moreHubGroup(
+                    title: "Warranty",
+                    subtitle: "Plans, checks and documents",
+                    systemImage: "shield.fill",
+                    tint: AppColors.purple
                 ) {
-                    onNavigateToMaintenance?()
-                }
-                Divider().padding(.leading, 56)
-                HomeHubListRow(
-                    title: "Tyre Safety",
-                    subtitle: "Pressures, age and condition",
-                    systemImage: "circle.circle.fill",
-                    tint: AppColors.green
-                ) {
-                    onNavigateToTyreSafety?()
-                }
-                if activeProfile.map({ WarrantySupport.showsWarrantyFeatures(for: $0) }) ?? false {
-                    Divider().padding(.leading, 56)
-                    HomeHubListRow(
-                        title: "Warranty",
-                        subtitle: "Plans, checks and documents",
-                        systemImage: "shield.fill",
-                        tint: AppColors.purple
-                    ) {
-                        onNavigateToWarranty?()
-                    }
+                    onNavigateToWarranty?()
                 }
             }
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+
+            moreHubGroup(
+                title: "Tyre Safety",
+                subtitle: "Pressures, age and condition",
+                systemImage: "circle.circle.fill",
+                tint: AppColors.green
+            ) {
+                onNavigateToTyreSafety?()
+            }
         }
+    }
+
+    private func moreHubGroup(
+        title: String,
+        subtitle: String,
+        systemImage: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        HomeHubListRow(
+            title: title,
+            subtitle: subtitle,
+            systemImage: systemImage,
+            tint: tint,
+            action: action
+        )
+        .background(LyneqoTheme.card)
+        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                .strokeBorder(LyneqoTheme.border, lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
     }
 }

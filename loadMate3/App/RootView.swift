@@ -25,7 +25,7 @@ struct RootView: View {
                     DisclaimerView(appState: state)
                 }
             } else {
-                ProgressView("Loading...")
+                ProgressView("Loading..")
             }
         }
         .task(id: "\(appStates.count)-\(profileListToken)") {

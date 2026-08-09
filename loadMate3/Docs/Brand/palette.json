@@ -1,0 +1,97 @@
+{
+  "LyneqoBackground": {
+    "light": "#F5F8F7",
+    "dark": "#071C25",
+    "desc": "Main app background"
+  },
+  "LyneqoCard": {
+    "light": "#FFFFFF",
+    "dark": "#102A35",
+    "desc": "Cards and grouped surfaces"
+  },
+  "LyneqoPrimaryText": {
+    "light": "#16313B",
+    "dark": "#F5FAFB",
+    "desc": "Primary text"
+  },
+  "LyneqoSecondaryText": {
+    "light": "#607780",
+    "dark": "#A7BBC3",
+    "desc": "Secondary text"
+  },
+  "LyneqoPrimaryTeal": {
+    "light": "#16AFA8",
+    "dark": "#40D5CC",
+    "desc": "Primary brand accent"
+  },
+  "LyneqoAqua": {
+    "light": "#55D5CA",
+    "dark": "#67E8DE",
+    "desc": "Secondary accent"
+  },
+  "LyneqoSoftTeal": {
+    "light": "#E1F5F2",
+    "dark": "#173A3E",
+    "desc": "Selected states and soft fills"
+  },
+  "LyneqoDeepNavy": {
+    "light": "#123747",
+    "dark": "#0B2430",
+    "desc": "Navigation and strong headings"
+  },
+  "LyneqoBorder": {
+    "light": "#D8E5E5",
+    "dark": "#294854",
+    "desc": "Borders and dividers"
+  },
+  "LyneqoDisabled": {
+    "light": "#A6B6B6",
+    "dark": "#6B8189",
+    "desc": "Disabled state"
+  },
+  "StatusSuccess": {
+    "light": "#32A66A",
+    "dark": "#50CF88",
+    "desc": "Safe or completed"
+  },
+  "StatusWarning": {
+    "light": "#E4A331",
+    "dark": "#F2BE58",
+    "desc": "Warning"
+  },
+  "StatusDanger": {
+    "light": "#D95B59",
+    "dark": "#F37774",
+    "desc": "Unsafe or overdue"
+  },
+  "StatusInfo": {
+    "light": "#2A7DE1",
+    "dark": "#5A9CF0",
+    "desc": "Informational"
+  },
+  "CaravanAccent": {
+    "light": "#16AFA8",
+    "dark": "#40D5CC",
+    "desc": "Caravan product"
+  },
+  "MotorhomeAccent": {
+    "light": "#2878A8",
+    "dark": "#4BA2D4",
+    "desc": "Motorhome product"
+  },
+  "TubAccent": {
+    "light": "#E9A126",
+    "dark": "#F6BC55",
+    "desc": "Tub product"
+  },
+  "BudgetAccent": {
+    "light": "#58A95B",
+    "dark": "#79C97B",
+    "desc": "Budget product"
+  },
+  "LearnAccent": {
+    "light": "#7B5CD6",
+    "dark": "#9B82EA",
+    "desc": "Learn product"
+  }
+}

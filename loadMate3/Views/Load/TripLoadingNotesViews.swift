@@ -192,7 +192,7 @@ struct TripLoadingNotesSheet: View {
         .frame(minHeight: AppScreenMetrics.inputMinHeight)
         .background(
             RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(LyneqoTheme.card)
         )
     }
 
@@ -231,11 +231,11 @@ struct TripLoadingNotesSheet: View {
             .scrollContentBackground(.hidden)
             .background(
                 RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(LyneqoTheme.card)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                    .strokeBorder(Color(.separator).opacity(0.35), lineWidth: 1)
+                    .strokeBorder(LyneqoTheme.border.opacity(0.35), lineWidth: 1)
             }
 
             if trip.tripNotes.count >= Self.maxNotesLength - 20 {

@@ -19,8 +19,8 @@ enum AppScreenMetrics {
     static let smallSpacing: CGFloat = 8
     static let tinySpacing: CGFloat = 4
 
-    /// Standard rounded rect (screens, rows).
-    static let cornerRadius: CGFloat = 16
+    /// Standard rounded rect (screens, rows) — Lyneqo 16–20 pt range.
+    static let cornerRadius: CGFloat = 18
     /// Inputs and compact controls.
     static let fieldCornerRadius: CGFloat = 14
     /// Large feature cards.
@@ -35,11 +35,11 @@ enum AppScreenMetrics {
     static let compactTwoFieldSheetHeight: CGFloat = 420
 }
 
-/// Standard screen background: system grouped surface.
+/// Standard screen background: Lyneqo light-first surface.
 struct AppScreenBackgroundModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(Color(.systemGroupedBackground))
+            .background(LyneqoTheme.background)
     }
 }
 
@@ -66,7 +66,7 @@ private struct AppPrincipalTabTitleModifier: ViewModifier {
                 ToolbarItem(placement: .principal) {
                     Text(title)
                         .font(.title.weight(.bold))
-                        .foregroundStyle(Color.primary)
+                        .foregroundStyle(LyneqoTheme.deepNavy)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
                 }
@@ -86,7 +86,7 @@ extension View {
 struct AppHeroSection: View {
     let systemImage: String
     let title: String
-    let subtitle: String
+    var subtitle: String = ""
 
     var body: some View {
         VStack(spacing: AppScreenMetrics.controlSpacing) {
@@ -98,13 +98,15 @@ struct AppHeroSection: View {
 
             Text(title)
                 .font(.title2.weight(.semibold))
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(LyneqoTheme.primaryText)
                 .multilineTextAlignment(.center)
 
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(AppColors.textSupporting)
-                .multilineTextAlignment(.center)
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(LyneqoTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, AppScreenMetrics.smallSpacing)
@@ -116,7 +118,7 @@ struct AppHeroSection: View {
 struct AppSectionDivider: View {
     var body: some View {
         Rectangle()
-            .fill(Color(.separator).opacity(0.35))
+            .fill(LyneqoTheme.border.opacity(0.85))
             .frame(height: 1)
     }
 }
@@ -128,7 +130,7 @@ struct AppWarningBanner: View {
         HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.body)
-                .foregroundStyle(Color.orange)
+                .foregroundStyle(LyneqoTheme.Status.warning)
                 .accessibilityHidden(true)
             Text(message)
                 .font(.subheadline)
@@ -175,11 +177,11 @@ struct AppSectionHeading: View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
             Text(title)
                 .font(.headline)
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(LyneqoTheme.deepNavy)
             if let caption, !caption.isEmpty {
                 Text(caption)
                     .font(.caption)
-                    .foregroundStyle(AppColors.textSupporting)
+                    .foregroundStyle(LyneqoTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -194,7 +196,7 @@ struct AppAccentLabel: View {
     var body: some View {
         Text(text)
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(LyneqoTheme.primaryTeal)
     }
 }
 
@@ -240,7 +242,7 @@ struct AppSearchField: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(.tertiarySystemFill))
+                .fill(LyneqoTheme.softTeal)
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Search")
@@ -282,11 +284,11 @@ struct AppBoundedTextField: View {
             .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
             .padding(.vertical, AppScreenMetrics.fieldSpacing)
             .frame(minHeight: AppScreenMetrics.inputMinHeight, alignment: .center)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                    .strokeBorder(focused ? Color.accentColor.opacity(0.55) : Color(.separator), lineWidth: focused ? 2 : 1)
+                    .strokeBorder(focused ? LyneqoTheme.primaryTeal.opacity(0.55) : LyneqoTheme.border, lineWidth: focused ? 2 : 1)
             }
             .animation(.spring(response: 0.35), value: focused)
             .onChange(of: focused) { wasFocused, isFocused in
@@ -461,11 +463,11 @@ struct AppBoundedNumberField: View {
             .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
             .padding(.vertical, AppScreenMetrics.fieldSpacing)
             .frame(minHeight: AppScreenMetrics.inputMinHeight, alignment: .center)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(LyneqoTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                    .strokeBorder(focused ? Color.accentColor.opacity(0.55) : Color(.separator), lineWidth: focused ? 2 : 1)
+                    .strokeBorder(focused ? LyneqoTheme.primaryTeal.opacity(0.55) : LyneqoTheme.border, lineWidth: focused ? 2 : 1)
             }
             .animation(.spring(response: 0.35), value: focused)
             .onAppear {
@@ -647,7 +649,7 @@ struct AppSecondaryButton: View {
 
 // MARK: - Grouped cards
 
-/// Wraps content in an inset grouped–style card on the page background.
+/// Wraps content in a Lyneqo white card on the pale page background.
 struct AppGroupedCard<Content: View>: View {
     @ViewBuilder let content: Content
 
@@ -661,12 +663,13 @@ struct AppGroupedCard<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(LyneqoTheme.card)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .strokeBorder(Color(.separator).opacity(0.45), lineWidth: 1)
+                    .strokeBorder(LyneqoTheme.border, lineWidth: 1)
             }
+            .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
     }
 }
 
@@ -733,7 +736,7 @@ struct AppCollapsibleSettingsSection<Content: View>: View {
                                 .foregroundStyle(Color.secondary)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(Capsule().fill(Color(.tertiarySystemFill)))
+                                .background(Capsule().fill(LyneqoTheme.softTeal))
                         }
                         if let caption, !caption.isEmpty, !isExpanded {
                             Text(caption)
