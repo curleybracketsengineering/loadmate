@@ -196,6 +196,60 @@ final class TyreSupportTests: XCTestCase {
         XCTAssertEqual(details.summaryLine, "Date code 1221")
     }
 
+    func testReplaceTyreKeepsPreviousBasicDetailsInHistory() {
+        let profile = TestFixtures.caravanProfile()
+        let original = TyreRecord(vehicleID: profile.id, position: .caravanLeft)
+        original.manufacturer = "Michelin"
+        original.modelName = "Agilis"
+        original.tyreSize = "225/75 R16"
+        original.loadIndex = "121"
+        original.speedRating = "R"
+        original.dateCode = "3323"
+        original.manufactureWeek = 33
+        original.manufactureYear = 2023
+        original.manufactureDate = TyreSupport.isoWeekStart(year: 2023, week: 33)
+        original.installedDate = Date(timeIntervalSince1970: 1_700_000_000)
+        original.recommendedPressurePSI = 65
+        original.latestPressurePSI = 64
+        original.condition = .monitor
+        context.insert(original)
+
+        let replacement = TyreStore.replaceTyre(original, copyManufacturerAndModel: false, in: context)
+
+        XCTAssertFalse(original.isCurrentlyFitted)
+        XCTAssertNotNil(original.removedDate)
+        XCTAssertTrue(replacement.isCurrentlyFitted)
+        XCTAssertEqual(replacement.position, .caravanLeft)
+
+        let all = (try? context.fetch(FetchDescriptor<TyreRecord>())) ?? []
+        let previous = TyreStore.previousRecords(for: replacement, from: all)
+        XCTAssertEqual(previous.count, 1)
+        XCTAssertEqual(previous.first?.id, original.id)
+        XCTAssertEqual(
+            previous.first?.historyIdentitySummary,
+            "Michelin Agilis • 225/75 R16 • LI/SR 121/R"
+        )
+        XCTAssertEqual(previous.first?.dateCodeCaption, "Week 33 • 2023")
+        XCTAssertTrue(previous.first?.historyServicePeriod.contains("Fitted") == true)
+        XCTAssertTrue(previous.first?.historyServicePeriod.contains("Removed") == true)
+
+        let archived = TyreStore.archivedRecords(for: profile, from: all)
+        XCTAssertEqual(archived.map(\.id), [original.id])
+        XCTAssertEqual(TyreStore.activeRecords(for: profile, from: all).map(\.id), [replacement.id])
+    }
+
+    func testHistoryIdentitySummaryOmitsPressureReadings() {
+        let record = TyreRecord(vehicleID: UUID(), position: .caravanRight)
+        record.manufacturer = "Continental"
+        record.tyreSize = "215/70 R15"
+        record.latestPressurePSI = 58
+        record.notes = "Should not appear in identity summary"
+
+        XCTAssertEqual(record.historyIdentitySummary, "Continental • 215/70 R15")
+        XCTAssertFalse(record.historyIdentitySummary.contains("58"))
+        XCTAssertFalse(record.historyIdentitySummary.contains("Should not"))
+    }
+
     func testDraftProfessionalReviewTracksDefectSwitches() {
         XCTAssertFalse(
             TyreSupport.draftRequiresProfessionalReview(

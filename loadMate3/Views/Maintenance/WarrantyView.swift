@@ -4,7 +4,6 @@ import SwiftData
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
-import VisionKit
 
 struct WarrantyView: View {
     @Environment(\.usePadLayout) private var usePadLayout
@@ -20,11 +19,10 @@ struct WarrantyView: View {
     @State private var showEditPlan = false
     @State private var showAddEvent = false
     @State private var showInfo = false
-    @State private var showAddDocument = false
+    @State private var showAddFault = false
     @State private var showExportShare = false
     @State private var exportPDFData: Data?
     @State private var selectedEvent: WarrantyEvent?
-    @State private var selectedDocument: DocumentRecord?
     @State private var selectedFault: FaultRecord?
     @State private var showRegenerateConfirm = false
 
@@ -40,27 +38,31 @@ struct WarrantyView: View {
         return WarrantySupport.plan(for: profile.id, from: warrantyPlans)
     }
 
+    private var planEvents: [WarrantyEvent] {
+        activePlan?.eventsList ?? []
+    }
+
     private var scopedDocuments: [DocumentRecord] {
         guard let profile = activeProfile else { return [] }
         return MaintenanceSupport.documentRecords(for: profile.id, from: documentRecords)
     }
 
-    private var warrantyDocuments: [DocumentRecord] {
-        scopedDocuments.filter {
-            $0.category == .warranty || $0.category == .batteryWarranty || $0.category == .dampReport || $0.category == .serviceHistory || $0.category == .purchaseInvoice
-        }
-    }
-
-    private var warrantyRepairs: [MaintenanceRecord] {
-        guard let profile = activeProfile else { return [] }
-        return MaintenanceSupport.maintenanceRecords(for: profile.id, from: maintenanceRecords)
-            .filter { $0.category == .warrantyRepair }
-    }
-
-    private var warrantyFaults: [FaultRecord] {
+    private var scopedFaults: [FaultRecord] {
         guard let profile = activeProfile else { return [] }
         return MaintenanceSupport.faultRecords(for: profile.id, from: faultRecords)
-            .filter { $0.isWarrantyRelated }
+    }
+
+    private var scopedMaintenance: [MaintenanceRecord] {
+        guard let profile = activeProfile else { return [] }
+        return MaintenanceSupport.maintenanceRecords(for: profile.id, from: maintenanceRecords)
+    }
+
+    private var warrantyItems: [FaultRecord] {
+        WarrantySupport.warrantyFaults(from: scopedFaults, events: planEvents)
+    }
+
+    private var otherFaults: [FaultRecord] {
+        WarrantySupport.unflaggedFaults(from: scopedFaults, events: planEvents)
     }
 
     var body: some View {
@@ -83,7 +85,7 @@ struct WarrantyView: View {
                 }
             }
             .appScreenBackground()
-            .appPrincipalTabTitle("Warranty")
+            .appPrincipalTabTitle("Service & warranty")
             .toolbar { toolbarContent }
         }
         .sheet(isPresented: $showSetup) {
@@ -120,24 +122,34 @@ struct WarrantyView: View {
         .sheet(isPresented: $showInfo) {
             WarrantyInfoSheet()
         }
-        .sheet(isPresented: $showAddDocument) {
+        .sheet(isPresented: $showAddFault) {
             if let profile = activeProfile {
-                WarrantyDocumentEditorView(profile: profile)
-            }
-        }
-        .sheet(item: $selectedDocument) { record in
-            if let profile = activeProfile {
-                WarrantyDocumentEditorView(profile: profile, record: record)
+                FaultRecordEditorView(
+                    profile: profile,
+                    maintenanceRecords: scopedMaintenance,
+                    defaultWarrantyRelated: true
+                )
             }
         }
         .sheet(item: $selectedFault) { record in
             if let profile = activeProfile {
-                WarrantyFaultEditorSheet(profile: profile, record: record)
+                FaultRecordEditorView(
+                    profile: profile,
+                    record: record,
+                    maintenanceRecords: scopedMaintenance,
+                    defaultWarrantyRelated: true,
+                    suggestAsWarrantyItem: otherFaults.contains(where: { $0.id == record.id })
+                )
             }
         }
         .sheet(isPresented: $showExportShare) {
             if let exportPDFData {
                 WarrantyEvidenceShareSheet(pdfData: exportPDFData)
+            }
+        }
+        .task(id: activeProfile?.id) {
+            if let profile = activeProfile {
+                WarrantyStore.syncInsuranceRenewalEvents(for: profile, in: modelContext)
             }
         }
         .confirmationDialog(
@@ -167,15 +179,15 @@ struct WarrantyView: View {
         if activePlan != nil, activeProfile?.warrantyAvailable == true {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("Add event", systemImage: "plus") { showAddEvent = true }
+                    Button("Add service event", systemImage: "plus") { showAddEvent = true }
+                    Button("Add warranty item", systemImage: "exclamationmark.triangle") { showAddFault = true }
                     Button("Edit plan", systemImage: "pencil") { showEditPlan = true }
-                    Button("Add document", systemImage: "doc.badge.plus") { showAddDocument = true }
                     Button("Export evidence pack", systemImage: "square.and.arrow.up") { exportEvidencePack() }
-                    Button("Warranty info", systemImage: "info.circle") { showInfo = true }
+                    Button("About service & warranty", systemImage: "info.circle") { showInfo = true }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
-                .accessibilityLabel("Warranty actions")
+                .accessibilityLabel("Service and warranty actions")
             }
         } else if activeProfile?.warrantyAvailable == true {
             ToolbarItem(placement: .topBarTrailing) {
@@ -188,12 +200,6 @@ struct WarrantyView: View {
     private func warrantyDisabledBody(profile: VehicleProfile) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                AppHeroSection(
-                    systemImage: "shield.slash",
-                    title: "Warranty",
-                    subtitle: "\(profile.name) \(profile.kind.displayName.lowercased())"
-                )
-
                 ContentUnavailableView(
                     "Warranty tracking is off",
                     systemImage: "shield.slash",
@@ -211,20 +217,14 @@ struct WarrantyView: View {
     private func setupPromptBody(profile: VehicleProfile) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                AppHeroSection(
-                    systemImage: "shield.fill",
-                    title: "Warranty",
-                    subtitle: "\(profile.name) \(profile.kind.displayName.lowercased())"
-                )
+                WarrantyDisclaimerInfoButton { showInfo = true }
 
-                WarrantyDisclaimerBanner()
-
-                AppSettingsSection("Get started", caption: "Create a personalised warranty plan with annual service milestones and reminders.") {
+                AppSettingsSection("Get started", caption: "Build one continuous service timeline for this vehicle — warranty cover is optional.") {
                     VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                        Text("Record whether your vehicle is under warranty, then build a timeline of required services and inspections.")
+                        Text("Log annual services and inspections whether a manufacturer is paying or you are. If cover is later refused or expires, the same timeline continues.")
                             .font(.subheadline)
                             .foregroundStyle(AppColors.textSupporting)
-                        AppPrimaryButton("Set up warranty plan", systemImage: "calendar.badge.plus") {
+                        AppPrimaryButton("Set up service timeline", systemImage: "calendar.badge.plus") {
                             showSetup = true
                         }
                     }
@@ -241,26 +241,26 @@ struct WarrantyView: View {
     private func configuredBody(profile: VehicleProfile, plan: WarrantyPlan) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                AppHeroSection(
-                    systemImage: "shield.fill",
-                    title: "Warranty",
-                    subtitle: "\(profile.name) \(profile.kind.displayName.lowercased())"
-                )
-
                 WarrantyCoverageBanner(plan: plan)
-                WarrantyDisclaimerBanner()
+                WarrantyDisclaimerInfoButton { showInfo = true }
 
-                AppSettingsSection("Service timeline", caption: "Annual warranty services and inspections from purchase date. Tap an event to edit requirements, windows, and evidence.") {
-                    WarrantyTimelineView(
-                        plan: plan,
-                        events: plan.eventsList,
-                        onSelectEvent: { selectedEvent = $0 }
-                    )
+                AppSettingsSection(
+                    "Service timeline",
+                    caption: "Tap an event to edit or add evidence. Use Add service event for new work anytime."
+                ) {
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                        WarrantyTimelineView(
+                            plan: plan,
+                            events: plan.eventsList,
+                            onSelectEvent: { selectedEvent = $0 }
+                        )
+                        AppSecondaryButton("Add service event") {
+                            showAddEvent = true
+                        }
+                    }
                 }
 
-                warrantyFaultsSection
-                warrantyRepairsSection
-                documentsSection
+                warrantyItemsSection
             }
             .padding(.horizontal, AppScreenMetrics.horizontalPadding)
             .padding(.top, AppScreenMetrics.verticalScreenPadding)
@@ -269,76 +269,67 @@ struct WarrantyView: View {
         }
     }
 
-    private var warrantyFaultsSection: some View {
-        AppSettingsSection("Warranty faults", caption: "Issues flagged as warranty-related that may need repair evidence.") {
-            if warrantyFaults.isEmpty {
-                Text("No warranty faults recorded yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppColors.textSupporting)
+    private var warrantyItemsSection: some View {
+        AppSettingsSection(
+            "Warranty items",
+            caption: "Issues you are treating as warranty claims. Open or completed — separate from the service timeline."
+        ) {
+            if warrantyItems.isEmpty && otherFaults.isEmpty {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                    Text("No warranty items yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.textSupporting)
+                    AppSecondaryButton("Add warranty item") {
+                        showAddFault = true
+                    }
+                }
             } else {
                 VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                    ForEach(warrantyFaults) { record in
+                    ForEach(warrantyItems) { record in
                         Button { selectedFault = record } label: {
                             warrantyRow(
-                                title: record.title.isEmpty ? "Untitled fault" : record.title,
-                                subtitle: "\(record.severity.displayName) · \(record.status.displayName)",
-                                systemImage: "exclamationmark.triangle.fill"
+                                title: record.title.isEmpty ? "Untitled item" : record.title,
+                                subtitle: warrantyItemSubtitle(for: record),
+                                systemImage: record.status.isResolved
+                                    ? "checkmark.seal.fill"
+                                    : "exclamationmark.triangle.fill"
                             )
                         }
                         .buttonStyle(.plain)
                     }
-                }
-            }
-        }
-    }
 
-    private var warrantyRepairsSection: some View {
-        AppSettingsSection("Warranty repairs", caption: "Repairs carried out under warranty for this vehicle.") {
-            if warrantyRepairs.isEmpty {
-                Text("No warranty repairs recorded yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppColors.textSupporting)
-            } else {
-                VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                    ForEach(warrantyRepairs) { record in
-                        warrantyRow(
-                            title: record.title.isEmpty ? record.category.displayName : record.title,
-                            subtitle: "\(Formatters.date(record.serviceDate))\(record.supplier.isEmpty ? "" : " · \(record.supplier)")",
-                            systemImage: "wrench.and.screwdriver.fill"
-                        )
-                    }
-                }
-            }
-        }
-    }
+                    if !otherFaults.isEmpty {
+                        Text("Other faults (not warranty items)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppColors.textSupporting)
+                            .padding(.top, warrantyItems.isEmpty ? 0 : 4)
 
-    private var documentsSection: some View {
-        AppSettingsSection("Warranty documents", caption: "Service invoices, damp reports, receipts and warranty paperwork.") {
-            if warrantyDocuments.isEmpty {
-                Text("No warranty documents yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppColors.textSupporting)
-            } else {
-                VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                    ForEach(warrantyDocuments) { record in
-                        Button { selectedDocument = record } label: {
-                            warrantyRow(
-                                title: record.title.isEmpty ? record.category.displayName : record.title,
-                                subtitle: recordSubtitle(for: record),
-                                systemImage: "doc.text.fill"
-                            )
+                        ForEach(otherFaults) { record in
+                            Button { selectedFault = record } label: {
+                                warrantyRow(
+                                    title: record.title.isEmpty ? "Untitled fault" : record.title,
+                                    subtitle: "Turn on Warranty item · \(record.status.displayName)",
+                                    systemImage: "exclamationmark.triangle"
+                                )
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                    }
+
+                    AppSecondaryButton("Add warranty item") {
+                        showAddFault = true
                     }
                 }
             }
         }
     }
 
-    private func recordSubtitle(for record: DocumentRecord) -> String {
-        var parts = [record.category.displayName, Formatters.date(record.dateAdded)]
-        if let expiryDate = record.expiryDate {
-            parts.append("Expires \(Formatters.date(expiryDate))")
+    private func warrantyItemSubtitle(for record: FaultRecord) -> String {
+        var parts = [record.status.displayName, record.severity.displayName]
+        if record.status.isResolved, let resolved = record.resolvedDate {
+            parts.append("Resolved \(Formatters.date(resolved))")
+        } else {
+            parts.append("Found \(Formatters.date(record.discoveredDate))")
         }
         return parts.joined(separator: " · ")
     }
@@ -367,15 +358,13 @@ struct WarrantyView: View {
 
     private func exportEvidencePack() {
         guard let plan = activePlan, let profile = activeProfile else { return }
-        let faults = MaintenanceSupport.faultRecords(for: profile.id, from: faultRecords)
-        let maintenance = MaintenanceSupport.maintenanceRecords(for: profile.id, from: maintenanceRecords)
         exportPDFData = WarrantyEvidencePackBuilder.buildPDF(
             input: .init(
                 plan: plan,
                 events: plan.eventsList,
                 documents: scopedDocuments,
-                maintenanceRecords: maintenance,
-                faults: faults
+                maintenanceRecords: scopedMaintenance,
+                faults: scopedFaults
             )
         )
         showExportShare = true
@@ -383,6 +372,33 @@ struct WarrantyView: View {
 }
 
 // MARK: - Banner & timeline components
+
+struct WarrantyDisclaimerInfoButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AppScreenMetrics.controlSpacing) {
+                Image(systemName: "info.circle")
+                    .font(.body.weight(.medium))
+                Text("About service & warranty")
+                    .font(.subheadline.weight(.semibold))
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.secondary)
+            }
+            .foregroundStyle(Color.primary)
+            .padding(.horizontal, AppScreenMetrics.cardInteriorPadding)
+            .padding(.vertical, 12)
+            .background(LyneqoTheme.softTeal)
+            .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("About service and warranty")
+        .accessibilityHint("Shows how the service timeline relates to warranty cover")
+    }
+}
 
 struct WarrantyDisclaimerBanner: View {
     var body: some View {
@@ -444,6 +460,7 @@ private struct WarrantyTimelineView: View {
                 Button { onSelectEvent(event) } label: {
                     WarrantyTimelineEventRow(
                         event: event,
+                        events: events,
                         isLast: index == events.count - 1
                     )
                 }
@@ -487,10 +504,11 @@ private struct WarrantyTimelineAnchorRow: View {
 
 private struct WarrantyTimelineEventRow: View {
     let event: WarrantyEvent
+    let events: [WarrantyEvent]
     let isLast: Bool
 
     private var status: WarrantyEventStatus {
-        WarrantySupport.status(for: event)
+        WarrantySupport.status(for: event, among: events)
     }
 
     private var isImportantMilestone: Bool {
@@ -587,6 +605,7 @@ private struct WarrantyTimelineEventRow: View {
         case .inWindow: return .accentColor
         case .overdue: return AppColors.red
         case .upcoming: return Color.secondary
+        case .planned: return Color.secondary.opacity(0.85)
         }
     }
 }
@@ -614,6 +633,7 @@ private struct WarrantyPlanEditorSheet: View {
     @State private var handbookNotes: String
     @State private var selectedTemplateID: String
     @State private var selectedMOTClass: UKMotorhomeMOTClass
+    @State private var showInfo = false
 
     init(profile: VehicleProfile, plan: WarrantyPlan?, onSaved: (() -> Void)? = nil) {
         self.profile = profile
@@ -666,15 +686,21 @@ private struct WarrantyPlanEditorSheet: View {
                 VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
                     AppHeroSection(
                         systemImage: "shield.fill",
-                        title: plan == nil ? "Warranty plan setup" : "Edit warranty plan",
-                        subtitle: "Build a personalised plan for this \(profile.kind.displayName.lowercased())."
+                        title: plan == nil ? "Service timeline setup" : "Edit service plan",
+                        subtitle: "One continuous record of services for this \(profile.kind.displayName.lowercased()). Warranty cover is optional."
                     )
 
-                    WarrantyDisclaimerBanner()
+                    WarrantyDisclaimerInfoButton { showInfo = true }
 
                     AppSettingsSection("Coverage") {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                            Toggle("Vehicle is under warranty", isOn: $isUnderWarranty)
+                            Toggle("Manufacturer or dealer may pay for services", isOn: $isUnderWarranty)
+                            Text(isUnderWarranty
+                                ? "Services still belong on the timeline. This only records that cover may pay for them."
+                                : "Same services still need doing. Keep logging them on the timeline for your records and when selling.")
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSupporting)
+                                .fixedSize(horizontal: false, vertical: true)
                             Toggle("Set explicit expiry date", isOn: $hasExpiryDate)
                             if hasExpiryDate {
                                 DatePicker("Warranty expires", selection: $warrantyExpiryDate, displayedComponents: .date)
@@ -791,12 +817,15 @@ private struct WarrantyPlanEditorSheet: View {
                 .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
             }
             .appScreenBackground()
-            .navigationTitle(plan == nil ? "Set Up Warranty" : "Edit Plan")
+            .navigationTitle(plan == nil ? "Set Up Timeline" : "Edit Plan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
                 }
+            }
+            .sheet(isPresented: $showInfo) {
+                WarrantyInfoSheet()
             }
         }
     }
@@ -830,6 +859,7 @@ private struct WarrantyPlanEditorSheet: View {
             motClass: showsUKMOTClassPicker ? selectedMOTClass : nil,
             in: modelContext
         )
+        WarrantyStore.syncInsuranceRenewalEvents(for: profile, in: modelContext)
         onSaved?()
         dismiss()
     }
@@ -845,32 +875,46 @@ private struct WarrantyEventEditorSheet: View {
     let event: WarrantyEvent?
     let documents: [DocumentRecord]
 
-    @State private var yearNumber: Int
     @State private var scheduledDate: Date
     @State private var daysBefore: Int
     @State private var daysAfter: Int
     @State private var serviceType: WarrantyServiceType
     @State private var requirementDescription: String
-    @State private var isManual: Bool
     @State private var hasCompletedDate: Bool
     @State private var completedDate: Date
     @State private var linkedDocumentIDs: Set<UUID>
     @State private var pendingAttachments: [MaintenanceAttachmentDraft] = []
+    @State private var repeatYearly = false
 
     init(plan: WarrantyPlan, event: WarrantyEvent?, documents: [DocumentRecord]) {
         self.plan = plan
         self.event = event
         self.documents = documents
-        _yearNumber = State(initialValue: event?.yearNumber ?? 0)
         _scheduledDate = State(initialValue: event?.scheduledDate ?? Date())
         _daysBefore = State(initialValue: event?.daysBefore ?? WarrantySupport.defaultDaysBefore)
         _daysAfter = State(initialValue: event?.daysAfter ?? WarrantySupport.defaultDaysAfter)
         _serviceType = State(initialValue: event?.serviceType ?? .normalService)
         _requirementDescription = State(initialValue: event?.requirementDescription ?? "")
-        _isManual = State(initialValue: event?.isManual ?? true)
         _hasCompletedDate = State(initialValue: event?.completedDate != nil)
         _completedDate = State(initialValue: event?.completedDate ?? Date())
         _linkedDocumentIDs = State(initialValue: Set(event?.linkedDocumentIDs ?? []))
+    }
+
+    private var derivedYearNumber: Int {
+        WarrantySupport.yearNumber(for: scheduledDate, purchaseDate: plan.purchaseDate)
+    }
+
+    private var yearLabelText: String {
+        if derivedYearNumber > 0 {
+            return "Year \(derivedYearNumber) (from due date vs purchase)"
+        }
+        return "Custom event (due date is not a clear service year from purchase)"
+    }
+
+    private var repeatCaption: String {
+        let end = WarrantySupport.yearlyRepeatEndDate(for: plan, startingFrom: scheduledDate)
+        let count = WarrantySupport.yearlyOccurrenceDates(from: scheduledDate, through: end).count
+        return "Adds matching events each year from this due date through \(Formatters.date(end)) (\(count) in total, skipping any that already exist)."
     }
 
     var body: some View {
@@ -879,24 +923,25 @@ private struct WarrantyEventEditorSheet: View {
                 VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
                     AppHeroSection(
                         systemImage: "calendar.badge.clock",
-                        title: event == nil ? "New warranty event" : "Edit warranty event",
-                        subtitle: "Set the due date, action window, and requirement description."
+                        title: event == nil ? "New service event" : "Edit service event",
+                        subtitle: "Set the due date, action window, and what work is required."
                     )
 
                     AppSettingsSection("Schedule") {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                            if isManual {
-                                AppLabeledTextField("Year label (0 for custom)", placeholder: "0", text: Binding(
-                                    get: { yearNumber == 0 ? "" : String(yearNumber) },
-                                    set: { yearNumber = Int($0) ?? 0 }
-                                ), keyboard: .numberPad)
-                            } else {
-                                Text("Year \(yearNumber)")
-                                    .font(.subheadline.weight(.semibold))
-                            }
                             DatePicker("Due date", selection: $scheduledDate, displayedComponents: .date)
+                            Text(yearLabelText)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppColors.textSupporting)
                             Stepper("Days before: \(daysBefore)", value: $daysBefore, in: 0...365)
                             Stepper("Days after: \(daysAfter)", value: $daysAfter, in: 0...365)
+                            Toggle("Repeat yearly", isOn: $repeatYearly)
+                            if repeatYearly {
+                                Text(repeatCaption)
+                                    .font(.caption)
+                                    .foregroundStyle(AppColors.textSupporting)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                     }
 
@@ -984,14 +1029,17 @@ private struct WarrantyEventEditorSheet: View {
     private func save() {
         let target = event ?? WarrantyStore.createEvent(for: plan, in: modelContext)
         let sortOrder = event?.sortOrder ?? ((plan.events ?? []).map(\.sortOrder).max() ?? 0) + 1
+        let requirement = requirementDescription.isEmpty
+            ? serviceType.defaultRequirementDescription
+            : requirementDescription
         WarrantyStore.save(
             event: target,
-            yearNumber: yearNumber,
+            yearNumber: derivedYearNumber,
             scheduledDate: scheduledDate,
             daysBefore: daysBefore,
             daysAfter: daysAfter,
             serviceType: serviceType,
-            requirementDescription: requirementDescription.isEmpty ? serviceType.defaultRequirementDescription : requirementDescription,
+            requirementDescription: requirement,
             sortOrder: sortOrder,
             isManual: event?.isManual ?? true,
             completedDate: hasCompletedDate ? completedDate : nil,
@@ -1006,6 +1054,9 @@ private struct WarrantyEventEditorSheet: View {
                 to: .warrantyEvent(target),
                 in: modelContext
             )
+        }
+        if repeatYearly {
+            WarrantyStore.ensureYearlyRepeats(for: plan, matching: target, in: modelContext)
         }
         dismiss()
     }
@@ -1033,25 +1084,22 @@ private struct WarrantyEventAttachmentSection: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: AppScreenMetrics.controlSpacing) {
                             ForEach(event.attachmentsList) { attachment in
-                                VStack(spacing: 4) {
-                                    if let image = MaintenanceAttachmentStore.loadThumbnail(for: attachment) {
-                                        Image(uiImage: image)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 72, height: 72)
-                                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    }
-                                    Text(attachment.displayName)
-                                        .font(.caption2)
-                                        .lineLimit(1)
-                                        .frame(width: 72)
+                                WarrantyAttachmentThumbnail(
+                                    title: attachment.displayName,
+                                    image: MaintenanceAttachmentStore.loadThumbnail(for: attachment),
+                                    symbolName: symbolName(for: attachment.fileType)
+                                ) {
+                                    MaintenanceAttachmentStore.delete(attachment, in: modelContext)
                                 }
-                                .contextMenu {
-                                    Button(role: .destructive) {
-                                        MaintenanceAttachmentStore.delete(attachment, in: modelContext)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
+                            }
+
+                            ForEach(Array(pendingAttachments.enumerated()), id: \.offset) { index, draft in
+                                WarrantyAttachmentThumbnail(
+                                    title: draft.displayName,
+                                    image: draft.thumbnailImage ?? previewImage(for: draft),
+                                    symbolName: symbolName(for: draft.fileType)
+                                ) {
+                                    pendingAttachments.remove(at: index)
                                 }
                             }
                         }
@@ -1091,6 +1139,67 @@ private struct WarrantyEventAttachmentSection: View {
             pendingAttachments.append(contentsOf: urls.compactMap { try? MaintenanceAttachmentStore.draft(fileAt: $0) })
         }
     }
+
+    private func previewImage(for draft: MaintenanceAttachmentDraft) -> UIImage? {
+        if draft.fileType == .pdf {
+            return MaintenanceAttachmentStore.pdfThumbnail(for: draft.data, maxDimension: 400)
+        }
+        return UIImage(data: draft.data)
+    }
+
+    private func symbolName(for kind: MaintenanceAttachmentKind) -> String {
+        switch kind {
+        case .photo:
+            return "photo"
+        case .scannedDocument:
+            return "doc.text.viewfinder"
+        case .pdf:
+            return "doc.richtext"
+        case .file:
+            return "doc"
+        }
+    }
+}
+
+private struct WarrantyAttachmentThumbnail: View {
+    let title: String
+    let image: UIImage?
+    let symbolName: String
+    let onDelete: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Group {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(LyneqoTheme.softTeal)
+                        Image(systemName: symbolName)
+                            .font(.title2)
+                            .foregroundStyle(Color.secondary)
+                    }
+                }
+            }
+            .frame(width: 92, height: 92)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(Color.primary)
+                .lineLimit(2)
+                .frame(width: 92, alignment: .leading)
+        }
+        .contextMenu {
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .accessibilityLabel(title)
+    }
 }
 
 private struct WarrantyInfoSheet: View {
@@ -1102,16 +1211,20 @@ private struct WarrantyInfoSheet: View {
                 VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
                     AppHeroSection(
                         systemImage: "info.circle.fill",
-                        title: "About warranty tracking",
-                        subtitle: "Lyneqo Caravan & Motorhome helps you stay organised — it does not guarantee claim acceptance."
+                        title: "About service & warranty",
+                        subtitle: "One timeline for the life of the vehicle. Warranty is optional cover for the same services."
                     )
+                    Text("Whether a manufacturer pays or you do, annual services, inspections and repairs belong on this timeline. If cover expires or a claim is refused, keep logging the same work — it remains useful when you sell.")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.textSupporting)
+                        .fixedSize(horizontal: false, vertical: true)
                     WarrantyDisclaimerBanner()
                 }
                 .padding(.horizontal, AppScreenMetrics.horizontalPadding)
                 .padding(.top, AppScreenMetrics.verticalScreenPadding)
             }
             .appScreenBackground()
-            .navigationTitle("Warranty Info")
+            .navigationTitle("Service & warranty")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1173,151 +1286,5 @@ private struct WarrantyEvidenceShareSheet: View {
                 }
             }
         }
-    }
-}
-
-private struct WarrantyFaultEditorSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
-
-    let profile: VehicleProfile
-    let record: FaultRecord
-
-    @State private var isWarrantyRelated: Bool
-
-    init(profile: VehicleProfile, record: FaultRecord) {
-        self.profile = profile
-        self.record = record
-        _isWarrantyRelated = State(initialValue: record.isWarrantyRelated)
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Fault") {
-                    Text(record.title.isEmpty ? "Untitled fault" : record.title)
-                    Text("\(record.severity.displayName) · \(record.status.displayName)")
-                        .foregroundStyle(AppColors.textSupporting)
-                }
-                Section("Warranty") {
-                    Toggle("Warranty-related fault", isOn: $isWarrantyRelated)
-                }
-            }
-            .navigationTitle("Warranty Fault")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        record.isWarrantyRelated = isWarrantyRelated
-                        record.updatedAt = Date()
-                        try? modelContext.save()
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct WarrantyDocumentEditorView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
-
-    let profile: VehicleProfile
-    let record: DocumentRecord?
-
-    @State private var title: String
-    @State private var category: DocumentCategory
-    @State private var dateAdded: Date
-    @State private var hasExpiryDate: Bool
-    @State private var expiryDate: Date
-    @State private var hasReminderDate: Bool
-    @State private var reminderDate: Date
-    @State private var notes: String
-
-    init(profile: VehicleProfile, record: DocumentRecord? = nil) {
-        self.profile = profile
-        self.record = record
-        _title = State(initialValue: record?.title ?? "")
-        _category = State(initialValue: record?.category ?? .warranty)
-        _dateAdded = State(initialValue: record?.dateAdded ?? Date())
-        _hasExpiryDate = State(initialValue: record?.expiryDate != nil)
-        _expiryDate = State(initialValue: record?.expiryDate ?? Date())
-        _hasReminderDate = State(initialValue: record?.reminderDate != nil)
-        _reminderDate = State(initialValue: record?.reminderDate ?? Date())
-        _notes = State(initialValue: record?.notes ?? "")
-    }
-
-    private var warrantyCategories: [DocumentCategory] {
-        [.warranty, .batteryWarranty, .dampReport, .serviceHistory, .purchaseInvoice]
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                    AppSettingsSection("Details") {
-                        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                            AppLabeledTextField("Title", placeholder: "e.g. Year 3 service invoice", text: $title)
-                            Picker("Category", selection: $category) {
-                                ForEach(warrantyCategories) { option in
-                                    Text(option.displayName).tag(option)
-                                }
-                            }
-                            DatePicker("Date Added", selection: $dateAdded, displayedComponents: .date)
-                            Toggle("Add expiry date", isOn: $hasExpiryDate)
-                            if hasExpiryDate {
-                                DatePicker("Expiry Date", selection: $expiryDate, displayedComponents: .date)
-                            }
-                            Toggle("Add reminder date", isOn: $hasReminderDate)
-                            if hasReminderDate {
-                                DatePicker("Reminder Date", selection: $reminderDate, displayedComponents: .date)
-                            }
-                        }
-                    }
-
-                    AppSettingsSection("Notes") {
-                        TextEditor(text: $notes)
-                            .frame(minHeight: 100)
-                            .padding(8)
-                            .background(LyneqoTheme.card)
-                            .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
-                    }
-
-                    AppPrimaryButton(record == nil ? "Save document" : "Save changes", systemImage: "checkmark.circle.fill") {
-                        save()
-                    }
-                }
-                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                .padding(.top, AppScreenMetrics.verticalScreenPadding)
-                .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
-            }
-            .appScreenBackground()
-            .navigationTitle(record == nil ? "Add Document" : "Edit Document")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                }
-            }
-        }
-    }
-
-    private func save() {
-        let target = record ?? DocumentStore.createRecord(for: profile.id, in: modelContext)
-        DocumentStore.save(
-            record: target,
-            title: title.isEmpty ? category.displayName : title,
-            category: category,
-            dateAdded: dateAdded,
-            expiryDate: hasExpiryDate ? expiryDate : nil,
-            reminderDate: hasReminderDate ? reminderDate : nil,
-            notes: notes,
-            in: modelContext
-        )
-        dismiss()
     }
 }

@@ -67,7 +67,10 @@ struct TyreSafetyView: View {
             TyreInspectionView(record: record)
         }
         .sheet(isPresented: $showHistory) {
-            TyreHistoryView(records: activeRecords)
+            TyreHistoryView(
+                activeRecords: activeRecords,
+                archivedRecords: TyreStore.archivedRecords(for: activeProfile, from: tyreRecords)
+            )
         }
         .sheet(isPresented: $showInfo) {
             TyreSafetyInfoView()
@@ -234,7 +237,7 @@ private struct TyreSafetyOverviewView: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.bordered)
-            .accessibilityLabel("View inspection history")
+            .accessibilityLabel("View tyre history")
 
             Button(action: onShowInfo) {
                 Image(systemName: "info.circle")
@@ -289,6 +292,7 @@ private struct TyreCardsGrid: View {
             GeometryReader { geometry in
                 Color.clear
                     .preference(key: TyreGridWidthKey.self, value: geometry.size.width)
+                    .allowsHitTesting(false)
             }
         )
         .onPreferenceChange(TyreGridWidthKey.self) { availableWidth = $0 }
@@ -395,6 +399,8 @@ private struct TyreStatusCard: View {
                             )
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(accessibilityLabel)
@@ -416,7 +422,9 @@ private struct TyreStatusCard: View {
             .accessibilityHint("Opens pressure and photo inspection for this tyre")
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Do not use maxHeight: .infinity — it expands hit testing over later cards in the grid.
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .fixedSize(horizontal: false, vertical: true)
         .background(
             RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
                 .fill(LyneqoTheme.card)
@@ -820,7 +828,10 @@ private struct TyreDetailView: View {
                 }
             }
             .sheet(isPresented: $showHistory) {
-                TyreRecordHistoryView(record: record)
+                TyreRecordHistoryView(
+                    record: record,
+                    previousRecords: TyreStore.previousRecords(for: record, in: modelContext)
+                )
             }
             .sheet(isPresented: $showCopyFrom) {
                 TyreCopyFromSheet(sources: siblingRecords) { manufacturerValue, modelNameValue, tyreSizeValue, loadIndexValue, speedRatingValue, dateCodeValue, recommendedPressureValue in
@@ -865,7 +876,7 @@ private struct TyreDetailView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("The existing tyre will be marked as no longer fitted and a new tyre record will be created at the same position.")
+                Text("The existing tyre will be marked as no longer fitted. Its basic details stay in history, and a new tyre record will be created at the same position.")
             }
         }
     }
@@ -1238,47 +1249,38 @@ struct TyreInspectionView: View {
 
 private struct TyreHistoryView: View {
     @Environment(\.dismiss) private var dismiss
-    let records: [TyreRecord]
+    let activeRecords: [TyreRecord]
+    let archivedRecords: [TyreRecord]
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(records) { record in
+                if !archivedRecords.isEmpty {
+                    Section {
+                        ForEach(archivedRecords) { record in
+                            previousTyreRow(record)
+                        }
+                    } header: {
+                        Text("Previous tyres")
+                    } footer: {
+                        Text("Basic details kept when a tyre is replaced or removed from the layout.")
+                    }
+                }
+
+                ForEach(activeRecords) { record in
                     Section(record.displayName) {
                         if record.inspectionsList.isEmpty {
                             Text("No inspection history recorded yet.")
                                 .foregroundStyle(AppColors.textSupporting)
                         } else {
                             ForEach(record.inspectionsList) { inspection in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(Formatters.date(inspection.inspectionDate))
-                                        .font(.subheadline.weight(.semibold))
-                                    Text("Condition: \(inspection.overallCondition.displayName)")
-                                        .font(.caption)
-                                    if let pressure = inspection.pressurePSI {
-                                        Text("Pressure: \(Formatters.pressure(pressure, unit: .psi))")
-                                            .font(.caption)
-                                    }
-                                    if let tread = inspection.treadDepthMM {
-                                        Text("Tread depth: \(String(format: "%.1f", tread)) mm")
-                                            .font(.caption)
-                                    }
-                                    if !inspection.notes.isEmpty {
-                                        Text(inspection.notes)
-                                            .font(.caption)
-                                    }
-                                    TyreInspectionPhotoStrip(
-                                        photos: inspection.photosList,
-                                        vehicleID: record.vehicleID
-                                    )
-                                }
-                                .padding(.vertical, 4)
+                                inspectionRow(inspection, vehicleID: record.vehicleID)
                             }
                         }
                     }
                 }
             }
-            .navigationTitle("Inspection history")
+            .navigationTitle("Tyre history")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1287,15 +1289,96 @@ private struct TyreHistoryView: View {
             }
         }
     }
+
+    private func previousTyreRow(_ record: TyreRecord) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(record.displayName)
+                .font(.subheadline.weight(.semibold))
+            Text(record.historyIdentitySummary)
+                .font(.caption)
+            Text(record.dateCodeCaption)
+                .font(.caption)
+                .foregroundStyle(AppColors.textSupporting)
+            Text(record.historyServicePeriod)
+                .font(.caption)
+                .foregroundStyle(AppColors.textSupporting)
+            if record.condition != .notChecked {
+                Text("Condition when removed: \(record.condition.displayName)")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func inspectionRow(_ inspection: TyreInspection, vehicleID: UUID) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(Formatters.date(inspection.inspectionDate))
+                .font(.subheadline.weight(.semibold))
+            Text("Condition: \(inspection.overallCondition.displayName)")
+                .font(.caption)
+            if let pressure = inspection.pressurePSI {
+                Text("Pressure: \(Formatters.pressure(pressure, unit: .psi))")
+                    .font(.caption)
+            }
+            if let tread = inspection.treadDepthMM {
+                Text("Tread depth: \(String(format: "%.1f", tread)) mm")
+                    .font(.caption)
+            }
+            if !inspection.notes.isEmpty {
+                Text(inspection.notes)
+                    .font(.caption)
+            }
+            TyreInspectionPhotoStrip(
+                photos: inspection.photosList,
+                vehicleID: vehicleID
+            )
+        }
+        .padding(.vertical, 4)
+    }
 }
 
 private struct TyreRecordHistoryView: View {
     @Environment(\.dismiss) private var dismiss
     let record: TyreRecord
+    let previousRecords: [TyreRecord]
+
+    private var hasContent: Bool {
+        !previousRecords.isEmpty
+            || !record.generalPhotosList().isEmpty
+            || !record.inspectionsList.isEmpty
+    }
 
     var body: some View {
         NavigationStack {
             List {
+                if !previousRecords.isEmpty {
+                    Section {
+                        ForEach(previousRecords) { previous in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(previous.historyIdentitySummary)
+                                    .font(.subheadline.weight(.semibold))
+                                Text(previous.dateCodeCaption)
+                                    .font(.caption)
+                                    .foregroundStyle(AppColors.textSupporting)
+                                Text(previous.historyServicePeriod)
+                                    .font(.caption)
+                                    .foregroundStyle(AppColors.textSupporting)
+                                if previous.condition != .notChecked {
+                                    Text("Condition when removed: \(previous.condition.displayName)")
+                                        .font(.caption)
+                                        .foregroundStyle(AppColors.textSupporting)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    } header: {
+                        Text("Previous tyres at this position")
+                    } footer: {
+                        Text("Kept when you use Replace tyre. Specs and dates only — not pressure logs.")
+                    }
+                }
+
                 if !record.generalPhotosList().isEmpty {
                     Section("Tyre photos") {
                         TyreInspectionPhotoStrip(
@@ -1331,6 +1414,13 @@ private struct TyreRecordHistoryView: View {
                                 )
                             }
                         }
+                    }
+                }
+
+                if !hasContent {
+                    Section {
+                        Text("No previous tyres or inspection history recorded yet.")
+                            .foregroundStyle(AppColors.textSupporting)
                     }
                 }
             }

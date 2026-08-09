@@ -178,6 +178,42 @@ enum TyreSupport {
         return "Date not recorded"
     }
 
+    /// Basic identity line for history (brand, model, size) — not pressure readings.
+    static func historyIdentitySummary(for record: TyreRecord) -> String {
+        let copyable = TyreCopyableDetails.from(record)
+        var parts: [String] = []
+        let brandModelSize = copyable.summaryLine
+        if brandModelSize != "No shared details recorded" {
+            parts.append(brandModelSize)
+        }
+        let loadSpeed = [record.loadIndex, record.speedRating]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "/")
+        if !loadSpeed.isEmpty {
+            parts.append("LI/SR \(loadSpeed)")
+        }
+        if parts.isEmpty {
+            return "Details not recorded"
+        }
+        return parts.joined(separator: " • ")
+    }
+
+    static func historyServicePeriod(for record: TyreRecord) -> String {
+        let fitted = record.installedDate.map { "Fitted \(Formatters.date($0))" }
+        let removed = record.removedDate.map { "Removed \(Formatters.date($0))" }
+        switch (fitted, removed) {
+        case let (fit?, rem?):
+            return "\(fit) · \(rem)"
+        case let (fit?, nil):
+            return fit
+        case let (nil, rem?):
+            return rem
+        case (nil, nil):
+            return "Service dates not recorded"
+        }
+    }
+
     static func conditionCallToAction(for record: TyreRecord) -> String {
         switch record.statusLevel {
         case .action:

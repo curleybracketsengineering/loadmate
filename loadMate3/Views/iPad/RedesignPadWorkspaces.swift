@@ -14,7 +14,7 @@ struct SafetyPadView: View {
 enum MaintenancePadTab: String, CaseIterable, Identifiable {
     case maintenance = "Maintenance"
     case tyre = "Tyre Safety"
-    case warranty = "Warranty"
+    case warranty = "Service & warranty"
 
     var id: String { rawValue }
 
@@ -96,7 +96,7 @@ struct CarePadView: View {
 
 struct DocumentsPadView: View {
     var body: some View {
-        MaintenanceView()
+        DocumentsView()
             .navigationTitle("Documents")
     }
 }

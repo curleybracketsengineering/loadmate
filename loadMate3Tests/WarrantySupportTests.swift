@@ -89,6 +89,143 @@ final class WarrantySupportTests: XCTestCase {
         XCTAssertEqual(WarrantySupport.status(for: event, now: overdue), .completed)
     }
 
+    func testYearNumberDerivedFromDueDateVersusPurchase() {
+        let purchase = Calendar.current.date(from: DateComponents(year: 2024, month: 2, day: 7))!
+
+        let yearTwoExact = Calendar.current.date(from: DateComponents(year: 2026, month: 2, day: 7))!
+        XCTAssertEqual(WarrantySupport.yearNumber(for: yearTwoExact, purchaseDate: purchase), 2)
+
+        let twoYearsAndTwoMonths = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 7))!
+        XCTAssertEqual(WarrantySupport.yearNumber(for: twoYearsAndTwoMonths, purchaseDate: purchase), 2)
+
+        let twoYearsAndSevenMonths = Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 7))!
+        XCTAssertEqual(WarrantySupport.yearNumber(for: twoYearsAndSevenMonths, purchaseDate: purchase), 3)
+
+        let beforePurchase = Calendar.current.date(from: DateComponents(year: 2023, month: 1, day: 1))!
+        XCTAssertEqual(WarrantySupport.yearNumber(for: beforePurchase, purchaseDate: purchase), 0)
+
+        XCTAssertEqual(WarrantySupport.yearNumber(for: purchase, purchaseDate: purchase), 0)
+    }
+
+    func testYearlyOccurrenceDatesIncludeStartAndAnnualSteps() {
+        let start = Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 8))!
+        let end = Calendar.current.date(from: DateComponents(year: 2029, month: 9, day: 8))!
+        let dates = WarrantySupport.yearlyOccurrenceDates(from: start, through: end)
+        XCTAssertEqual(dates.count, 4)
+        XCTAssertEqual(
+            dates.map { Calendar.current.component(.year, from: $0) },
+            [2026, 2027, 2028, 2029]
+        )
+    }
+
+    func testEnsureYearlyRepeatsCreatesFutureEventsWithoutDuplicates() throws {
+        let vehicleID = UUID()
+        let plan = WarrantyPlan(vehicleID: vehicleID)
+        plan.purchaseDate = Calendar.current.date(from: DateComponents(year: 2024, month: 2, day: 7))!
+        plan.durationYears = 5
+        context.insert(plan)
+
+        let start = Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 8))!
+        let seed = WarrantyStore.createEvent(for: plan, in: context)
+        WarrantyStore.save(
+            event: seed,
+            yearNumber: WarrantySupport.yearNumber(for: start, purchaseDate: plan.purchaseDate),
+            scheduledDate: start,
+            daysBefore: 60,
+            daysAfter: 30,
+            serviceType: .normalService,
+            requirementDescription: "Fridge service",
+            sortOrder: 10,
+            isManual: true,
+            completedDate: nil,
+            linkedDocumentIDs: [],
+            linkedMaintenanceID: nil,
+            linkedFaultID: nil,
+            in: context
+        )
+
+        let created = WarrantyStore.ensureYearlyRepeats(for: plan, matching: seed, in: context)
+        XCTAssertFalse(created.isEmpty)
+        XCTAssertTrue(plan.eventsList.contains(where: { Calendar.current.component(.year, from: $0.scheduledDate) == 2027 }))
+
+        let again = WarrantyStore.ensureYearlyRepeats(for: plan, matching: seed, in: context)
+        XCTAssertTrue(again.isEmpty)
+    }
+
+    func testOnlyNextFutureEventIsUpcomingOthersArePlanned() throws {
+        let vehicleID = UUID()
+        let year3 = WarrantyEvent(vehicleID: vehicleID)
+        year3.scheduledDate = Calendar.current.date(from: DateComponents(year: 2027, month: 2, day: 7))!
+        year3.daysBefore = 60
+        year3.daysAfter = 30
+
+        let year4 = WarrantyEvent(vehicleID: vehicleID)
+        year4.scheduledDate = Calendar.current.date(from: DateComponents(year: 2028, month: 2, day: 7))!
+        year4.daysBefore = 60
+        year4.daysAfter = 30
+
+        let year5 = WarrantyEvent(vehicleID: vehicleID)
+        year5.scheduledDate = Calendar.current.date(from: DateComponents(year: 2029, month: 2, day: 7))!
+        year5.daysBefore = 60
+        year5.daysAfter = 30
+
+        let events = [year3, year4, year5]
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 8, day: 7))!
+
+        XCTAssertEqual(WarrantySupport.status(for: year3, among: events, now: now), .upcoming)
+        XCTAssertEqual(WarrantySupport.status(for: year4, among: events, now: now), .planned)
+        XCTAssertEqual(WarrantySupport.status(for: year5, among: events, now: now), .planned)
+        XCTAssertEqual(WarrantySupport.statusDisplayName(for: .planned), "Planned")
+    }
+
+    func testPreparedEvidenceFiltersIncludeLinkedAndTypicalCategories() throws {
+        let vehicleID = UUID()
+        let event = WarrantyEvent(vehicleID: vehicleID)
+
+        let warrantyDoc = DocumentRecord(vehicleID: vehicleID)
+        warrantyDoc.category = .warranty
+        let otherDoc = DocumentRecord(vehicleID: vehicleID)
+        otherDoc.category = .insurance
+        let linkedDoc = DocumentRecord(vehicleID: vehicleID)
+        linkedDoc.category = .other
+        event.linkedDocumentIDs = [linkedDoc.id]
+
+        let docs = WarrantySupport.warrantyDocuments(
+            from: [warrantyDoc, otherDoc, linkedDoc],
+            events: [event]
+        )
+        XCTAssertEqual(Set(docs.map(\.id)), Set([warrantyDoc.id, linkedDoc.id]))
+
+        let flagged = FaultRecord(vehicleID: vehicleID)
+        flagged.isWarrantyRelated = true
+        let unflagged = FaultRecord(vehicleID: vehicleID)
+        let linkedFault = FaultRecord(vehicleID: vehicleID)
+        event.linkedFaultID = linkedFault.id
+
+        let faults = WarrantySupport.warrantyFaults(
+            from: [flagged, unflagged, linkedFault],
+            events: [event]
+        )
+        XCTAssertEqual(Set(faults.map(\.id)), Set([flagged.id, linkedFault.id]))
+        XCTAssertEqual(
+            WarrantySupport.unflaggedFaults(from: [flagged, unflagged, linkedFault], events: [event]).map(\.id),
+            [unflagged.id]
+        )
+
+        let repair = MaintenanceRecord(vehicleID: vehicleID)
+        repair.category = .warrantyRepair
+        let damp = MaintenanceRecord(vehicleID: vehicleID)
+        damp.category = .dampInspection
+        let general = MaintenanceRecord(vehicleID: vehicleID)
+        general.category = .generalMaintenance
+
+        let repairs = WarrantySupport.warrantyRepairs(
+            from: [repair, damp, general],
+            events: [event]
+        )
+        XCTAssertEqual(Set(repairs.map(\.id)), Set([repair.id, damp.id]))
+    }
+
     func testCoverageStatusUsesDurationWhenNoExplicitExpiry() throws {
         let plan = WarrantyPlan(vehicleID: UUID())
         plan.isUnderWarranty = true
@@ -103,33 +240,18 @@ final class WarrantySupportTests: XCTestCase {
         )
     }
 
-    func testEventsSortBySortOrderThenDate() throws {
+    func testEventsSortByScheduledDate() throws {
         let plan = WarrantyPlan(vehicleID: UUID())
         context.insert(plan)
+
+        let laterDate = Calendar.current.date(from: DateComponents(year: 2028, month: 2, day: 7))!
+        let earlierDate = Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: 8))!
 
         let later = WarrantyStore.createEvent(for: plan, in: context)
         WarrantyStore.save(
             event: later,
             yearNumber: 2,
-            scheduledDate: Date(timeIntervalSince1970: 2_000),
-            daysBefore: 60,
-            daysAfter: 30,
-            serviceType: .normalService,
-            requirementDescription: "",
-            sortOrder: 2,
-            isManual: false,
-            completedDate: nil,
-            linkedDocumentIDs: [],
-            linkedMaintenanceID: nil,
-            linkedFaultID: nil,
-            in: context
-        )
-
-        let earlier = WarrantyStore.createEvent(for: plan, in: context)
-        WarrantyStore.save(
-            event: earlier,
-            yearNumber: 1,
-            scheduledDate: Date(timeIntervalSince1970: 1_000),
+            scheduledDate: laterDate,
             daysBefore: 60,
             daysAfter: 30,
             serviceType: .normalService,
@@ -143,7 +265,26 @@ final class WarrantySupportTests: XCTestCase {
             in: context
         )
 
-        XCTAssertEqual(plan.eventsList.map(\.yearNumber), [1, 2])
+        let earlier = WarrantyStore.createEvent(for: plan, in: context)
+        WarrantyStore.save(
+            event: earlier,
+            yearNumber: 1,
+            scheduledDate: earlierDate,
+            daysBefore: 60,
+            daysAfter: 30,
+            serviceType: .normalService,
+            requirementDescription: "Manual service",
+            sortOrder: 99,
+            isManual: true,
+            completedDate: nil,
+            linkedDocumentIDs: [],
+            linkedMaintenanceID: nil,
+            linkedFaultID: nil,
+            in: context
+        )
+
+        XCTAssertEqual(plan.eventsList.map(\.scheduledDate), [earlierDate, laterDate])
+        XCTAssertEqual(plan.eventsList.map(\.id), [earlier.id, later.id])
     }
 
     func testSwiftCaravanPatternAppliesMilestoneWindows() throws {
@@ -331,5 +472,59 @@ final class WarrantySupportTests: XCTestCase {
 
         XCTAssertEqual(plan.eventsList.count, 6)
         XCTAssertTrue(plan.eventsList.allSatisfy { !$0.serviceType.isStatutoryInspection })
+    }
+
+    func testInsuranceStartDateCreatesYearlyActions() throws {
+        let profile = VehicleProfile(name: "Test van", kind: .caravan)
+        let start = Calendar.current.date(from: DateComponents(year: 2024, month: 3, day: 15))!
+        profile.insuranceStartDate = start
+        context.insert(profile)
+
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 8, day: 8))!
+        WarrantyStore.syncInsuranceRenewalEvents(for: profile, in: context, now: now)
+
+        let plans = try context.fetch(FetchDescriptor<WarrantyPlan>())
+        let storedPlan = try XCTUnwrap(plans.first { $0.vehicleID == profile.id })
+
+        let insuranceEvents = storedPlan.eventsList.filter { $0.serviceType == .insuranceRenewal }
+        XCTAssertEqual(
+            Set(insuranceEvents.map { Calendar.current.startOfDay(for: $0.scheduledDate) }),
+            Set(WarrantySupport.insuranceRenewalDates(from: start, now: now).map { Calendar.current.startOfDay(for: $0) })
+        )
+        XCTAssertEqual(
+            insuranceEvents.first?.requirementDescription,
+            "Ensure your vehicle, ensure your reg, ensure your caravan."
+        )
+        XCTAssertEqual(insuranceEvents.first?.daysBefore, WarrantySupport.insuranceRenewalDaysBefore)
+        XCTAssertTrue(insuranceEvents.first?.displayTitle.hasPrefix("Insurance check") == true)
+    }
+
+    func testInsuranceStartDateUsesMotorhomeWording() throws {
+        let profile = VehicleProfile(name: "Test MH", kind: .motorhome)
+        profile.insuranceStartDate = Calendar.current.date(from: DateComponents(year: 2025, month: 1, day: 10))
+        context.insert(profile)
+
+        WarrantyStore.syncInsuranceRenewalEvents(for: profile, in: context)
+
+        let plans = try context.fetch(FetchDescriptor<WarrantyPlan>())
+        let plan = try XCTUnwrap(plans.first { $0.vehicleID == profile.id })
+        let event = try XCTUnwrap(plan.eventsList.first { $0.serviceType == .insuranceRenewal })
+        XCTAssertEqual(event.requirementDescription, "Ensure your vehicle, ensure your reg, ensure your motorhome.")
+    }
+
+    func testClearingInsuranceStartRemovesOpenInsuranceEvents() throws {
+        let profile = VehicleProfile(name: "Test van", kind: .caravan)
+        profile.insuranceStartDate = Calendar.current.date(from: DateComponents(year: 2024, month: 6, day: 1))
+        context.insert(profile)
+
+        WarrantyStore.syncInsuranceRenewalEvents(for: profile, in: context)
+        let plans = try context.fetch(FetchDescriptor<WarrantyPlan>())
+        let plan = try XCTUnwrap(plans.first { $0.vehicleID == profile.id })
+        XCTAssertFalse(plan.eventsList.filter { $0.serviceType == .insuranceRenewal }.isEmpty)
+
+        profile.insuranceStartDate = nil
+        WarrantyStore.syncInsuranceRenewalEvents(for: profile, in: context)
+
+        XCTAssertTrue(plan.eventsList.filter { $0.serviceType == .insuranceRenewal }.isEmpty)
     }
 }

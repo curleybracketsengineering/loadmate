@@ -156,22 +156,34 @@ enum MaintenanceSupport {
         documents: [DocumentRecord],
         warrantyPlans: [WarrantyPlan] = [],
         vehicleID: UUID? = nil,
-        warrantyAvailable: Bool = true
+        warrantyAvailable: Bool = true,
+        profile: VehicleProfile? = nil,
+        now: Date = Date()
     ) -> [MaintenanceReminderItem] {
         var items: [MaintenanceReminderItem] = []
 
+        // Habitation / damp / warranty-repair work is tracked on the warranty timeline —
+        // don't also surface those maintenance reminders when a plan is active.
+        let suppressWarrantyCoveredMaintenance: Bool = {
+            guard warrantyAvailable, let vehicleID else { return false }
+            return WarrantySupport.plan(for: vehicleID, from: warrantyPlans) != nil
+        }()
+
         for record in maintenanceRecords {
-            if let reminderDate = record.reminderDate {
-                items.append(
-                    MaintenanceReminderItem(
-                        id: "maintenance-\(record.id.uuidString)",
-                        title: record.title.isEmpty ? record.category.displayName : record.title,
-                        dueDate: reminderDate,
-                        subtitle: record.category.displayName,
-                        kind: .maintenance
-                    )
-                )
+            guard let reminderDate = record.reminderDate else { continue }
+            if suppressWarrantyCoveredMaintenance,
+               WarrantySupport.warrantyMaintenanceCategories.contains(record.category) {
+                continue
             }
+            items.append(
+                MaintenanceReminderItem(
+                    id: "maintenance-\(record.id.uuidString)",
+                    title: record.title.isEmpty ? record.category.displayName : record.title,
+                    dueDate: reminderDate,
+                    subtitle: record.category.displayName,
+                    kind: .maintenance
+                )
+            )
         }
 
         for document in documents {
@@ -213,7 +225,51 @@ enum MaintenanceSupport {
             }
         }
 
+        if let profile,
+           let start = profile.insuranceStartDate,
+           shouldAddStandaloneInsuranceReminder(
+            profile: profile,
+            warrantyPlans: warrantyPlans,
+            warrantyAvailable: warrantyAvailable
+           ),
+           let nextDue = nextInsuranceReminderDate(from: start, now: now) {
+            items.append(
+                MaintenanceReminderItem(
+                    id: "insurance-\(profile.id.uuidString)",
+                    title: "Insurance check",
+                    dueDate: nextDue,
+                    subtitle: WarrantySupport.insuranceRenewalRequirement(for: profile.kind),
+                    kind: .warrantyEvent
+                )
+            )
+        }
+
         return items
+    }
+
+    private static func shouldAddStandaloneInsuranceReminder(
+        profile: VehicleProfile,
+        warrantyPlans: [WarrantyPlan],
+        warrantyAvailable: Bool
+    ) -> Bool {
+        guard warrantyAvailable else { return true }
+        guard let plan = WarrantySupport.plan(for: profile.id, from: warrantyPlans) else { return true }
+        return !plan.eventsList.contains(where: { $0.serviceType == .insuranceRenewal && $0.completedDate == nil })
+    }
+
+    /// Reminder fires `insuranceRenewalDaysBefore` before the next anniversary on or after today.
+    private static func nextInsuranceReminderDate(from start: Date, now: Date) -> Date? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        let dates = WarrantySupport.insuranceRenewalDates(from: start, now: now)
+        guard let nextAnniversary = dates.first(where: { calendar.startOfDay(for: $0) >= today })
+            ?? dates.last
+        else { return nil }
+        return calendar.date(
+            byAdding: .day,
+            value: -WarrantySupport.insuranceRenewalDaysBefore,
+            to: calendar.startOfDay(for: nextAnniversary)
+        ) ?? nextAnniversary
     }
 
     static func highPriorityFaultCount(_ faults: [FaultRecord]) -> Int {

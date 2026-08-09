@@ -86,7 +86,7 @@ extension View {
 struct AppHeroSection: View {
     let systemImage: String
     let title: String
-    let subtitle: String
+    var subtitle: String = ""
 
     var body: some View {
         VStack(spacing: AppScreenMetrics.controlSpacing) {
@@ -101,10 +101,12 @@ struct AppHeroSection: View {
                 .foregroundStyle(LyneqoTheme.primaryText)
                 .multilineTextAlignment(.center)
 
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(LyneqoTheme.secondaryText)
-                .multilineTextAlignment(.center)
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(LyneqoTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, AppScreenMetrics.smallSpacing)

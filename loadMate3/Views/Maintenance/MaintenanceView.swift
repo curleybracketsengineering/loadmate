@@ -66,7 +66,8 @@ struct MaintenanceView: View {
             documents: scopedDocuments,
             warrantyPlans: warrantyPlans,
             vehicleID: profile.id,
-            warrantyAvailable: profile.warrantyAvailable
+            warrantyAvailable: profile.warrantyAvailable,
+            profile: profile
         )
         .sorted { $0.dueDate < $1.dueDate }
     }
@@ -77,12 +78,6 @@ struct MaintenanceView: View {
                 if let profile = activeProfile {
                     ScrollView {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                            AppHeroSection(
-                                systemImage: "wrench.and.screwdriver",
-                                title: "Maintenance",
-                                subtitle: "\(profile.name) \(profile.kind.displayName.lowercased())"
-                            )
-
                             summarySection
                             remindersSection
                             faultDashboardSection
@@ -135,7 +130,8 @@ struct MaintenanceView: View {
             if let profile = activeProfile {
                 FaultRecordEditorView(
                     profile: profile,
-                    maintenanceRecords: scopedMaintenanceRecords
+                    maintenanceRecords: scopedMaintenanceRecords,
+                    defaultWarrantyRelated: WarrantySupport.plan(for: profile.id, from: warrantyPlans) != nil
                 )
             }
         }
@@ -828,7 +824,7 @@ private struct MaintenanceRecordEditorView: View {
     }
 }
 
-private struct DocumentRecordEditorView: View {
+struct DocumentRecordEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -942,7 +938,7 @@ private struct DocumentRecordEditorView: View {
     }
 }
 
-private struct FaultRecordEditorView: View {
+struct FaultRecordEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -966,7 +962,9 @@ private struct FaultRecordEditorView: View {
     init(
         profile: VehicleProfile,
         record: FaultRecord? = nil,
-        maintenanceRecords: [MaintenanceRecord]
+        maintenanceRecords: [MaintenanceRecord],
+        defaultWarrantyRelated: Bool = false,
+        suggestAsWarrantyItem: Bool = false
     ) {
         self.profile = profile
         self.record = record
@@ -981,7 +979,10 @@ private struct FaultRecordEditorView: View {
         _estimatedRepairCost = State(initialValue: record?.estimatedRepairCost.map { Self.currencyInputString($0) } ?? "")
         _actualRepairCost = State(initialValue: record?.actualRepairCost.map { Self.currencyInputString($0) } ?? "")
         _linkedMaintenanceID = State(initialValue: record?.linkedMaintenanceRecord?.id)
-        _isWarrantyRelated = State(initialValue: record?.isWarrantyRelated ?? false)
+        let existingFlag = record?.isWarrantyRelated ?? false
+        _isWarrantyRelated = State(
+            initialValue: existingFlag || suggestAsWarrantyItem || (record == nil && defaultWarrantyRelated)
+        )
     }
 
     var body: some View {
@@ -993,6 +994,13 @@ private struct FaultRecordEditorView: View {
                         title: record == nil ? "New fault" : "Fault details",
                         subtitle: "Track issues until they are repaired, invoiced and closed."
                     )
+
+                    AppSettingsSection(
+                        "Warranty",
+                        caption: "Turn this on if the issue is covered by or claimed under warranty. It appears on the Warranty screen — open or completed."
+                    ) {
+                        Toggle("Warranty item", isOn: $isWarrantyRelated)
+                    }
 
                     AppSettingsSection("Details") {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
@@ -1023,7 +1031,6 @@ private struct FaultRecordEditorView: View {
                                         .tag(Optional.some(maintenance.id))
                                 }
                             }
-                            Toggle("Warranty-related fault", isOn: $isWarrantyRelated)
                         }
                     }
 
@@ -1094,7 +1101,7 @@ private struct FaultRecordEditorView: View {
     }
 }
 
-private struct MaintenanceAttachmentEditorSection: View {
+struct MaintenanceAttachmentEditorSection: View {
     @Binding var pendingAttachments: [MaintenanceAttachmentDraft]
     let existingAttachments: [MaintenanceAttachment]
     let onDeleteExisting: (MaintenanceAttachment) -> Void
@@ -1244,7 +1251,7 @@ private struct MaintenanceAttachmentEditorSection: View {
     }
 }
 
-private struct AttachmentThumbnailView: View {
+struct AttachmentThumbnailView: View {
     let title: String
     let image: UIImage?
     let symbolName: String
@@ -1288,7 +1295,7 @@ private struct AttachmentThumbnailView: View {
     }
 }
 
-private enum AttachmentPreviewSource: Identifiable {
+enum AttachmentPreviewSource: Identifiable {
     case saved(MaintenanceAttachment)
     case pending(MaintenanceAttachmentDraft)
 
@@ -1302,7 +1309,7 @@ private enum AttachmentPreviewSource: Identifiable {
     }
 }
 
-private struct AttachmentPreviewView: View {
+struct AttachmentPreviewView: View {
     @Environment(\.dismiss) private var dismiss
     let preview: AttachmentPreviewSource
 
@@ -1363,7 +1370,7 @@ private struct AttachmentPreviewView: View {
     }
 }
 
-private struct PDFDocumentView: UIViewRepresentable {
+struct PDFDocumentView: UIViewRepresentable {
     let data: Data
 
     func makeUIView(context: Context) -> PDFView {
@@ -1396,7 +1403,7 @@ private struct MaintenanceNotesEditor: View {
     }
 }
 
-private struct MaintenanceImagePicker: UIViewControllerRepresentable {
+struct MaintenanceImagePicker: UIViewControllerRepresentable {
     @Environment(\.dismiss) private var dismiss
 
     let sourceType: UIImagePickerController.SourceType
@@ -1445,13 +1452,13 @@ private struct MaintenanceImagePicker: UIViewControllerRepresentable {
     }
 }
 
-private struct ScannedDocumentResult {
+struct ScannedDocumentResult {
     let pdfData: Data
     let pageCount: Int
     let displayName: String
 }
 
-private struct MaintenanceDocumentScanner: UIViewControllerRepresentable {
+struct MaintenanceDocumentScanner: UIViewControllerRepresentable {
     @Environment(\.dismiss) private var dismiss
     let onScanComplete: (ScannedDocumentResult) -> Void
 

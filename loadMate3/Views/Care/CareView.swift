@@ -62,7 +62,8 @@ struct CareView: View {
             documents: scopedDocuments,
             warrantyPlans: warrantyPlans,
             vehicleID: profile.id,
-            warrantyAvailable: profile.warrantyAvailable
+            warrantyAvailable: profile.warrantyAvailable,
+            profile: profile
         )
     }
 
@@ -91,7 +92,7 @@ struct CareView: View {
 
                     if WarrantySupport.showsWarrantyFeatures(for: activeProfile) {
                         careHubCard(
-                            title: "Warranty",
+                            title: "Service & warranty",
                             subtitle: warrantySubtitle,
                             systemImage: "shield.fill",
                             tint: AppColors.purple
@@ -107,7 +108,7 @@ struct CareView: View {
 
                     careHubCard(
                         title: "Documents",
-                        subtitle: "\(scopedDocuments.count) files. Insurance, Registration, Manuals & more.",
+                        subtitle: documentsSubtitle,
                         systemImage: "folder.fill",
                         tint: AppColors.orange
                     ) { destination = .documents }
@@ -148,7 +149,7 @@ struct CareView: View {
                 case .warranty:
                     WarrantyView()
                 case .documents:
-                    MaintenanceView()
+                    DocumentsView()
                 case .checklist:
                     ChecklistView()
                 case .history:
@@ -165,6 +166,15 @@ struct CareView: View {
         DispatchQueue.main.async {
             destination = pending
         }
+    }
+
+    private var documentsSubtitle: String {
+        let count = scopedDocuments.count
+        if count == 0 {
+            return "Insurance, registration, manuals, photos & more."
+        }
+        let noun = count == 1 ? "file" : "files"
+        return "\(count) \(noun). Insurance, Registration, Manuals & more."
     }
 
     private var maintenanceSubtitle: String {

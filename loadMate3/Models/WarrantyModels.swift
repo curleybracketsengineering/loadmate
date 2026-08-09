@@ -108,6 +108,7 @@ enum WarrantyServiceType: String, Codable, CaseIterable, Identifiable {
     case serviceWithBodyCheck
     case mot
     case vehicleInspection
+    case insuranceRenewal
     case custom
 
     var id: String { rawValue }
@@ -118,6 +119,7 @@ enum WarrantyServiceType: String, Codable, CaseIterable, Identifiable {
         case .serviceWithBodyCheck: return "Service with body check"
         case .mot: return "MOT"
         case .vehicleInspection: return "Vehicle inspection"
+        case .insuranceRenewal: return "Insurance check"
         case .custom: return "Custom"
         }
     }
@@ -132,6 +134,8 @@ enum WarrantyServiceType: String, Codable, CaseIterable, Identifiable {
             return UKMotorhomeMOTClass.class4.requirementDescription
         case .vehicleInspection:
             return "Local roadworthiness / vehicle inspection reminder. Rules vary by country and region — confirm the first due date, interval, and test class with your local authority, and edit this schedule to match."
+        case .insuranceRenewal:
+            return WarrantySupport.insuranceRenewalRequirement(for: .caravan)
         case .custom:
             return ""
         }
@@ -147,6 +151,7 @@ enum WarrantyEventStatus: String, Codable {
     case overdue
     case inWindow
     case upcoming
+    case planned
 }
 
 @Model
@@ -249,10 +254,15 @@ final class WarrantyEvent {
 extension WarrantyPlan {
     var eventsList: [WarrantyEvent] {
         (events ?? []).sorted { lhs, rhs in
+            let lhsDay = Calendar.current.startOfDay(for: lhs.scheduledDate)
+            let rhsDay = Calendar.current.startOfDay(for: rhs.scheduledDate)
+            if lhsDay != rhsDay {
+                return lhsDay < rhsDay
+            }
             if lhs.sortOrder != rhs.sortOrder {
                 return lhs.sortOrder < rhs.sortOrder
             }
-            return lhs.scheduledDate < rhs.scheduledDate
+            return lhs.yearNumber < rhs.yearNumber
         }
     }
 }
@@ -276,6 +286,10 @@ extension WarrantyEvent {
         }
         if serviceType == .vehicleInspection {
             return yearNumber > 0 ? "Year \(yearNumber) vehicle inspection" : "Vehicle inspection"
+        }
+        if serviceType == .insuranceRenewal {
+            let year = Calendar.current.component(.year, from: scheduledDate)
+            return "Insurance check \(year)"
         }
         if yearNumber > 0 {
             return isImportantMilestone ? "Year \(yearNumber) · Milestone" : "Year \(yearNumber)"

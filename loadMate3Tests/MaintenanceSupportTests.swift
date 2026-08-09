@@ -38,6 +38,44 @@ final class MaintenanceSupportTests: XCTestCase {
         XCTAssertEqual(upcoming?.kind, .maintenance)
     }
 
+    func testReminderItemsSuppressHabitationWhenWarrantyPlanExists() {
+        let vehicleID = UUID()
+        let plan = WarrantyPlan(vehicleID: vehicleID)
+        plan.isUnderWarranty = true
+
+        let event = WarrantyEvent(vehicleID: vehicleID)
+        event.yearNumber = 3
+        event.scheduledDate = Calendar.current.date(byAdding: .day, value: 40, to: Date())!
+        event.daysBefore = 60
+        event.daysAfter = 0
+        event.serviceType = .serviceWithBodyCheck
+        event.requirementDescription = "Annual habitation service"
+        event.plan = plan
+        plan.events = [event]
+
+        let habitation = MaintenanceRecord(vehicleID: vehicleID)
+        habitation.title = "Annual Habitation Service"
+        habitation.category = .annualHabitationService
+        habitation.reminderDate = Date()
+
+        let tyre = MaintenanceRecord(vehicleID: vehicleID)
+        tyre.title = "Tyre check"
+        tyre.category = .tyres
+        tyre.reminderDate = Calendar.current.date(byAdding: .day, value: 3, to: Date())
+
+        let items = MaintenanceSupport.reminderItems(
+            maintenanceRecords: [habitation, tyre],
+            documents: [],
+            warrantyPlans: [plan],
+            vehicleID: vehicleID,
+            warrantyAvailable: true
+        )
+
+        XCTAssertFalse(items.contains(where: { $0.kind == .maintenance && $0.title == "Annual Habitation Service" }))
+        XCTAssertTrue(items.contains(where: { $0.kind == .maintenance && $0.title == "Tyre check" }))
+        XCTAssertTrue(items.contains(where: { $0.kind == .warrantyEvent }))
+    }
+
     func testHistoryEntriesIncludeFaultRaisedAndResolved() {
         let vehicleID = UUID()
         let fault = FaultRecord(vehicleID: vehicleID)

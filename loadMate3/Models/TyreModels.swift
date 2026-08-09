@@ -354,4 +354,12 @@ extension TyreRecord {
     var compactAgeText: String {
         TyreSupport.compactAgeText(for: manufactureDate) ?? "Unknown"
     }
+
+    var historyIdentitySummary: String {
+        TyreSupport.historyIdentitySummary(for: self)
+    }
+
+    var historyServicePeriod: String {
+        TyreSupport.historyServicePeriod(for: self)
+    }
 }

@@ -144,6 +144,9 @@ final class VehicleProfile {
     /// When true, UK/NI manufacturer warranty starters are offered. Outside the UK, owners build a custom plan.
     var warrantyUKMarket: Bool = true
 
+    /// Policy start / renewal anniversary. Nil when not set. Used for yearly insurance check actions.
+    var insuranceStartDate: Date?
+
     // MARK: External dimensions (handbook / plate — for route and site planning)
 
     /// External body width in metres (e.g. 2.35).
