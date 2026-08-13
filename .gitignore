@@ -1,0 +1,2 @@
+# Local Zyfy/API secrets — never commit live keys.
+Config/Secrets.xcconfig

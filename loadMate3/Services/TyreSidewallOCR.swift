@@ -43,15 +43,23 @@ enum TyreSidewallOCR {
         guard let cgImage = image.cgImage else { return [] }
 
         return try await withCheckedThrowingContinuation { continuation in
+            // Vision may invoke the request callback and also throw from `perform`.
+            var didResume = false
+            func resumeOnce(_ body: (CheckedContinuation<[String], Error>) -> Void) {
+                guard !didResume else { return }
+                didResume = true
+                body(continuation)
+            }
+
             let request = VNRecognizeTextRequest { request, error in
                 if let error {
-                    continuation.resume(throwing: error)
+                    resumeOnce { $0.resume(throwing: error) }
                     return
                 }
                 let observations = request.results as? [VNRecognizedTextObservation] ?? []
                 let lines = observations.compactMap { $0.topCandidates(1).first?.string.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty }
-                continuation.resume(returning: lines)
+                resumeOnce { $0.resume(returning: lines) }
             }
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = false
@@ -60,7 +68,7 @@ enum TyreSidewallOCR {
             do {
                 try handler.perform([request])
             } catch {
-                continuation.resume(throwing: error)
+                resumeOnce { $0.resume(throwing: error) }
             }
         }
     }
@@ -134,7 +142,7 @@ enum TyreSidewallOCR {
         let patterns = [
             "\\b\\d{3}/\\d{2}\\s?[A-Z]{0,2}R\\d{2}[A-Z]{0,3}\\b",
             "\\b\\d{3}/\\d{2}R\\d{2}[A-Z]{0,3}\\b",
-            "\\b\\d{3}R\\d{2}[A-Z]{0,3}\\b",
+            "\\b\\d{3}\\s?R\\d{2}[A-Z]{0,3}\\b",
             "\\bLT\\d{3}/\\d{2}R\\d{2}[A-Z]{0,3}\\b"
         ]
 

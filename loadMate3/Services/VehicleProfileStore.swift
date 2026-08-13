@@ -120,6 +120,7 @@ enum VehicleProfileStore {
     ) {
         guard profiles.count > 1 else { return }
         let wasActive = appState.activeProfileID == profile.id
+        VehiclePlatePhotoStore.deleteFiles(forVehicleID: profile.id)
         context.delete(profile)
         if wasActive {
             let remaining = profiles.filter { $0.id != profile.id }

@@ -17,6 +17,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		4A7F1000000000000000C01 /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Shared.xcconfig; sourceTree = "<group>"; };
+		4A7F1000000000000000C02 /* Secrets.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig.example; sourceTree = "<group>"; };
 		4AB0000000000000000000A1 /* loadMate3Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = loadMate3Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4ACAFC8A2F75A56E0027E7CE /* loadMate3.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = loadMate3.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -65,9 +67,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		4A7F1000000000000000C03 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				4A7F1000000000000000C01 /* Shared.xcconfig */,
+				4A7F1000000000000000C02 /* Secrets.xcconfig.example */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		4ACAFC812F75A56E0027E7CE = {
 			isa = PBXGroup;
 			children = (
+				4A7F1000000000000000C03 /* Config */,
 				4ACAFC8C2F75A56E0027E7CE /* loadMate3 */,
 				4AB0000000000000000000A6 /* loadMate3Tests */,
 				4ACAFC8B2F75A56E0027E7CE /* Products */,
@@ -255,6 +267,7 @@
 		};
 		4ACAFC932F75A56F0027E7CE /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4A7F1000000000000000C01 /* Shared.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -320,6 +333,7 @@
 		};
 		4ACAFC942F75A56F0027E7CE /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4A7F1000000000000000C01 /* Shared.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;

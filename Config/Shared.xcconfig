@@ -1,0 +1,7 @@
+// Shared build settings for Lyneqo.
+// Secrets.xcconfig is optional so clones and CI still compile without a local key.
+#include? "Secrets.xcconfig"
+
+// Phase 1: ZYFY_API_KEY is embedded in the iOS app via Info.plist. This is
+// intentionally temporary and will move to a Lyneqo backend. A key shipped
+// inside an iOS binary cannot be genuinely secured.

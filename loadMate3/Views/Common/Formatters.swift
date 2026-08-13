@@ -9,6 +9,10 @@ enum Formatters {
         return formatter
     }()
 
+    static func nm(_ value: Double) -> String {
+        String(format: "%.0f Nm", value)
+    }
+
     static func kg(_ value: Double) -> String {
         let formatted = oneDecimal.string(from: NSNumber(value: value)) ?? "\(value)"
         return "\(formatted) kg"
@@ -45,6 +49,13 @@ enum Formatters {
         return formatter
     }()
 
+    private static let checkedAtFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_GB")
+        formatter.dateFormat = "d MMM yyyy 'at' HH:mm"
+        return formatter
+    }()
+
     static func pressure(_ valuePSI: Double, unit: PressureUnit) -> String {
         let displayValue = TyreSupport.convertPressure(valuePSI, from: .psi, to: unit)
         let formatted = pressureFormatter.string(from: NSNumber(value: displayValue)) ?? "\(displayValue)"
@@ -59,5 +70,9 @@ enum Formatters {
     static func date(_ value: Date?) -> String {
         guard let value else { return "Not recorded" }
         return dateFormatter.string(from: value)
+    }
+
+    static func checkedAtCaption(_ value: Date) -> String {
+        "Checked \(checkedAtFormatter.string(from: value))"
     }
 }

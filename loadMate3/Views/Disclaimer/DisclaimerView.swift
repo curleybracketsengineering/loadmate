@@ -42,7 +42,7 @@ struct DisclaimerView: View {
                             "For motorhomes, it estimates how loading affects front and rear axle weights, and checks your MAM, axle, garage, and tow bar limits."
                         )
                         paragraph(
-                            "Your data stays on your device. Lyneqo Caravan & Motorhome does not require an account, does not use a backend server, and does not upload your caravan, motorhome, vehicle, or loading data."
+                            "Your data stays on your device. Lyneqo Caravan & Motorhome does not require an account. If you look up a UK registration, that plate is sent to a third-party vehicle data provider to return MOT, tax and vehicle details. Loading and other vehicle records are not uploaded."
                         )
                         paragraph(
                             "All calculations are estimates only. Always confirm your actual weights on a weighbridge before travelling, and check nose weight with a gauge when towing."

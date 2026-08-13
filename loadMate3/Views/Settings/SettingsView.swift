@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -11,6 +12,7 @@ struct SettingsView: View {
     @Environment(\.padTopTabBarActive) private var padTopTabBarActive
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
+    @Environment(\.vehicleLookup) private var vehicleLookup
     @AppStorage(TyreSupport.pressureUnitAppStorageKey) private var pressureUnitRaw = PressureUnit.psi.rawValue
     @Query(sort: [SortDescriptor(\VehicleProfile.sortOrder)]) private var profiles: [VehicleProfile]
     @Query private var appStates: [AppState]
@@ -29,6 +31,24 @@ struct SettingsView: View {
     @State private var showSetupIncompleteAlert = false
     @State private var setupIncompleteAlertMessage = ""
     @State private var showSyncDebugPanel = false
+    @State private var showPlateSourcePicker = false
+    @State private var showPlateCamera = false
+    @State private var showPlateLibraryPicker = false
+    @State private var selectedPlateLibraryItem: PhotosPickerItem?
+    @State private var isAnalyzingPlate = false
+    @State private var plateReviewItem: VehiclePlateReviewItem?
+    @State private var platePreviewImage: UIImage?
+    @State private var plateAnalysisError: String?
+    @State private var showVINChipSourcePicker = false
+    @State private var showVINChipCamera = false
+    @State private var showVINChipLibraryPicker = false
+    @State private var selectedVINChipLibraryItem: PhotosPickerItem?
+    @State private var isAnalyzingVINChip = false
+    @State private var vinChipReviewItem: CRiSVINChipReviewItem?
+    @State private var vinChipAnalysisError: String?
+    @State private var isLookingUpVehicle = false
+    @State private var vehicleLookupError: String?
+    @State private var vehicleLookupReviewItem: VehicleLookupReviewItem?
 
     private var sortedProfiles: [VehicleProfile] {
         VehicleProfileStore.uniqueSortedProfiles(profiles)
@@ -188,6 +208,99 @@ struct SettingsView: View {
                 profilePendingRename = nil
             }
         }
+        .confirmationDialog("Scan vehicle plate", isPresented: $showPlateSourcePicker, titleVisibility: .visible) {
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Take photo") { showPlateCamera = true }
+            }
+            Button("Choose from library") { showPlateLibraryPicker = true }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(plateScanPickerMessage(for: editingProfile?.kind ?? .caravan))
+        }
+        .photosPicker(isPresented: $showPlateLibraryPicker, selection: $selectedPlateLibraryItem, matching: .images)
+        .onChange(of: selectedPlateLibraryItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    await MainActor.run {
+                        selectedPlateLibraryItem = nil
+                        analyzePlateImage(image)
+                    }
+                } else {
+                    await MainActor.run {
+                        selectedPlateLibraryItem = nil
+                        plateAnalysisError = "Could not load that photo. Try another image of the plate."
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showPlateCamera) {
+            MaintenanceImagePicker(sourceType: .camera) { image in
+                analyzePlateImage(image)
+            }
+        }
+        .sheet(item: $plateReviewItem) { item in
+            if let profile = editingProfile {
+                VehiclePlateReviewSheet(kind: profile.kind, item: item) { selected in
+                    applyPlateSuggestions(selected, image: item.image, to: profile)
+                }
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { platePreviewImage != nil },
+            set: { if !$0 { platePreviewImage = nil } }
+        )) {
+            if let image = platePreviewImage {
+                ManufacturerPlatePhotoViewer(image: image)
+            }
+        }
+        .confirmationDialog("Scan CRiS VIN Chip", isPresented: $showVINChipSourcePicker, titleVisibility: .visible) {
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Take photo") { showVINChipCamera = true }
+            }
+            Button("Choose from library") { showVINChipLibraryPicker = true }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Photograph the VIN Chip sticker or QR code (window or gas locker) so the VIN can be suggested.")
+        }
+        .photosPicker(isPresented: $showVINChipLibraryPicker, selection: $selectedVINChipLibraryItem, matching: .images)
+        .onChange(of: selectedVINChipLibraryItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    await MainActor.run {
+                        selectedVINChipLibraryItem = nil
+                        analyzeVINChipImage(image)
+                    }
+                } else {
+                    await MainActor.run {
+                        selectedVINChipLibraryItem = nil
+                        vinChipAnalysisError = "Could not load that photo. Try another image of the VIN Chip sticker or QR code."
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showVINChipCamera) {
+            MaintenanceImagePicker(sourceType: .camera) { image in
+                analyzeVINChipImage(image)
+            }
+        }
+        .sheet(item: $vinChipReviewItem) { item in
+            if let profile = editingProfile {
+                CRiSVINChipReviewSheet(item: item) { vin, savePhoto, image in
+                    applyVINChipResult(vin: vin, savePhoto: savePhoto, image: image, to: profile)
+                }
+            }
+        }
+        .sheet(item: $vehicleLookupReviewItem) { item in
+            if let profile = editingProfile {
+                VehicleLookupReviewSheet(result: item.result) { applyMake, applyModel in
+                    applyVehicleLookup(item.result, applyMake: applyMake, applyModel: applyModel, to: profile)
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -286,7 +399,13 @@ struct SettingsView: View {
     }
 
     private func profileSubtitle(_ profile: VehicleProfile) -> String {
-        "\(profile.kind.displayName) — \(profile.name)"
+        let manufacturer = profile.manufacturer.trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelName = profile.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let identity = [manufacturer, modelName].filter { !$0.isEmpty }.joined(separator: " ")
+        if identity.isEmpty {
+            return "\(profile.kind.displayName) — \(profile.name)"
+        }
+        return "\(profile.kind.displayName) — \(profile.name)\n\(identity)"
     }
 
     private static let developerEmail = "smatheson6@icloude.com"
@@ -550,6 +669,26 @@ struct SettingsView: View {
     private func caravanSettings(_ profile: VehicleProfile) -> some View {
         AppSettingsSection("Caravan", caption: "Weights from your caravan plate or handbook.") {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                plateScanControls(for: profile)
+                AppLabeledTextField(
+                    "Manufacturer",
+                    caption: "Brand from the manufacturer plate when shown",
+                    placeholder: "e.g. Swift",
+                    text: stringBinding(for: \.manufacturer, on: profile)
+                )
+                AppLabeledTextField(
+                    "Model",
+                    caption: "Model or range from the plate when shown",
+                    placeholder: "e.g. Conqueror 645",
+                    text: stringBinding(for: \.modelName, on: profile)
+                )
+                AppLabeledTextField(
+                    "VIN / chassis",
+                    caption: "From the manufacturer plate, CRiS documents or VIN Chip sticker",
+                    placeholder: "e.g. SGA…",
+                    text: stringBinding(for: \.vinChassisNumber, on: profile)
+                )
+                vinChipScanControls(for: profile)
                 caravanPlateFields(profile)
                 Toggle(isOn: boolBinding(for: \.hasBikeRack, on: profile)) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -684,50 +823,98 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func motorhomeSettings(_ profile: VehicleProfile) -> some View {
-        AppSettingsSection("Motorhome", caption: "Limits from your vehicle plate (MAM and axle weights).") {
-            if usePadLayout {
-                VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                    AppAlignedLabeledNumberFieldRow(
-                        left: AppLabeledNumberField(
-                            "MAM (kg)",
-                            caption: "Maximum Authorised Mass (gross laden limit)",
-                            value: binding(for: \.mtplmKg, on: profile),
-                            fractionDigitsUpperBound: 0
-                        ),
-                        right: AppLabeledNumberField(
+        AppSettingsSection("Motorhome", caption: "Limits from your vehicle plate (MAM, GTW and axle weights).") {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                plateScanControls(for: profile)
+                AppLabeledTextField(
+                    "Registration",
+                    caption: "UK number plate for this motorhome",
+                    placeholder: "e.g. AB12 CDE",
+                    text: stringBinding(for: \.registrationMark, on: profile),
+                    keyboard: .asciiCapable
+                )
+                vehicleLookupControls(for: profile)
+                AppLabeledTextField(
+                    "Manufacturer",
+                    caption: "Brand from the manufacturer plate when shown",
+                    placeholder: "e.g. Bailey",
+                    text: stringBinding(for: \.manufacturer, on: profile)
+                )
+                AppLabeledTextField(
+                    "Model",
+                    caption: "Model or range from the plate when shown",
+                    placeholder: "e.g. Autograph 79-4F",
+                    text: stringBinding(for: \.modelName, on: profile)
+                )
+                AppLabeledTextField(
+                    "VIN / chassis",
+                    caption: "From the manufacturer plate, V5C or VIN Chip sticker",
+                    placeholder: "e.g. WX1…",
+                    text: stringBinding(for: \.vinChassisNumber, on: profile)
+                )
+                AppLabeledTextField(
+                    "Body / cell number",
+                    caption: "Converter serial on some EU plates (e.g. Rapido N° de cellule)",
+                    placeholder: "e.g. 16-0792-1592616",
+                    text: stringBinding(for: \.bodyCellNumber, on: profile)
+                )
+                vinChipScanControls(for: profile)
+                if usePadLayout {
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                        AppAlignedLabeledNumberFieldRow(
+                            left: AppLabeledNumberField(
+                                "MAM (kg)",
+                                caption: "Maximum Authorised Mass (gross laden limit)",
+                                value: binding(for: \.mtplmKg, on: profile),
+                                fractionDigitsUpperBound: 0
+                            ),
+                            right: AppLabeledNumberField(
+                                "GTW (kg)",
+                                caption: "Gross train weight — plated vehicle + trailer maximum, not tow-bar nose load",
+                                value: binding(for: \.gtwKg, on: profile),
+                                fractionDigitsUpperBound: 0
+                            )
+                        )
+                        AppLabeledNumberField(
                             "MRO (kg)",
                             caption: "Mass in Running Order — used when no weighbridge reading is entered",
                             value: binding(for: \.baseWeightKg, on: profile),
                             fractionDigitsUpperBound: 0
                         )
-                    )
-                    AppLabeledNumberField(
-                        "Weighbridge gross (kg)",
-                        caption: "Total laden mass before trip items (optional if axle weights entered)",
-                        value: binding(for: \.weighbridgeWeightKg, on: profile),
-                        fractionDigitsUpperBound: 0
-                    )
-                }
-            } else {
-                VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                    AppLabeledNumberField(
-                        "MAM (kg)",
-                        caption: "Maximum Authorised Mass (gross laden limit)",
-                        value: binding(for: \.mtplmKg, on: profile),
-                        fractionDigitsUpperBound: 0
-                    )
-                    AppLabeledNumberField(
-                        "MRO (kg)",
-                        caption: "Mass in Running Order — used when no weighbridge reading is entered",
-                        value: binding(for: \.baseWeightKg, on: profile),
-                        fractionDigitsUpperBound: 0
-                    )
-                    AppLabeledNumberField(
-                        "Weighbridge gross (kg)",
-                        caption: "Total laden mass before trip items (optional if axle weights entered)",
-                        value: binding(for: \.weighbridgeWeightKg, on: profile),
-                        fractionDigitsUpperBound: 0
-                    )
+                        AppLabeledNumberField(
+                            "Weighbridge gross (kg)",
+                            caption: "Total laden mass before trip items (optional if axle weights entered)",
+                            value: binding(for: \.weighbridgeWeightKg, on: profile),
+                            fractionDigitsUpperBound: 0
+                        )
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                        AppLabeledNumberField(
+                            "MAM (kg)",
+                            caption: "Maximum Authorised Mass (gross laden limit)",
+                            value: binding(for: \.mtplmKg, on: profile),
+                            fractionDigitsUpperBound: 0
+                        )
+                        AppLabeledNumberField(
+                            "GTW (kg)",
+                            caption: "Gross train weight — plated vehicle + trailer maximum, not tow-bar nose load",
+                            value: binding(for: \.gtwKg, on: profile),
+                            fractionDigitsUpperBound: 0
+                        )
+                        AppLabeledNumberField(
+                            "MRO (kg)",
+                            caption: "Mass in Running Order — used when no weighbridge reading is entered",
+                            value: binding(for: \.baseWeightKg, on: profile),
+                            fractionDigitsUpperBound: 0
+                        )
+                        AppLabeledNumberField(
+                            "Weighbridge gross (kg)",
+                            caption: "Total laden mass before trip items (optional if axle weights entered)",
+                            value: binding(for: \.weighbridgeWeightKg, on: profile),
+                            fractionDigitsUpperBound: 0
+                        )
+                    }
                 }
             }
         }
@@ -978,6 +1165,16 @@ struct SettingsView: View {
         )
     }
 
+    private func stringBinding(for keyPath: ReferenceWritableKeyPath<VehicleProfile, String>, on profile: VehicleProfile) -> Binding<String> {
+        Binding(
+            get: { profile[keyPath: keyPath] },
+            set: { newValue in
+                profile[keyPath: keyPath] = newValue
+                viewModel.save(modelContext)
+            }
+        )
+    }
+
     private func boolBinding(for keyPath: ReferenceWritableKeyPath<VehicleProfile, Bool>, on profile: VehicleProfile) -> Binding<Bool> {
         Binding(
             get: { profile[keyPath: keyPath] },
@@ -986,6 +1183,315 @@ struct SettingsView: View {
                 viewModel.save(modelContext)
             }
         )
+    }
+
+    private func plateScanPickerMessage(for kind: VehicleKind) -> String {
+        switch kind {
+        case .caravan:
+            return "Photograph the manufacturer plate so manufacturer, model, MTPLM/MAM, MIRO/MRO, axle limits, VIN, tyre size, pressure and wheel nut torque can be suggested."
+        case .motorhome:
+            return "Photograph the manufacturer plate so manufacturer, model, MAM, GTW, MRO, axle limits, VIN, body/cell number, tyre size and pressure can be suggested."
+        }
+    }
+
+    private func plateScanControlsMessage(for kind: VehicleKind) -> String {
+        switch kind {
+        case .caravan:
+            return "Photograph the manufacturer plate to suggest manufacturer, model, MTPLM/MAM, MIRO/MRO, hitch or axle limits, VIN, tyre size, pressure and wheel nut torque. Review before applying. The photo stays here so you can check which plate was scanned."
+        case .motorhome:
+            return "Photograph the manufacturer plate to suggest manufacturer, model, MAM, GTW, MRO, axle limits, VIN, body/cell number, tyre size and pressure. Review before applying. The photo stays here so you can check which plate was scanned."
+        }
+    }
+
+    @ViewBuilder
+    private func vehicleLookupControls(for profile: VehicleProfile) -> some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            Text("Look up MOT, tax and vehicle details for this registration. Review before copying make or model into Settings.")
+                .font(.caption)
+                .foregroundStyle(AppColors.textSupporting)
+                .fixedSize(horizontal: false, vertical: true)
+
+            AppSecondaryButton("Look up vehicle") {
+                lookupVehicle(for: profile)
+            }
+            .disabled(isLookingUpVehicle || isAnalyzingPlate || isAnalyzingVINChip)
+
+            if isLookingUpVehicle {
+                ProgressView("Looking up vehicle…")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if let vehicleLookupError {
+                AppWarningBanner(message: vehicleLookupError)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Look up registration for \(profile.kind.displayName)")
+    }
+
+    @ViewBuilder
+    private func plateScanControls(for profile: VehicleProfile) -> some View {
+        let attachedPlateImage = profile.manufacturerPlatePhotoFileName.isEmpty
+            ? nil
+            : VehiclePlatePhotoStore.loadImage(for: profile)
+
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            Text(plateScanControlsMessage(for: profile.kind))
+                .font(.caption)
+                .foregroundStyle(AppColors.textSupporting)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let attachedPlateImage {
+                HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
+                    ManufacturerPlateThumbnail(image: attachedPlateImage) {
+                        platePreviewImage = attachedPlateImage
+                    }
+
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                        Text("Plate photo attached")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Tap the thumbnail to check which plate was scanned.")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Remove photo", role: .destructive) {
+                            VehiclePlatePhotoStore.delete(for: profile)
+                            viewModel.save(modelContext)
+                        }
+                        .font(.caption.weight(.semibold))
+                        .padding(.top, 2)
+                    }
+                }
+            }
+
+            AppSecondaryButton(attachedPlateImage == nil ? "Scan plate photo" : "Replace plate photo") {
+                plateAnalysisError = nil
+                showPlateSourcePicker = true
+            }
+            .disabled(isAnalyzingPlate || isAnalyzingVINChip)
+            .accessibilityLabel(
+                attachedPlateImage == nil
+                    ? "Scan plate for \(profile.kind.displayName)"
+                    : "Replace plate photo for \(profile.kind.displayName)"
+            )
+
+            if isAnalyzingPlate {
+                ProgressView("Analysing plate photo…")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if let plateAnalysisError {
+                AppWarningBanner(message: plateAnalysisError)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func vinChipScanControls(for profile: VehicleProfile) -> some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            Text("Photograph the CRiS VIN Chip sticker or QR code (window or gas locker) to fill the VIN. Optionally save the photo to Documents.")
+                .font(.caption)
+                .foregroundStyle(AppColors.textSupporting)
+                .fixedSize(horizontal: false, vertical: true)
+
+            AppSecondaryButton("Scan CRiS VIN Chip") {
+                vinChipAnalysisError = nil
+                showVINChipSourcePicker = true
+            }
+            .disabled(isAnalyzingPlate || isAnalyzingVINChip)
+
+            if isAnalyzingVINChip {
+                ProgressView("Analysing VIN Chip photo…")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if let vinChipAnalysisError {
+                AppWarningBanner(message: vinChipAnalysisError)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Scan CRiS VIN Chip for \(profile.kind.displayName)")
+    }
+
+    private func analyzePlateImage(_ image: UIImage) {
+        isAnalyzingPlate = true
+        plateAnalysisError = nil
+        plateReviewItem = nil
+
+        Task {
+            do {
+                let suggestions = try await VehiclePlateOCR.analyze(image: image)
+                await MainActor.run {
+                    isAnalyzingPlate = false
+                    if suggestions.hasAnySuggestion {
+                        plateReviewItem = VehiclePlateReviewItem(suggestions: suggestions, image: image)
+                    } else {
+                        plateAnalysisError = suggestions.confidenceNotes.first
+                            ?? "No plate values could be recognised. Try a closer photo with the plate filling the frame."
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isAnalyzingPlate = false
+                    plateAnalysisError = "Plate analysis failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func analyzeVINChipImage(_ image: UIImage) {
+        isAnalyzingVINChip = true
+        vinChipAnalysisError = nil
+        vinChipReviewItem = nil
+
+        Task {
+            do {
+                let suggestions = try await CRiSVINChipOCR.analyze(image: image)
+                await MainActor.run {
+                    isAnalyzingVINChip = false
+                    vinChipAnalysisError = nil
+                    vinChipReviewItem = CRiSVINChipReviewItem(suggestions: suggestions, image: image)
+                }
+            } catch {
+                await MainActor.run {
+                    isAnalyzingVINChip = false
+                    vinChipAnalysisError = "VIN Chip analysis failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func lookupVehicle(for profile: VehicleProfile) {
+        vehicleLookupError = nil
+        isLookingUpVehicle = true
+        let registration = profile.registrationMark
+        Task {
+            do {
+                let result = try await vehicleLookup.lookup(registration: registration, forceRefresh: false)
+                isLookingUpVehicle = false
+                profile.registrationMark = result.displayRegistration
+                viewModel.save(modelContext)
+                vehicleLookupReviewItem = VehicleLookupReviewItem(result: result)
+            } catch {
+                isLookingUpVehicle = false
+                if let lookupError = error as? VehicleLookupError {
+                    vehicleLookupError = lookupError.errorDescription
+                } else {
+                    vehicleLookupError = VehicleLookupError.unexpectedResponse.errorDescription
+                }
+            }
+        }
+    }
+
+    private func applyVehicleLookup(
+        _ result: VehicleLookupResult,
+        applyMake: Bool,
+        applyModel: Bool,
+        to profile: VehicleProfile
+    ) {
+        if !result.displayRegistration.isEmpty {
+            profile.registrationMark = result.displayRegistration
+        }
+        if applyMake, let make = result.make?.trimmingCharacters(in: .whitespacesAndNewlines), !make.isEmpty {
+            profile.manufacturer = make
+        }
+        if applyModel, let model = result.model?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty {
+            profile.modelName = model
+        }
+        if let year = result.firstRegistrationYear {
+            profile.firstRegistrationYear = year
+        }
+        if let lastMOT = result.lastMotDate {
+            profile.lastMotDate = lastMOT
+        }
+        if let expiry = result.motExpiryDate {
+            profile.motExpiryDate = expiry
+        }
+        viewModel.save(modelContext)
+    }
+
+    private func applyPlateSuggestions(_ suggestions: VehiclePlateSuggestions, image: UIImage, to profile: VehicleProfile) {
+        if let manufacturer = suggestions.manufacturer?.trimmingCharacters(in: .whitespacesAndNewlines), !manufacturer.isEmpty {
+            profile.manufacturer = manufacturer
+        }
+        if let modelName = suggestions.modelName?.trimmingCharacters(in: .whitespacesAndNewlines), !modelName.isEmpty {
+            profile.modelName = modelName
+        }
+        if let vin = suggestions.vinChassisNumber?.trimmingCharacters(in: .whitespacesAndNewlines), !vin.isEmpty {
+            profile.vinChassisNumber = vin
+        }
+        if let mtplm = suggestions.mtplmOrMamKg, mtplm > 0 {
+            profile.mtplmKg = mtplm
+        }
+        if profile.kind == .motorhome {
+            if let cell = suggestions.bodyCellNumber?.trimmingCharacters(in: .whitespacesAndNewlines), !cell.isEmpty {
+                profile.bodyCellNumber = cell
+            }
+            if let gtw = suggestions.gtwKg, gtw > 0 {
+                profile.gtwKg = gtw
+            }
+        }
+        if let miro = suggestions.miroOrMroKg, miro > 0 {
+            profile.baseWeightKg = miro
+        }
+        if profile.kind == .caravan, let nose = suggestions.hitchOrNoseKg, nose > 0 {
+            profile.caravanMaxNoseKg = nose
+        }
+        if profile.kind == .motorhome {
+            if let front = suggestions.maxFrontAxleKg, front > 0 {
+                profile.maxFrontAxleKg = front
+            }
+            if let rear = suggestions.maxRearAxleKg, rear > 0 {
+                profile.maxRearAxleKg = rear
+            }
+        }
+        if profile.kind == .caravan {
+            profile.applyCaravanPlateTorque(
+                steelNm: suggestions.wheelNutTorqueSteelNm,
+                alloyNm: suggestions.wheelNutTorqueAlloyNm
+            )
+        }
+
+        TyreStore.applyPlateTyreSpec(
+            to: profile,
+            tyreSize: suggestions.tyreSize,
+            recommendedPressurePSI: suggestions.tyrePressurePSI,
+            in: modelContext
+        )
+
+        try? VehiclePlatePhotoStore.save(image: image, to: profile)
+        viewModel.save(modelContext)
+    }
+
+    private func applyVINChipResult(vin: String, savePhoto: Bool, image: UIImage, to profile: VehicleProfile) {
+        let trimmedVIN = vin.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedVIN.isEmpty {
+            profile.vinChassisNumber = trimmedVIN
+            viewModel.save(modelContext)
+        }
+
+        guard savePhoto else { return }
+
+        let record = DocumentStore.createRecord(for: profile.id, in: modelContext)
+        let notes = trimmedVIN.isEmpty ? "CRiS VIN Chip photo" : "VIN: \(trimmedVIN)"
+        DocumentStore.save(
+            record: record,
+            title: "CRiS VIN Chip",
+            category: .vinChassisInformation,
+            dateAdded: Date(),
+            expiryDate: nil,
+            reminderDate: nil,
+            notes: notes,
+            in: modelContext
+        )
+
+        if let draft = try? MaintenanceAttachmentStore.draft(
+            image: image,
+            fileType: .photo,
+            displayName: "CRiS VIN Chip"
+        ) {
+            try? MaintenanceAttachmentStore.save(draft: draft, to: .document(record), in: modelContext)
+        }
     }
 
     private func insuranceStartDateBinding(on profile: VehicleProfile) -> Binding<Date> {

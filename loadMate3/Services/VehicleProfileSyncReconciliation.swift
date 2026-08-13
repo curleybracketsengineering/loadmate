@@ -28,6 +28,7 @@ enum VehicleProfileSyncReconciliation {
 
             for loser in sorted.dropFirst() {
                 mergeProfile(loser, into: winner, appState: appState, in: context)
+                VehiclePlatePhotoStore.deleteFiles(forVehicleID: loser.id)
                 context.delete(loser)
                 didChange = true
             }
@@ -172,11 +173,64 @@ enum VehicleProfileSyncReconciliation {
     }
 
     private static func mergeSettings(from source: VehicleProfile, into target: VehicleProfile) {
+        if target.vinChassisNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let sourceVIN = source.vinChassisNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !sourceVIN.isEmpty {
+                target.vinChassisNumber = sourceVIN
+            }
+        }
+        if target.bodyCellNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let sourceCell = source.bodyCellNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !sourceCell.isEmpty {
+                target.bodyCellNumber = sourceCell
+            }
+        }
+        if target.registrationMark.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let sourceRegistration = source.registrationMark.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !sourceRegistration.isEmpty {
+                target.registrationMark = sourceRegistration
+            }
+        }
+        if target.manufacturer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let sourceManufacturer = source.manufacturer.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !sourceManufacturer.isEmpty {
+                target.manufacturer = sourceManufacturer
+            }
+        }
+        if target.modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let sourceModel = source.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !sourceModel.isEmpty {
+                target.modelName = sourceModel
+            }
+        }
+        VehiclePlatePhotoStore.transferIfNeeded(from: source, to: target)
+        if target.firstRegistrationYear == nil, let sourceYear = source.firstRegistrationYear {
+            target.firstRegistrationYear = sourceYear
+        }
+        if target.lastMotDate == nil, let sourceLastMOT = source.lastMotDate {
+            target.lastMotDate = sourceLastMOT
+        }
+        if target.motExpiryDate == nil, let sourceExpiry = source.motExpiryDate {
+            target.motExpiryDate = sourceExpiry
+        }
+        if target.wheelNutTorqueSteelNm == 0, source.wheelNutTorqueSteelNm > 0 {
+            target.wheelNutTorqueSteelNm = source.wheelNutTorqueSteelNm
+        }
+        if target.wheelNutTorqueAlloyNm == 0, source.wheelNutTorqueAlloyNm > 0 {
+            target.wheelNutTorqueAlloyNm = source.wheelNutTorqueAlloyNm
+        }
+        if target.wheelNutTorqueNm == 0, source.wheelNutTorqueNm > 0 {
+            target.wheelNutTorqueNm = source.wheelNutTorqueNm
+        }
+        if target.fittedWheelMaterialRaw.isEmpty, !source.fittedWheelMaterialRaw.isEmpty {
+            target.fittedWheelMaterialRaw = source.fittedWheelMaterialRaw
+        }
         if target.baseWeightKg == 0, source.baseWeightKg > 0 { target.baseWeightKg = source.baseWeightKg }
         if target.weighbridgeWeightKg == 0, source.weighbridgeWeightKg > 0 {
             target.weighbridgeWeightKg = source.weighbridgeWeightKg
         }
         if target.mtplmKg == 0, source.mtplmKg > 0 { target.mtplmKg = source.mtplmKg }
+        if target.gtwKg == 0, source.gtwKg > 0 { target.gtwKg = source.gtwKg }
         if target.caravanMaxNoseKg == 0, source.caravanMaxNoseKg > 0 {
             target.caravanMaxNoseKg = source.caravanMaxNoseKg
         }

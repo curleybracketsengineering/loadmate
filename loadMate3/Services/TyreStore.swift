@@ -152,4 +152,49 @@ enum TyreStore {
         }
         return nil
     }
+
+    /// Copies plate tyre size / recommended pressure onto fitted positions.
+    /// Creates a default layout when none exists so plate values are not discarded.
+    @discardableResult
+    static func applyPlateTyreSpec(
+        to profile: VehicleProfile,
+        tyreSize: String?,
+        recommendedPressurePSI: Double?,
+        in context: ModelContext
+    ) -> Int {
+        let trimmedSize = tyreSize?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasSize = !(trimmedSize ?? "").isEmpty
+        let hasPressure = (recommendedPressurePSI ?? 0) > 0
+        guard hasSize || hasPressure else { return 0 }
+
+        var records = activeRecords(for: profile, in: context)
+        if records.isEmpty {
+            let layout = TyreSupport.layoutOptions(for: profile.kind).first
+                ?? (profile.kind == .caravan ? .caravanSingleAxle : .motorhomeFourWheel)
+            createLayout(for: profile, layout: layout, includeSpare: true, in: context)
+            records = activeRecords(for: profile, in: context)
+        }
+
+        var updated = 0
+        for record in records {
+            var didChange = false
+            if hasSize, let trimmedSize {
+                record.tyreSize = trimmedSize
+                didChange = true
+            }
+            if hasPressure, let recommendedPressurePSI {
+                record.recommendedPressurePSI = recommendedPressurePSI
+                didChange = true
+            }
+            if didChange {
+                record.updatedAt = Date()
+                updated += 1
+            }
+        }
+
+        if updated > 0 {
+            try? context.save()
+        }
+        return updated
+    }
 }

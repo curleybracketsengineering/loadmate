@@ -64,7 +64,9 @@ struct TyreSafetyView: View {
             )
         }
         .sheet(item: $inspectionRecord) { record in
-            TyreInspectionView(record: record)
+            if let profile = activeProfile {
+                TyreInspectionView(record: record, profile: profile)
+            }
         }
         .sheet(isPresented: $showHistory) {
             TyreHistoryView(
@@ -83,16 +85,19 @@ private struct TyreSafetyEmptyStateView: View {
     let onSetup: () -> Void
 
     var body: some View {
-        VStack(spacing: AppScreenMetrics.sectionSpacing) {
-            Spacer()
-            AppHeroSection(
-                systemImage: "circle.hexagongrid.fill",
-                title: "Set up your tyre layout",
-                subtitle: "Record tyre age, pressure, condition and inspection history for this \(profile.kind.displayName.lowercased())."
-            )
-            AppPrimaryButton("Set up tyres", systemImage: "plus.circle.fill", action: onSetup)
-                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-            Spacer()
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                AppHeroSection(
+                    systemImage: "circle.hexagongrid.fill",
+                    title: "Set up your tyre layout",
+                    subtitle: "Record tyre age, pressure, condition and inspection history for this \(profile.kind.displayName.lowercased())."
+                )
+                AppPrimaryButton("Set up tyres", systemImage: "plus.circle.fill", action: onSetup)
+                WheelNutTorqueSection(profile: profile)
+            }
+            .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+            .padding(.top, AppScreenMetrics.verticalScreenPadding)
+            .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
         }
     }
 }
@@ -129,6 +134,8 @@ private struct TyreSafetyOverviewView: View {
                 header
 
                 setupBar
+
+                WheelNutTorqueSection(profile: profile)
 
                 TyreCardsGrid(
                     records: records,
@@ -1052,6 +1059,7 @@ struct TyreInspectionView: View {
     @AppStorage(TyreSupport.pressureUnitAppStorageKey) private var pressureUnitRaw = PressureUnit.psi.rawValue
 
     let record: TyreRecord
+    let profile: VehicleProfile
 
     @State private var inspectionDate = Date()
     @State private var pressure = ""
@@ -1121,7 +1129,13 @@ struct TyreInspectionView: View {
                             defectToggle("Uneven wear", value: $hasUnevenWear)
                             defectToggle("Embedded objects", value: $hasEmbeddedObjects)
                             defectToggle("Valve appears sound", value: $valveAppearsSound)
-                            defectToggle("Wheel nuts checked", value: $wheelNutsChecked)
+                            defectToggle(
+                                "Wheel nuts checked",
+                                caption: profile.hasActiveWheelNutTorque
+                                    ? "Target \(Formatters.nm(profile.activeWheelNutTorqueNm))"
+                                    : nil,
+                                value: $wheelNutsChecked
+                            )
                             Picker("Overall condition", selection: $overallCondition) {
                                 ForEach(TyreCondition.allCases.filter { $0 != .notChecked }) { option in
                                     Text(option.displayName).tag(option)
@@ -1228,10 +1242,16 @@ struct TyreInspectionView: View {
     }
 
     @ViewBuilder
-    private func defectToggle(_ title: String, value: Binding<Bool>) -> some View {
+    private func defectToggle(_ title: String, caption: String? = nil, value: Binding<Bool>) -> some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
+            if let caption, !caption.isEmpty {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Picker(title, selection: value) {
                 Text("No").tag(false)
                 Text("Yes").tag(true)
@@ -1455,6 +1475,10 @@ private struct TyreSafetyInfoView: View {
                         .font(.body)
                         .fixedSize(horizontal: false, vertical: true)
 
+                    Text("Wheel nut torque is for the fitted wheels on this vehicle, not each tyre. Caravan plates often list steel and alloy — use the figure for the wheels you have now. Motorhome torque comes from the base vehicle handbook.")
+                        .font(.body)
+                        .fixedSize(horizontal: false, vertical: true)
+
                     Text("Tyre photos are stored on this device for your records. Lyneqo Caravan & Motorhome does not analyse photos or draw conclusions about tyre condition from images.")
                         .font(.body)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1472,6 +1496,59 @@ private struct TyreSafetyInfoView: View {
                 }
             }
         }
+    }
+}
+
+private struct WheelNutTorqueSection: View {
+    @Environment(\.modelContext) private var modelContext
+    let profile: VehicleProfile
+
+    var body: some View {
+        AppSettingsSection("Wheel nut torque", caption: profile.wheelNutTorqueSectionCaption) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                if profile.kind == .caravan {
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                        Text("Fitted wheels")
+                            .font(.subheadline.weight(.semibold))
+                        Picker("Fitted wheels", selection: fittedMaterialBinding) {
+                            ForEach(FittedWheelMaterial.allCases) { material in
+                                Text(material.displayName).tag(material)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+                AppLabeledNumberField(
+                    "Wheel nut torque (Nm)",
+                    caption: profile.activeWheelNutTorqueFieldCaption,
+                    value: torqueBinding,
+                    fractionDigitsUpperBound: 0
+                )
+            }
+        }
+        .onAppear {
+            profile.migrateLegacyMotorhomeWheelNutTorqueIfNeeded()
+        }
+    }
+
+    private var fittedMaterialBinding: Binding<FittedWheelMaterial> {
+        Binding(
+            get: { profile.fittedWheelMaterial },
+            set: { newValue in
+                profile.fittedWheelMaterial = newValue
+                _ = SyncDebugSaveHelper.save(modelContext, source: "TyreSafety.saveFittedWheelMaterial")
+            }
+        )
+    }
+
+    private var torqueBinding: Binding<Double> {
+        Binding(
+            get: { profile.activeWheelNutTorqueNm },
+            set: { newValue in
+                profile.activeWheelNutTorqueNm = newValue
+                _ = SyncDebugSaveHelper.save(modelContext, source: "TyreSafety.saveWheelNutTorque")
+            }
+        )
     }
 }
 

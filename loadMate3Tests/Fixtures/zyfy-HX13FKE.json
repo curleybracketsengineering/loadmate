@@ -1,0 +1,130 @@
+{
+    "registration": "HX13FKE",
+    "make": "FIAT",
+    "model": "DUCATO",
+    "vehicleType": "van",
+    "colour": "GREY",
+    "fuelType": "diesel",
+    "engineCapacityCc": 2287,
+    "yearOfManufacture": 2013,
+    "monthOfFirstRegistration": "2013-05",
+    "vehicleAgeYears": 13.6,
+    "summary": {
+        "buyRecommendation": "consider",
+        "vehicleRiskLevel": "low",
+        "motRiskLevel": "low",
+        "conditionBand": "good",
+        "maintenanceBand": "good",
+        "mileageAnomalyRisk": "none",
+        "colourChangeIndicated": false,
+        "aboveAverageAdvisories": false,
+        "motFailureDetailAvailable": false
+    },
+    "signals": {
+        "co2EmissionsGPerKm": null,
+        "euroEmissionStandard": "EURO 5",
+        "ulezCompliant": false,
+        "markedForExport": false,
+        "hasOutstandingRecall": null,
+        "v5cLastIssued": "2025-12-16",
+        "taxStatus": "taxed",
+        "taxDueDate": "2027-03-01",
+        "taxDaysRemaining": 200,
+        "vedBand": null,
+        "vedAnnualCostGbp": null,
+        "motStatus": "valid",
+        "motExpiryDate": "2027-03-24",
+        "motDaysRemaining": 223,
+        "imminentMot": false,
+        "odometerTrend": "low_mileage",
+        "latestOdometerMiles": 25053,
+        "typicalAnnualMileageMiles": 1754,
+        "odometerVsFleetAverage": "below_average",
+        "motPassRate": 0.90909094,
+        "totalMotTests": 11,
+        "totalMotFailures": 1,
+        "totalAdvisoryCount": 1,
+        "totalFailureItemCount": 0,
+        "latestAdvisoryCount": 0,
+        "latestFailureItemCount": 0,
+        "dangerousDefectEver": false,
+        "highFailureHistory": false,
+        "advisoryTrend": "stable",
+        "advisoryMomentum": "stable",
+        "daysSinceLastFailure": 141,
+        "failuresLast24Months": 1,
+        "advisoriesLast3Tests": 0,
+        "trendWindowTests": 3,
+        "firstMotDate": "2016-05-16",
+        "lastMotDate": "2026-03-25",
+        "lastMotResult": "passed",
+        "firstMotDue": null,
+        "failureClusters": null,
+        "repeatFailureCount": null,
+        "advisoryClusters": null,
+        "ncapSafetyRating": null,
+        "drivetrainStressProfile": {
+            "likelyDrivingPattern": "short_urban",
+            "dpfRisk": "high"
+        }
+    },
+    "scores": {
+        "motRiskScore": 0.07,
+        "conditionScore": 0.87,
+        "conditionPercentile": 79,
+        "maintenanceScore": 0.91,
+        "maintenancePercentile": 87,
+        "failureRateRatio": 0.26,
+        "advisoryRateRatio": 0.1,
+        "benchmarkSampleSize": 4171,
+        "avgAdvisoriesPerTestForMMY": 0.8866699,
+        "avgFailuresPerTestForMMY": 0.34806558,
+        "offRoadLikelihoodScore": 0.06,
+        "scoreConvention": "0_to_1; higher_is_better except motRiskScore and offRoadLikelihoodScore"
+    },
+    "fleetFailureProfile": {
+        "mileageBand": "20k\u201340k",
+        "sampleSize": 23808,
+        "topFailures": [
+            {
+                "category": "lights",
+                "rate": 0.069136426
+            },
+            {
+                "category": "wipers",
+                "rate": 0.021043347
+            },
+            {
+                "category": "brakes",
+                "rate": 0.016969087
+            }
+        ]
+    },
+    "fleetAdvisoryProfile": {
+        "mileageBand": "20k\u201340k",
+        "sampleSize": 23808,
+        "topAdvisories": [
+            {
+                "category": "lights",
+                "rate": 0.1373068
+            },
+            {
+                "category": "tyres",
+                "rate": 0.11517137
+            },
+            {
+                "category": "steering",
+                "rate": 0.07854503
+            }
+        ]
+    },
+    "sources": {
+        "motHistory": "DVSA MOT History API",
+        "mutableData": "DVLA Vehicle Enquiry Service (VES)",
+        "safetyRating": null
+    },
+    "schemaVersion": "1.0",
+    "enrichmentPending": false,
+    "dataAsOf": "2026-08-13T13:10:18.405023+00:00",
+    "checkedAt": "2026-08-13T13:10:22.9938461+00:00"
+}

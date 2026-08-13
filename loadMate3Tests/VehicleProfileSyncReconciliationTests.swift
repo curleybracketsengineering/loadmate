@@ -1,4 +1,5 @@
 import SwiftData
+import UIKit
 import XCTest
 @testable import loadMate3
 
@@ -91,6 +92,34 @@ final class VehicleProfileSyncReconciliationTests: XCTestCase {
         let loaded = try context.fetch(FetchDescriptor<LoadedItem>())
         XCTAssertEqual(loaded.count, 1)
         XCTAssertEqual(loaded.first?.trip?.profile?.id, LoadMateSyncIDs.defaultCaravanProfile)
+    }
+
+    func testMergesPlatePhotoOntoProfileWithoutOne() throws {
+        let appState = AppState()
+        context.insert(appState)
+
+        let sparse = VehicleProfile(name: "My Caravan", kind: .caravan)
+        let rich = VehicleProfile(
+            id: LoadMateSyncIDs.defaultCaravanProfile,
+            name: "My Caravan1",
+            kind: .caravan
+        )
+        rich.mtplmKg = 1500
+        context.insert(sparse)
+        context.insert(rich)
+
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 80, height: 50)).image { ctx in
+            UIColor.darkGray.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 80, height: 50))
+        }
+        try VehiclePlatePhotoStore.save(image: image, to: sparse)
+
+        _ = VehicleProfileSyncReconciliation.reconcile(in: context, appState: appState)
+
+        let profiles = try context.fetch(FetchDescriptor<VehicleProfile>())
+        XCTAssertEqual(profiles.count, 1)
+        XCTAssertFalse(profiles.first?.manufacturerPlatePhotoFileName.isEmpty ?? true)
+        XCTAssertNotNil(profiles.first.flatMap { VehiclePlatePhotoStore.loadImage(for: $0) })
     }
 
     func testDoesNotMergeCustomNamedCaravanWithDefault() throws {

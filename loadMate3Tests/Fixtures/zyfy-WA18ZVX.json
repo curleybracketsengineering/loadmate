@@ -1,0 +1,136 @@
+{
+    "registration": "WA18ZVX",
+    "make": "FIAT",
+    "model": "AUTO TRAIL",
+    "vehicleType": "car",
+    "colour": "GREY",
+    "fuelType": "diesel",
+    "engineCapacityCc": 2287,
+    "yearOfManufacture": 2018,
+    "monthOfFirstRegistration": "2018-04",
+    "vehicleAgeYears": 8.6,
+    "summary": {
+        "buyRecommendation": "consider",
+        "vehicleRiskLevel": "low",
+        "motRiskLevel": "low",
+        "conditionBand": "fair",
+        "maintenanceBand": "poor",
+        "mileageAnomalyRisk": "none",
+        "colourChangeIndicated": false,
+        "aboveAverageAdvisories": true,
+        "motFailureDetailAvailable": false
+    },
+    "signals": {
+        "co2EmissionsGPerKm": null,
+        "euroEmissionStandard": "EURO 6",
+        "ulezCompliant": true,
+        "markedForExport": false,
+        "hasOutstandingRecall": null,
+        "v5cLastIssued": "2026-06-23",
+        "taxStatus": "taxed",
+        "taxDueDate": "2027-04-01",
+        "taxDaysRemaining": 231,
+        "vedBand": "standard",
+        "vedAnnualCostGbp": 195,
+        "motStatus": "valid",
+        "motExpiryDate": "2027-04-03",
+        "motDaysRemaining": 233,
+        "imminentMot": false,
+        "odometerTrend": "low_mileage",
+        "latestOdometerMiles": 16840,
+        "typicalAnnualMileageMiles": 1939,
+        "odometerVsFleetAverage": "below_average",
+        "motPassRate": 0.85714287,
+        "totalMotTests": 7,
+        "totalMotFailures": 1,
+        "totalAdvisoryCount": 5,
+        "totalFailureItemCount": 0,
+        "latestAdvisoryCount": 2,
+        "latestFailureItemCount": 0,
+        "dangerousDefectEver": false,
+        "highFailureHistory": false,
+        "advisoryTrend": "increasing",
+        "advisoryMomentum": "worsening",
+        "daysSinceLastFailure": 1619,
+        "failuresLast24Months": 0,
+        "advisoriesLast3Tests": 5,
+        "trendWindowTests": 2,
+        "firstMotDate": "2021-03-16",
+        "lastMotDate": "2026-03-30",
+        "lastMotResult": "passed",
+        "firstMotDue": null,
+        "failureClusters": null,
+        "repeatFailureCount": null,
+        "advisoryClusters": [
+            "brakes",
+            "tyres",
+            "lights",
+            "steering",
+            "exhaust"
+        ],
+        "ncapSafetyRating": null,
+        "drivetrainStressProfile": {
+            "likelyDrivingPattern": "short_urban",
+            "dpfRisk": "high"
+        }
+    },
+    "scores": {
+        "motRiskScore": 0.19,
+        "conditionScore": 0.75,
+        "conditionPercentile": 70,
+        "maintenanceScore": 0.17,
+        "maintenancePercentile": 60,
+        "failureRateRatio": 1.3,
+        "advisoryRateRatio": 2.36,
+        "benchmarkSampleSize": 1591,
+        "avgAdvisoriesPerTestForMMY": 0.30228412,
+        "avgFailuresPerTestForMMY": 0.10973817,
+        "offRoadLikelihoodScore": 0.05,
+        "scoreConvention": "0_to_1; higher_is_better except motRiskScore and offRoadLikelihoodScore"
+    },
+    "fleetFailureProfile": {
+        "mileageBand": "0\u201320k",
+        "sampleSize": 15066,
+        "topFailures": [
+            {
+                "category": "lights",
+                "rate": 0.03962565
+            },
+            {
+                "category": "wipers",
+                "rate": 0.027080845
+            },
+            {
+                "category": "brakes",
+                "rate": 0.007633081
+            }
+        ]
+    },
+    "fleetAdvisoryProfile": {
+        "mileageBand": "0\u201320k",
+        "sampleSize": 15066,
+        "topAdvisories": [
+            {
+                "category": "lights",
+                "rate": 0.08827824
+            },
+            {
+                "category": "tyres",
+                "rate": 0.070224345
+            },
+            {
+                "category": "steering",
+                "rate": 0.062458515
+            }
+        ]
+    },
+    "sources": {
+        "motHistory": "DVSA MOT History API",
+        "mutableData": "DVLA Vehicle Enquiry Service (VES)",
+        "safetyRating": null
+    },
+    "schemaVersion": "1.0",
+    "enrichmentPending": false,
+    "dataAsOf": "2026-08-13T13:10:23.627914+00:00",
+    "checkedAt": "2026-08-13T13:10:28.3164574+00:00"
+}

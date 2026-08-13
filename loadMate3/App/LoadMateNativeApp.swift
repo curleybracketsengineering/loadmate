@@ -14,11 +14,13 @@ struct LoadMateNativeApp: App {
     }()
 
     @ObservedObject private var cloudSync = CloudSyncMonitor.shared
+    private let vehicleLookup: any VehicleLookupProviding = VehicleLookupService.makeLive()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(cloudSync)
+                .environment(\.vehicleLookup, vehicleLookup)
                 .tint(LyneqoTheme.primaryTeal)
         }
         .modelContainer(modelContainer)

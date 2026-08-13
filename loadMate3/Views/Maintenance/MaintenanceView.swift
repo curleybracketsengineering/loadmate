@@ -78,6 +78,7 @@ struct MaintenanceView: View {
                 if let profile = activeProfile {
                     ScrollView {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                            VehicleLookupSummarySection(profile: profile)
                             summarySection
                             remindersSection
                             faultDashboardSection

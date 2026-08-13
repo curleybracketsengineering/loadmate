@@ -22,6 +22,21 @@ enum VehicleKind: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// Wheels currently fitted — caravans often plate both steel and alloy Nm, but only one set is in use.
+enum FittedWheelMaterial: String, Codable, CaseIterable, Identifiable {
+    case steel
+    case alloy
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .steel: return "Steel"
+        case .alloy: return "Alloy"
+        }
+    }
+}
+
 /// What mass to use when calculating the 5%–7% nose weight safe band.
 enum NoseSafeZoneBasis: String, Codable, CaseIterable, Identifiable {
     case mtplm
@@ -77,6 +92,39 @@ final class VehicleProfile {
     var kindRaw: String = VehicleKind.caravan.rawValue
     var sortOrder: Int = 0
 
+    /// VIN / chassis / CRiS number from the manufacturer plate (optional).
+    var vinChassisNumber: String = ""
+
+    /// Converter body / cell number from some EU motorhome plates (e.g. Rapido N° de cellule).
+    var bodyCellNumber: String = ""
+
+    /// UK registration mark (motorhome). Optional; used for vehicle lookup.
+    var registrationMark: String = ""
+
+    /// Brand / maker from the manufacturer plate (optional), e.g. "Swift".
+    var manufacturer: String = ""
+    /// Model / range from the manufacturer plate (optional), e.g. "Conqueror 645".
+    var modelName: String = ""
+
+    /// Year of first UK registration from vehicle lookup (optional).
+    var firstRegistrationYear: Int?
+    /// Date of last MOT from vehicle lookup (optional).
+    var lastMotDate: Date?
+    /// MOT expiry from vehicle lookup (optional). Used to show "MOT due" when expired.
+    var motExpiryDate: Date?
+
+    /// Local filename for the last scanned manufacturer plate photo (empty when none).
+    var manufacturerPlatePhotoFileName: String = ""
+
+    /// Wheel nut torque for steel wheels from the caravan manufacturer plate (Nm). 0 = not set.
+    var wheelNutTorqueSteelNm: Double = 0
+    /// Wheel nut torque for alloy wheels from the caravan manufacturer plate (Nm). 0 = not set.
+    var wheelNutTorqueAlloyNm: Double = 0
+    /// Single wheel nut torque for motorhomes from the base vehicle handbook (Nm). 0 = not set.
+    var wheelNutTorqueNm: Double = 0
+    /// Fitted wheel material for caravans (`steel` / `alloy`). Empty infers from plated values.
+    var fittedWheelMaterialRaw: String = ""
+
     /// Manufacturer MIRO / MRO — used when no weighbridge reading is entered.
     var baseWeightKg: Double = 0
     /// Measured laden mass before trip items (caravan total or motorhome gross).
@@ -84,6 +132,8 @@ final class VehicleProfile {
 
     /// MTPLM (caravan) or MAM (motorhome).
     var mtplmKg: Double = 0
+    /// Gross train weight (vehicle + trailer maximum). 0 = not set. Informational — not tow-bar nose load.
+    var gtwKg: Double = 0
 
     // MARK: Caravan
 
@@ -173,9 +223,23 @@ final class VehicleProfile {
         self.name = name
         self.kindRaw = kind.rawValue
         self.sortOrder = sortOrder
+        self.vinChassisNumber = ""
+        self.bodyCellNumber = ""
+        self.registrationMark = ""
+        self.manufacturer = ""
+        self.modelName = ""
+        self.manufacturerPlatePhotoFileName = ""
+        self.firstRegistrationYear = nil
+        self.lastMotDate = nil
+        self.motExpiryDate = nil
+        self.wheelNutTorqueSteelNm = 0
+        self.wheelNutTorqueAlloyNm = 0
+        self.wheelNutTorqueNm = 0
+        self.fittedWheelMaterialRaw = ""
         self.baseWeightKg = 0
         self.weighbridgeWeightKg = 0
         self.mtplmKg = 0
+        self.gtwKg = 0
         self.caravanMaxNoseKg = 0
         self.carMaxTowBallKg = 0
         self.noseWeightBasePercent = 6.0
@@ -248,6 +312,102 @@ final class VehicleProfile {
 }
 
 extension VehicleProfile {
+    var fittedWheelMaterial: FittedWheelMaterial {
+        get {
+            if let stored = FittedWheelMaterial(rawValue: fittedWheelMaterialRaw) {
+                return stored
+            }
+            if wheelNutTorqueAlloyNm > 0, wheelNutTorqueSteelNm <= 0 {
+                return .alloy
+            }
+            return .steel
+        }
+        set {
+            fittedWheelMaterialRaw = newValue.rawValue
+        }
+    }
+
+    /// Torque for the wheels currently fitted (caravan) or the handbook figure (motorhome).
+    var activeWheelNutTorqueNm: Double {
+        get {
+            switch kind {
+            case .motorhome:
+                return resolvedMotorhomeWheelNutTorqueNm
+            case .caravan:
+                switch fittedWheelMaterial {
+                case .steel: return wheelNutTorqueSteelNm
+                case .alloy: return wheelNutTorqueAlloyNm
+                }
+            }
+        }
+        set {
+            switch kind {
+            case .motorhome:
+                wheelNutTorqueNm = newValue
+            case .caravan:
+                if fittedWheelMaterialRaw.isEmpty {
+                    fittedWheelMaterialRaw = fittedWheelMaterial.rawValue
+                }
+                switch fittedWheelMaterial {
+                case .steel: wheelNutTorqueSteelNm = newValue
+                case .alloy: wheelNutTorqueAlloyNm = newValue
+                }
+            }
+        }
+    }
+
+    var hasActiveWheelNutTorque: Bool {
+        activeWheelNutTorqueNm > 0
+    }
+
+    var wheelNutTorqueSectionCaption: String {
+        switch kind {
+        case .motorhome:
+            return "From the base vehicle handbook, not the converter plate."
+        case .caravan:
+            return "From the manufacturer plate. Choose the wheels fitted now."
+        }
+    }
+
+    var activeWheelNutTorqueFieldCaption: String {
+        switch kind {
+        case .motorhome:
+            return "Fiat, Ford, Mercedes or aftermarket wheel maker"
+        case .caravan:
+            switch fittedWheelMaterial {
+            case .steel: return "Steel wheels — from the manufacturer plate"
+            case .alloy: return "Alloy wheels — from the manufacturer plate"
+            }
+        }
+    }
+
+    private var resolvedMotorhomeWheelNutTorqueNm: Double {
+        if wheelNutTorqueNm > 0 { return wheelNutTorqueNm }
+        if wheelNutTorqueSteelNm > 0 { return wheelNutTorqueSteelNm }
+        return wheelNutTorqueAlloyNm
+    }
+
+    func migrateLegacyMotorhomeWheelNutTorqueIfNeeded() {
+        guard kind == .motorhome, wheelNutTorqueNm <= 0 else { return }
+        let legacy = wheelNutTorqueSteelNm > 0 ? wheelNutTorqueSteelNm : wheelNutTorqueAlloyNm
+        guard legacy > 0 else { return }
+        wheelNutTorqueNm = legacy
+    }
+
+    func applyCaravanPlateTorque(steelNm: Double?, alloyNm: Double?) {
+        guard kind == .caravan else { return }
+        let steel = steelNm ?? 0
+        let alloy = alloyNm ?? 0
+        if steel > 0 { wheelNutTorqueSteelNm = steel }
+        if alloy > 0 { wheelNutTorqueAlloyNm = alloy }
+        guard fittedWheelMaterialRaw.isEmpty else { return }
+        if steel > 0, alloy <= 0 {
+            fittedWheelMaterial = .steel
+        } else if alloy > 0, steel <= 0 {
+            fittedWheelMaterial = .alloy
+        }
+    }
+
     /// iPad cutaway asset for the active vehicle configuration.
     var padCutawayAssetName: String {
         switch kind {

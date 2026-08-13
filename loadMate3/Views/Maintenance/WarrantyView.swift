@@ -224,6 +224,7 @@ struct WarrantyView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
                 WarrantyDisclaimerInfoButton { showInfo = true }
+                VehicleLookupSummarySection(profile: profile)
 
                 AppSettingsSection("Get started", caption: "Build one continuous service timeline for this vehicle — warranty cover is optional.") {
                     VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
@@ -248,6 +249,7 @@ struct WarrantyView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
                 WarrantyCoverageBanner(plan: plan)
+                VehicleLookupSummarySection(profile: profile)
                 WarrantyDisclaimerInfoButton { showInfo = true }
 
                 AppSettingsSection(
@@ -712,8 +714,8 @@ private struct WarrantyPlanEditorSheet: View {
         _isUnderWarranty = State(initialValue: plan?.isUnderWarranty ?? true)
         _hasExpiryDate = State(initialValue: plan?.warrantyExpiryDate != nil)
         _warrantyExpiryDate = State(initialValue: plan?.warrantyExpiryDate ?? Date())
-        _manufacturer = State(initialValue: plan?.manufacturer ?? "")
-        _modelYearText = State(initialValue: plan?.modelYear.map(String.init) ?? "")
+        _manufacturer = State(initialValue: Self.initialManufacturer(plan: plan, profile: profile))
+        _modelYearText = State(initialValue: Self.initialModelYearText(plan: plan, profile: profile))
         _purchaseDate = State(initialValue: plan?.purchaseDate ?? Date())
         _purchaseCondition = State(initialValue: plan?.purchaseCondition ?? .newPurchase)
         _ownershipType = State(initialValue: plan?.ownershipType ?? .original)
@@ -858,6 +860,10 @@ private struct WarrantyPlanEditorSheet: View {
                         }
                     }
 
+                    if VehicleLookupDisplay.hasSummary(for: profile) {
+                        VehicleLookupSummarySection(profile: profile)
+                    }
+
                     AppSettingsSection("Vehicle context") {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                             AppLabeledTextField("Manufacturer", placeholder: "e.g. Swift", text: $manufacturer)
@@ -915,6 +921,18 @@ private struct WarrantyPlanEditorSheet: View {
                 MOTClassInfoSheet()
             }
         }
+    }
+
+    private static func initialManufacturer(plan: WarrantyPlan?, profile: VehicleProfile) -> String {
+        let existing = plan?.manufacturer.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !existing.isEmpty { return existing }
+        return profile.manufacturer
+    }
+
+    private static func initialModelYearText(plan: WarrantyPlan?, profile: VehicleProfile) -> String {
+        if let year = plan?.modelYear { return String(year) }
+        if let year = profile.firstRegistrationYear { return String(year) }
+        return ""
     }
 
     private func save() {

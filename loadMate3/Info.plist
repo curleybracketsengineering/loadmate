@@ -7,8 +7,10 @@
 		<string>remote-notification</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Lyneqo Caravan &amp; Motorhome uses the camera to photograph tyres and maintenance records for your own vehicle documentation.</string>
+	<string>Lyneqo Caravan &amp; Motorhome uses the camera to photograph vehicle plates, CRiS VIN Chip stickers, tyres and maintenance records for your own vehicle documentation.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Lyneqo Caravan &amp; Motorhome can attach existing photos to your tyre and maintenance records.</string>
+	<string>Lyneqo Caravan &amp; Motorhome can attach existing photos to vehicle plates, CRiS VIN Chip stickers, tyre and maintenance records.</string>
+	<key>ZYFY_API_KEY</key>
+	<string>$(ZYFY_API_KEY)</string>
 </dict>
 </plist>

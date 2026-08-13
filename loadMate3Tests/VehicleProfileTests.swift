@@ -89,4 +89,65 @@ final class VehicleProfileTests: XCTestCase {
         XCTAssertEqual(TestFixtures.caravanProfile().grossMassLabel, "MTPLM")
         XCTAssertEqual(TestFixtures.motorhomeProfile().grossMassLabel, "MAM")
     }
+
+    func testMotorhomeUsesSingleWheelNutTorque() {
+        let profile = TestFixtures.motorhomeProfile()
+        profile.wheelNutTorqueNm = 180
+
+        XCTAssertEqual(profile.activeWheelNutTorqueNm, 180, accuracy: 0.001)
+        XCTAssertTrue(profile.hasActiveWheelNutTorque)
+    }
+
+    func testMotorhomeFallsBackToLegacySteelTorque() {
+        let profile = TestFixtures.motorhomeProfile()
+        profile.wheelNutTorqueSteelNm = 160
+
+        XCTAssertEqual(profile.activeWheelNutTorqueNm, 160, accuracy: 0.001)
+
+        profile.migrateLegacyMotorhomeWheelNutTorqueIfNeeded()
+
+        XCTAssertEqual(profile.wheelNutTorqueNm, 160, accuracy: 0.001)
+        XCTAssertEqual(profile.activeWheelNutTorqueNm, 160, accuracy: 0.001)
+    }
+
+    func testCaravanActiveTorqueFollowsFittedWheels() {
+        let profile = TestFixtures.caravanProfile()
+        profile.wheelNutTorqueSteelNm = 110
+        profile.wheelNutTorqueAlloyNm = 130
+
+        XCTAssertEqual(profile.fittedWheelMaterial, .steel)
+        XCTAssertEqual(profile.activeWheelNutTorqueNm, 110, accuracy: 0.001)
+
+        profile.fittedWheelMaterial = .alloy
+
+        XCTAssertEqual(profile.activeWheelNutTorqueNm, 130, accuracy: 0.001)
+    }
+
+    func testCaravanInfersAlloyWhenOnlyAlloyPlated() {
+        let profile = TestFixtures.caravanProfile()
+        profile.applyCaravanPlateTorque(steelNm: nil, alloyNm: 130)
+
+        XCTAssertEqual(profile.fittedWheelMaterial, .alloy)
+        XCTAssertEqual(profile.activeWheelNutTorqueNm, 130, accuracy: 0.001)
+    }
+
+    func testCaravanPlateTorqueDoesNotOverrideFittedChoice() {
+        let profile = TestFixtures.caravanProfile()
+        profile.fittedWheelMaterial = .steel
+        profile.applyCaravanPlateTorque(steelNm: 110, alloyNm: 130)
+
+        XCTAssertEqual(profile.fittedWheelMaterial, .steel)
+        XCTAssertEqual(profile.wheelNutTorqueSteelNm, 110, accuracy: 0.001)
+        XCTAssertEqual(profile.wheelNutTorqueAlloyNm, 130, accuracy: 0.001)
+        XCTAssertEqual(profile.activeWheelNutTorqueNm, 110, accuracy: 0.001)
+    }
+
+    func testCaravanEditingActiveTorqueWritesToFittedMaterial() {
+        let profile = TestFixtures.caravanProfile()
+        profile.fittedWheelMaterial = .alloy
+        profile.activeWheelNutTorqueNm = 140
+
+        XCTAssertEqual(profile.wheelNutTorqueAlloyNm, 140, accuracy: 0.001)
+        XCTAssertEqual(profile.wheelNutTorqueSteelNm, 0, accuracy: 0.001)
+    }
 }
