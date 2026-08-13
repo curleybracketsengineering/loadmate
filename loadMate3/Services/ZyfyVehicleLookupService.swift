@@ -59,12 +59,16 @@ final class ZyfyVehicleLookupService: VehicleLookupProviding, @unchecked Sendabl
             }
 
             if http.statusCode == 429 {
-                debugLog("Zyfy rate limited for \(normalized), attempt \(attempt)")
+                let mapped = map429(http, data: data)
+                debugLog("Zyfy HTTP 429 for \(normalized), attempt \(attempt): \(mapped)")
+                if mapped == .quotaExhausted {
+                    throw mapped
+                }
                 if attempt < maxEnrichmentAttempts {
                     try await sleepRetryAfter(http)
                     continue
                 }
-                throw VehicleLookupError.rateLimited
+                throw mapped
             }
 
             try throwIfUnsuccessful(http, data: data)
@@ -110,10 +114,42 @@ final class ZyfyVehicleLookupService: VehicleLookupProviding, @unchecked Sendabl
         case 404:
             throw VehicleLookupError.notFound
         case 429:
-            throw VehicleLookupError.rateLimited
+            throw map429(http, data: data)
         default:
             throw VehicleLookupError.serviceUnavailable
         }
+    }
+
+    /// Zyfy uses 429 for both per-minute rate limits and monthly quota exhaustion.
+    private func map429(_ http: HTTPURLResponse, data: Data) -> VehicleLookupError {
+        isQuotaExhausted(http, data: data) ? .quotaExhausted : .rateLimited
+    }
+
+    private func isQuotaExhausted(_ http: HTTPURLResponse, data: Data) -> Bool {
+        let body = ZyfyVehicleLookupMapper.errorBody(from: data)
+        let code = body?.code?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        if code == "quota_exhausted" || code.contains("quota") {
+            return true
+        }
+
+        let message = (body?.error ?? "").lowercased()
+        if message.contains("quota") || message.contains("credit") {
+            return true
+        }
+
+        if let remaining = http.value(forHTTPHeaderField: "X-Quota-Remaining")?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           remaining == "0" {
+            return true
+        }
+
+        // Monthly reset is typically hours or days; per-minute Retry-After is seconds.
+        if let retryAfter = TimeInterval(http.value(forHTTPHeaderField: "Retry-After") ?? ""),
+           retryAfter > 120 {
+            return true
+        }
+
+        return false
     }
 
     private func mapTransportError(_ error: Error) -> VehicleLookupError {
@@ -180,8 +216,12 @@ enum ZyfyVehicleLookupMapper {
         )
     }
 
+    static func errorBody(from data: Data) -> ZyfyErrorBodyDTO? {
+        try? JSONDecoder().decode(ZyfyErrorBodyDTO.self, from: data)
+    }
+
     static func errorMessage(from data: Data) -> String? {
-        (try? JSONDecoder().decode(ZyfyErrorBodyDTO.self, from: data))?.error
+        errorBody(from: data)?.error
     }
 
     private static func nonEmpty(_ value: String?) -> String? {
@@ -248,6 +288,8 @@ struct ZyfyVehicleSignalsDTO: Decodable, Equatable {
 
 struct ZyfyErrorBodyDTO: Decodable {
     var error: String?
+    var code: String?
+    var resets: String?
 }
 
 struct ZyfyFlexibleInt: Decodable, Equatable {

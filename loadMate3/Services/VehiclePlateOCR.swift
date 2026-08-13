@@ -24,6 +24,8 @@ struct VehiclePlateSuggestions: Identifiable {
     var wheelNutTorqueSteelNm: Double?
     var wheelNutTorqueAlloyNm: Double?
     var confidenceNotes: [String] = []
+    /// Mass fields that parsed but fail plausibility checks. Review UI shows them in red, off by default.
+    var unlikelyMassFields: Set<VehiclePlateUnlikelyMassField> = []
 
     var hasAnySuggestion: Bool {
         vinChassisNumber != nil
@@ -43,8 +45,18 @@ struct VehiclePlateSuggestions: Identifiable {
     }
 }
 
+enum VehiclePlateUnlikelyMassField: String, Hashable {
+    case mtplmOrMam
+    case gtw
+    case miro
+    case hitchOrNose
+    case frontAxle
+    case rearAxle
+}
+
 enum VehiclePlateOCR {
-    private static let kgRange: ClosedRange<Double> = 50...10_000
+    /// Laden / axle / train masses. Type-approval fragments like `*0085*` (85 kg) are below this.
+    private static let vehicleMassRange: ClosedRange<Double> = 400...10_000
     private static let noseRange: ClosedRange<Double> = 20...350
 
     static func analyze(image: UIImage) async throws -> VehiclePlateSuggestions {
@@ -131,7 +143,7 @@ enum VehiclePlateOCR {
             in: lines,
             labels: Self.mtplmLabels,
             excluding: claimedValues,
-            range: kgRange
+            range: vehicleMassRange
         ) {
             suggestions.mtplmOrMamKg = mtplm
             claimedValues.insert(mtplm)
@@ -142,7 +154,7 @@ enum VehiclePlateOCR {
             in: lines,
             labels: Self.miroLabels,
             excluding: claimedValues,
-            range: kgRange
+            range: vehicleMassRange
         ) {
             suggestions.miroOrMroKg = miro
             claimedValues.insert(miro)
@@ -164,7 +176,7 @@ enum VehiclePlateOCR {
             in: lines,
             labels: Self.gtwLabels,
             excluding: claimedValues,
-            range: kgRange
+            range: vehicleMassRange
         ) {
             suggestions.gtwKg = gtw
             claimedValues.insert(gtw)
@@ -175,7 +187,7 @@ enum VehiclePlateOCR {
             in: lines,
             labels: Self.frontAxleLabels,
             excluding: claimedValues,
-            range: kgRange
+            range: vehicleMassRange
         ) {
             suggestions.maxFrontAxleKg = front
             claimedValues.insert(front)
@@ -186,7 +198,7 @@ enum VehiclePlateOCR {
             in: lines,
             labels: Self.rearAxleLabels,
             excluding: claimedValues.subtracting([suggestions.maxFrontAxleKg].compactMap { $0 }),
-            range: kgRange
+            range: vehicleMassRange
         ) {
             suggestions.maxRearAxleKg = rear
             claimedValues.insert(rear)
@@ -221,12 +233,87 @@ enum VehiclePlateOCR {
             notes.append("Alloy wheel nut torque recognised from the plate photo.")
         }
 
+        sanitizeImplausibleMasses(&suggestions, notes: &notes)
+
         if notes.isEmpty {
             notes.append("No reliable plate text was recognised. Try a closer, sharper photo with the whole plate filling the frame.")
         }
 
         suggestions.confidenceNotes = notes
         return suggestions
+    }
+
+    private static func sanitizeImplausibleMasses(
+        _ suggestions: inout VehiclePlateSuggestions,
+        notes: inout [String]
+    ) {
+        suggestions.unlikelyMassFields.removeAll()
+
+        func drop(_ note: String, clear: () -> Void) {
+            clear()
+            if !notes.contains(note) {
+                notes.append(note)
+            }
+        }
+
+        func flag(_ field: VehiclePlateUnlikelyMassField) {
+            suggestions.unlikelyMassFields.insert(field)
+        }
+
+        if let mam = suggestions.mtplmOrMamKg, !vehicleMassRange.contains(mam) {
+            drop("Ignored an implausible maximum laden mass reading.") {
+                suggestions.mtplmOrMamKg = nil
+            }
+        }
+        if let gtw = suggestions.gtwKg, !vehicleMassRange.contains(gtw) {
+            drop("Ignored an implausible gross train weight reading.") {
+                suggestions.gtwKg = nil
+            }
+        }
+        if let miro = suggestions.miroOrMroKg, !vehicleMassRange.contains(miro) {
+            drop("Ignored an implausible mass in running order reading.") {
+                suggestions.miroOrMroKg = nil
+            }
+        }
+        if let front = suggestions.maxFrontAxleKg, !vehicleMassRange.contains(front) {
+            drop("Ignored an implausible front axle reading.") {
+                suggestions.maxFrontAxleKg = nil
+            }
+        }
+        if let rear = suggestions.maxRearAxleKg, !vehicleMassRange.contains(rear) {
+            drop("Ignored an implausible rear axle reading.") {
+                suggestions.maxRearAxleKg = nil
+            }
+        }
+
+        if let mam = suggestions.mtplmOrMamKg, let gtw = suggestions.gtwKg, gtw <= mam {
+            flag(.gtw)
+        }
+        if let mam = suggestions.mtplmOrMamKg, let miro = suggestions.miroOrMroKg, miro > mam {
+            flag(.miro)
+        }
+        if let mam = suggestions.mtplmOrMamKg, let front = suggestions.maxFrontAxleKg, front > mam * 1.2 {
+            flag(.frontAxle)
+        }
+        if let mam = suggestions.mtplmOrMamKg, let rear = suggestions.maxRearAxleKg, rear > mam * 1.2 {
+            flag(.rearAxle)
+        }
+        if let gtw = suggestions.gtwKg, let front = suggestions.maxFrontAxleKg, front > gtw {
+            flag(.frontAxle)
+        }
+        if let gtw = suggestions.gtwKg, let rear = suggestions.maxRearAxleKg, rear > gtw {
+            flag(.rearAxle)
+        }
+        if let hitch = suggestions.hitchOrNoseKg, let mam = suggestions.mtplmOrMamKg, hitch > mam {
+            flag(.hitchOrNose)
+        }
+
+        if !suggestions.unlikelyMassFields.isEmpty {
+            let note = "Some plated masses look unlikely compared with each other. Check the plate before applying."
+            if !notes.contains(note) {
+                notes.append(note)
+            }
+        }
     }
 
     // MARK: - Labels
@@ -482,6 +569,7 @@ enum VehiclePlateOCR {
             guard let matchRange = Range(match.range(at: 1), in: text) else { continue }
             let raw = String(text[matchRange]).replacingOccurrences(of: ",", with: ".")
             guard let value = Double(raw) else { continue }
+            if looksLikeTypeApprovalMassFragment(raw: raw, line: text) { continue }
             let rounded = value.rounded()
             guard range.contains(rounded), !excluding.contains(rounded) else { continue }
             return rounded
@@ -537,11 +625,30 @@ enum VehiclePlateOCR {
     }
 
     private static func looksLikeTypeApprovalLine(_ line: String) -> Bool {
-        if line.range(of: #"\b[EGN]\d{1,2}\*"#, options: .regularExpression) != nil { return true }
+        if line.range(of: #"\b[EGN]\d{1,2}\s*\*"#, options: .regularExpression) != nil { return true }
         if line.contains("2007/46") || line.contains("2001/116") || line.contains("2018/858") { return true }
         if line.contains("70/156") || line.contains("98/14") { return true }
         if line.contains("KS07/46") || line.contains("KS18/858") || line.contains("NKS") { return true }
         if line.contains("*") && line.range(of: #"\b[EGN]\d{1,2}\b"#, options: .regularExpression) != nil {
+            return true
+        }
+        if line.range(of: #"\*\s*0*\d{2,4}\s*\*"#, options: .regularExpression) != nil { return true }
+        if line.range(of: #"\b0\d{3,4}\s*\*\s*\d{2}\b"#, options: .regularExpression) != nil { return true }
+        if line.range(of: #"\b20\d{2}\s*/\s*\d{2,3}\b"#, options: .regularExpression) != nil { return true }
+        return false
+    }
+
+    /// Type-approval extension numbers (`*0085*`, `00861`) must not be read as kg.
+    private static func looksLikeTypeApprovalMassFragment(raw: String, line: String) -> Bool {
+        let digits = raw.replacingOccurrences(of: "[.,]", with: "", options: .regularExpression)
+        if digits.hasPrefix("0"), digits.count >= 3 { return true }
+        if looksLikeTypeApprovalLine(line), (Double(raw.replacingOccurrences(of: ",", with: ".")) ?? 0) < 1000 {
+            return true
+        }
+        let escaped = NSRegularExpression.escapedPattern(for: digits)
+        if line.range(of: "\\*\\s*0*\(escaped)\\s*\\*", options: .regularExpression) != nil { return true }
+        if line.range(of: "\\b20\\d{2}\\s*/\\s*\\d{2,3}\\b", options: .regularExpression) != nil,
+           (2000...2035).contains(Double(raw.replacingOccurrences(of: ",", with: ".")) ?? 0) {
             return true
         }
         return false
@@ -590,7 +697,7 @@ enum VehiclePlateOCR {
             notes.append("Rear axle limit recognised from the EU statutory plate layout (axle 2).")
         }
 
-        let unlabeled = unlabeledMassValues(in: lines, excluding: claimedValues)
+        let unlabeled = statutoryMassSequence(unlabeledMassValues(in: lines, excluding: claimedValues))
 
         if hyphenAxleLines {
             assignStatutoryMassesFromUnlabeled(
@@ -613,6 +720,15 @@ enum VehiclePlateOCR {
             positionalAxles: true,
             omitCombinationMass: isTrailerStatutoryLayout
         )
+    }
+
+    /// Drop type-approval leftovers (e.g. 85 from `*0085*`) that would shift MAM/GTW/axle order.
+    private static func statutoryMassSequence(_ unlabeled: [Double]) -> [Double] {
+        var values = unlabeled.filter { vehicleMassRange.contains($0) }
+        while values.count >= 2, values[0] < 1_000, values[1] >= 1_500, values[1] >= values[0] * 4 {
+            values.removeFirst()
+        }
+        return values
     }
 
     private static func looksLikeKnownMultiStageConverter(_ lines: [String]) -> Bool {
@@ -686,7 +802,7 @@ enum VehiclePlateOCR {
         in lines: [String],
         axleNumber: Int,
         excluding: Set<Double>,
-        range: ClosedRange<Double> = kgRange
+        range: ClosedRange<Double> = vehicleMassRange
     ) -> Double? {
         for line in lines {
             guard let match = prefixedAxleMatch(in: line), match.number == axleNumber else { continue }
@@ -725,14 +841,14 @@ enum VehiclePlateOCR {
     private static func unlabeledMassValues(in lines: [String], excluding: Set<Double>) -> [Double] {
         var values: [Double] = []
         var claimed = excluding
+        let statutoryContext = looksLikeEUStatutoryPlate(lines) || looksLikeKnownMultiStageConverter(lines)
         for line in lines {
             guard !shouldSkipUnlabeledMassLine(line) else { continue }
             let axleMasses = Set((0...3).compactMap { prefixedAxleMass(in: [line], axleNumber: $0, excluding: []) })
             for value in massValuesExcludingProtectedSpans(in: line) {
-                guard kgRange.contains(value), !claimed.contains(value), !axleMasses.contains(value) else { continue }
+                guard vehicleMassRange.contains(value), !claimed.contains(value), !axleMasses.contains(value) else { continue }
                 if isMostlyMassLine(line, value: value)
-                    || looksLikeTypeApprovalLine(line)
-                    || looksLikeEUStatutoryPlate([line])
+                    || statutoryContext
                     || prefixedAxleNumber(in: line) != nil {
                     values.append(value)
                     claimed.insert(value)
@@ -752,6 +868,7 @@ enum VehiclePlateOCR {
             guard let matchRange = Range(match.range(at: 1), in: line) else { return nil }
             if protected.contains(where: { $0.overlaps(matchRange) }) { return nil }
             let raw = String(line[matchRange]).replacingOccurrences(of: ",", with: ".")
+            if looksLikeTypeApprovalMassFragment(raw: raw, line: line) { return nil }
             guard let value = Double(raw) else { return nil }
             return value.rounded()
         }
@@ -760,7 +877,9 @@ enum VehiclePlateOCR {
     private static func protectedNonMassRanges(in line: String) -> [Range<String.Index>] {
         var ranges: [Range<String.Index>] = []
         let patterns = [
-            #"[EGN]\d{1,2}\s*\*?\s*\d{2,4}\s*/\s*\d{2,3}(?:\*\d+)*"#,
+            #"[EGN]\d{1,2}\s*\*?\s*\d{2,4}\s*/\s*\d{2,3}(?:\s*\*\s*\d+)*"#,
+            #"\*\s*0*\d{2,4}\s*\*"#,
+            #"\b20\d{2}\s*/\s*\d{2,3}\b"#,
             #"[A-HJ-NPR-Z][A-Z0-9IOQ]{16}"#
         ]
         for pattern in patterns {
@@ -776,6 +895,9 @@ enum VehiclePlateOCR {
     }
 
     private static func shouldSkipUnlabeledMassLine(_ line: String) -> Bool {
+        if looksLikeTypeApprovalLine(line), !line.contains("KG"), prefixedAxleNumber(in: line) == nil {
+            return true
+        }
         let habitationTokens = [
             "CELLULE", "BODY NUMBER", "BODY NO", "CONVERSION",
             "AUFBAU", "KAROSSERIE", "WOHNKABINE"
@@ -783,6 +905,11 @@ enum VehiclePlateOCR {
         if habitationTokens.contains(where: { line.contains($0) }) { return true }
         if VehicleVINParsing.isPlausibleVIN(line.replacingOccurrences(of: "[^A-Z0-9]", with: "", options: .regularExpression)),
            !looksLikeTypeApprovalLine(line),
+           prefixedAxleNumber(in: line) == nil,
+           !line.contains("KG") {
+            return true
+        }
+        if VehicleVINParsing.looksLikePowerOrEngineNoise(line),
            prefixedAxleNumber(in: line) == nil,
            !line.contains("KG") {
             return true

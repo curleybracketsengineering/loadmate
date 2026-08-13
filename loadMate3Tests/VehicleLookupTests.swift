@@ -240,6 +240,78 @@ final class VehicleLookupTests: XCTestCase {
         }
     }
 
+    func testQuotaExhaustedErrorDescription() {
+        XCTAssertEqual(
+            VehicleLookupError.quotaExhausted.errorDescription,
+            "Lyneqo is a free application. Unfortunately, we've run out of credits this month. Credits reset on the 13th of each month. Lyneqo uses ZyFy.uk — visit that site as an individual user to look up the same vehicle data."
+        )
+    }
+
+    func testZyfyQuotaExhaustedMapsToDomainErrorWithoutRetry() async {
+        var requestCount = 0
+        MockURLProtocol.requestHandler = { _ in
+            requestCount += 1
+            let body = #"{"error":"Monthly quota exhausted","code":"quota_exhausted","resets":"2026-09-01T00:00:00Z"}"#
+            return (Self.http(429), Data(body.utf8))
+        }
+
+        let service = ZyfyVehicleLookupService(session: Self.mockSession(), apiKey: "test-key")
+        do {
+            _ = try await service.lookup(registration: "AB12CDE", forceRefresh: false)
+            XCTFail("Expected quota exhausted")
+        } catch let error as VehicleLookupError {
+            XCTAssertEqual(error, .quotaExhausted)
+        } catch {
+            XCTFail("Unexpected error \(error)")
+        }
+        XCTAssertEqual(requestCount, 1)
+    }
+
+    func testZyfyQuotaExhaustedFromZeroRemainingHeader() async {
+        MockURLProtocol.requestHandler = { _ in
+            return (
+                Self.http(429, headers: ["X-Quota-Remaining": "0", "Retry-After": "5"]),
+                Data(#"{"error":"Too many requests"}"#.utf8)
+            )
+        }
+
+        let service = ZyfyVehicleLookupService(session: Self.mockSession(), apiKey: "test-key")
+        do {
+            _ = try await service.lookup(registration: "AB12CDE", forceRefresh: false)
+            XCTFail("Expected quota exhausted")
+        } catch let error as VehicleLookupError {
+            XCTAssertEqual(error, .quotaExhausted)
+        } catch {
+            XCTFail("Unexpected error \(error)")
+        }
+    }
+
+    func testZyfyRateLimitRetriesThenMapsToDomainError() async {
+        var requestCount = 0
+        MockURLProtocol.requestHandler = { _ in
+            requestCount += 1
+            return (
+                Self.http(429, headers: ["Retry-After": "1"]),
+                Data(#"{"error":"Rate limit exceeded"}"#.utf8)
+            )
+        }
+
+        let service = ZyfyVehicleLookupService(
+            session: Self.mockSession(),
+            apiKey: "test-key",
+            maxRetryAfterSeconds: 0
+        )
+        do {
+            _ = try await service.lookup(registration: "AB12CDE", forceRefresh: false)
+            XCTFail("Expected rate limited")
+        } catch let error as VehicleLookupError {
+            XCTAssertEqual(error, .rateLimited)
+        } catch {
+            XCTFail("Unexpected error \(error)")
+        }
+        XCTAssertEqual(requestCount, 3)
+    }
+
     func testRealHX13FKEFixtureMapsSwiftLifestyleBaseVehicle() throws {
         let result = try Self.result(fromFixture: "zyfy-HX13FKE")
 
@@ -330,12 +402,14 @@ final class VehicleLookupTests: XCTestCase {
         return URLSession(configuration: configuration)
     }
 
-    private static func http(_ status: Int) -> HTTPURLResponse {
-        HTTPURLResponse(
+    private static func http(_ status: Int, headers: [String: String] = [:]) -> HTTPURLResponse {
+        var fields = ["Content-Type": "application/json"]
+        headers.forEach { fields[$0.key] = $0.value }
+        return HTTPURLResponse(
             url: URL(string: "https://zyfy.uk/v1/vehicle/AB12CDE")!,
             statusCode: status,
             httpVersion: "HTTP/1.1",
-            headerFields: ["Content-Type": "application/json"]
+            headerFields: fields
         )!
     }
 

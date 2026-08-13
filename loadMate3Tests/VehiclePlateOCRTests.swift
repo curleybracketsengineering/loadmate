@@ -242,11 +242,48 @@ final class VehiclePlateOCRTests: XCTestCase {
         )
 
         XCTAssertEqual(suggestions.manufacturer, "Fiat")
+        XCTAssertNil(suggestions.vinChassisNumber)
         XCTAssertEqual(suggestions.mtplmOrMamKg, 3900)
         XCTAssertNil(suggestions.gtwKg)
         XCTAssertEqual(suggestions.maxFrontAxleKg, 2100)
         XCTAssertEqual(suggestions.maxRearAxleKg, 2400)
         XCTAssertEqual(suggestions.modelName?.uppercased().contains("250"), true)
+    }
+
+    func testSuggestionsIgnoreRedactedChassisPowerOutputAsVIN() {
+        let suggestions = VehiclePlateOCR.suggestions(
+            from: [
+                "VEHICLE MAKE FIAT DUCATO",
+                "MODEL 35 - 250D",
+                "CHASSIS NO",
+                "WERUTPUT115KV3500",
+                "AXLES 2",
+                "ENGINE TYPE 3.0 HDi",
+                "POWER OUTPUT 115 kW @ 3500 rpm",
+                "GVM 3900 kg",
+                "AXLE 1 2100 kg",
+                "AXLE 2 2400 kg"
+            ]
+        )
+
+        XCTAssertNil(suggestions.vinChassisNumber)
+        XCTAssertEqual(suggestions.manufacturer, "Fiat")
+        XCTAssertEqual(suggestions.mtplmOrMamKg, 3900)
+        XCTAssertEqual(suggestions.maxFrontAxleKg, 2100)
+        XCTAssertEqual(suggestions.maxRearAxleKg, 2400)
+    }
+
+    func testSuggestionsKeepRealVINWhenPowerOutputIsNearby() {
+        let suggestions = VehiclePlateOCR.suggestions(
+            from: [
+                "CHASSIS NO ZFA25000002950575",
+                "POWER OUTPUT 115 kW @ 3500 rpm",
+                "MAM 3500"
+            ]
+        )
+
+        XCTAssertEqual(suggestions.vinChassisNumber, "ZFA25000002950575")
+        XCTAssertEqual(suggestions.mtplmOrMamKg, 3500)
     }
 
     func testSuggestionsReadSpacedAndOCRConfusedVIN() {
@@ -310,7 +347,13 @@ final class VehiclePlateOCRTests: XCTestCase {
         let suggestions = VehiclePlateOCR.suggestions(
             from: [
                 "RAPIDO",
-                "e2*2007/46*0085*09 ETAPE 2 ZFA250000002950575 3500kg 6000kg I- 1850kg 2- 2000kg",
+                "e2*2007/46*0085*09",
+                "ETAPE 2",
+                "ZFA250000002950575",
+                "3500 kg",
+                "6000 kg",
+                "I- 1850 kg",
+                "2- 2000 kg",
                 "N° de cellule 15-2792-1592616"
             ]
         )
@@ -511,5 +554,110 @@ final class VehiclePlateOCRTests: XCTestCase {
         XCTAssertEqual(suggestions.vinChassisNumber, "WHB12345HYA123456")
         XCTAssertEqual(suggestions.manufacturer, "Hobby")
         XCTAssertEqual(suggestions.hitchOrNoseKg, 80)
+    }
+
+    func testSuggestionsIgnoreTypeApprovalFragmentLeakingAsMAM() {
+        let suggestions = VehiclePlateOCR.suggestions(
+            from: [
+                "RAPIDO",
+                "e2*2007/46*0085*09",
+                "ETAPE 2",
+                "ZFA25000002950575",
+                "85",
+                "3500",
+                "6000",
+                "1850",
+                "2000",
+                "N° de cellule 15-2792-1592616"
+            ]
+        )
+
+        XCTAssertEqual(suggestions.manufacturer, "Rapido")
+        XCTAssertEqual(suggestions.mtplmOrMamKg, 3500)
+        XCTAssertEqual(suggestions.gtwKg, 6000)
+        XCTAssertEqual(suggestions.maxFrontAxleKg, 1850)
+        XCTAssertEqual(suggestions.maxRearAxleKg, 2000)
+        XCTAssertFalse(suggestions.unlikelyMassFields.contains(.mtplmOrMam))
+        XCTAssertFalse(suggestions.unlikelyMassFields.contains(.gtw))
+    }
+
+    func testSuggestionsIgnoreSplitAndSpacedTypeApprovalMassFragments() {
+        let split = VehiclePlateOCR.suggestions(
+            from: [
+                "RAPIDO",
+                "e2*2007/46*",
+                "0085*09",
+                "ETAPE 2",
+                "3500 kg",
+                "6000 kg",
+                "1- 1850 kg",
+                "2- 2000 kg"
+            ]
+        )
+        XCTAssertEqual(split.mtplmOrMamKg, 3500)
+        XCTAssertEqual(split.gtwKg, 6000)
+        XCTAssertEqual(split.maxFrontAxleKg, 1850)
+        XCTAssertEqual(split.maxRearAxleKg, 2000)
+
+        let spaced = VehiclePlateOCR.suggestions(
+            from: [
+                "RAPIDO",
+                "e2 * 2007 / 46 * 0085 * 09",
+                "ETAPE 2",
+                "3500 kg",
+                "6000 kg",
+                "1- 1850 kg",
+                "2- 2000 kg"
+            ]
+        )
+        XCTAssertEqual(spaced.mtplmOrMamKg, 3500)
+        XCTAssertEqual(spaced.gtwKg, 6000)
+        XCTAssertEqual(spaced.maxFrontAxleKg, 1850)
+        XCTAssertEqual(spaced.maxRearAxleKg, 2000)
+    }
+
+    func testSuggestionsDropOutOfRangeMAMWhenGTWIsPlausible() {
+        let suggestions = VehiclePlateOCR.suggestions(
+            from: [
+                "MAM 85",
+                "GTW 3500"
+            ]
+        )
+
+        XCTAssertNil(suggestions.mtplmOrMamKg)
+        XCTAssertEqual(suggestions.gtwKg, 3500)
+        XCTAssertTrue(suggestions.unlikelyMassFields.isEmpty)
+    }
+
+    func testSuggestionsFlagGTWThatDoesNotExceedMAM() {
+        let suggestions = VehiclePlateOCR.suggestions(
+            from: [
+                "MAM 3500",
+                "GTW 3000"
+            ]
+        )
+
+        XCTAssertEqual(suggestions.mtplmOrMamKg, 3500)
+        XCTAssertEqual(suggestions.gtwKg, 3000)
+        XCTAssertTrue(suggestions.unlikelyMassFields.contains(.gtw))
+        XCTAssertTrue(suggestions.confidenceNotes.contains(where: { $0.localizedCaseInsensitiveContains("unlikely") }))
+    }
+
+    func testSuggestionsFlagAxleHeavierThanMAM() {
+        let suggestions = VehiclePlateOCR.suggestions(
+            from: [
+                "MAM 3500",
+                "GTW 6000",
+                "AXLE 1 5000",
+                "AXLE 2 1850"
+            ]
+        )
+
+        XCTAssertEqual(suggestions.mtplmOrMamKg, 3500)
+        XCTAssertEqual(suggestions.gtwKg, 6000)
+        XCTAssertEqual(suggestions.maxFrontAxleKg, 5000)
+        XCTAssertEqual(suggestions.maxRearAxleKg, 1850)
+        XCTAssertTrue(suggestions.unlikelyMassFields.contains(.frontAxle))
+        XCTAssertFalse(suggestions.unlikelyMassFields.contains(.rearAxle))
     }
 }

@@ -108,6 +108,7 @@ enum VehicleLookupError: Error, Equatable, LocalizedError, Sendable {
     case noNetwork
     case serviceUnavailable
     case rateLimited
+    case quotaExhausted
     case configuration
     case unexpectedResponse
 
@@ -123,6 +124,8 @@ enum VehicleLookupError: Error, Equatable, LocalizedError, Sendable {
             return "Vehicle lookup is temporarily unavailable. Try again shortly."
         case .rateLimited:
             return "Too many lookup requests. Please wait and try again later."
+        case .quotaExhausted:
+            return "Lyneqo is a free application. Unfortunately, we've run out of credits this month. Credits reset on the 13th of each month. Lyneqo uses ZyFy.uk — visit that site as an individual user to look up the same vehicle data."
         case .configuration:
             return "Vehicle lookup is not configured on this device."
         case .unexpectedResponse:

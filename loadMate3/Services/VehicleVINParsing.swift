@@ -9,7 +9,7 @@ enum VehicleVINParsing {
             return labeled
         }
 
-        let bodyFiltered = normalized.filter { !isHabitationBodyLine($0) }
+        let bodyFiltered = normalized.filter { !isHabitationBodyLine($0) && !isIgnoredVINLine($0) }
 
         for line in bodyFiltered {
             if let vin = firstISOVIN(in: line) {
@@ -42,11 +42,19 @@ enum VehicleVINParsing {
         let vin = sanitize(value)
         guard vin.count >= 11, vin.count <= 17 else { return false }
         if vin.range(of: "[IOQ]", options: .regularExpression) != nil { return false }
+        if looksLikePowerRating(vin) { return false }
         if vin.count == 17 {
+            guard vin.first?.isLetter == true else { return false }
             let letters = letterCount(in: vin)
             return (3...12).contains(letters) && !looksLikeTypeApproval(vin)
         }
         return allowShort && letterCount(in: vin) >= 2 && vin.contains(where: \.isNumber)
+    }
+
+    /// Engine / power plate text, including OCR mash-ups like `WERUTPUT115KV3500`.
+    static func looksLikePowerOrEngineNoise(_ value: String) -> Bool {
+        let line = normalize(value)
+        return isPowerOrEngineLine(line) || looksLikePowerRating(sanitize(line))
     }
 
     // MARK: - Labels
@@ -107,6 +115,29 @@ enum VehicleVINParsing {
         return tokens.contains(where: { line.contains($0) })
     }
 
+    private static func isPowerOrEngineLine(_ line: String) -> Bool {
+        let tokens = ["POWER", "OUTPUT", "ENGINE", "RPM", "BHP"]
+        if tokens.contains(where: { line.contains($0) }) { return true }
+        return line.contains("KW")
+    }
+
+    /// Plate fields that OCR often concatenates into a VIN-shaped string.
+    private static func isIgnoredVINLine(_ line: String) -> Bool {
+        if isPowerOrEngineLine(line) { return true }
+        if isURLLine(line) { return true }
+        let tokens = [
+            "MAKE", "MAKER", "MODEL", "AXLES", "AXLE",
+            "GVM", "GTM", "GTW", "MAM", "MTPLM", "MTO", "MIRO", "MRO",
+            "YEAR", "DATE", "MASS", "WEIGHT",
+            "MANUFACTURER", "HERSTELLER", "MARQUE", "FABRICANT"
+        ]
+        return tokens.contains(where: { line.contains($0) })
+    }
+
+    private static func isURLLine(_ line: String) -> Bool {
+        line.contains("://") || line.hasPrefix("HTTP")
+    }
+
     private static func normalize(_ line: String) -> String {
         line
             .uppercased()
@@ -130,8 +161,11 @@ enum VehicleVINParsing {
             guard let label = vinLabels.first(where: { line.contains($0) }) else { continue }
 
             if let range = line.range(of: label) {
-                let after = String(line[range.upperBound...])
-                if let vin = firstVINCandidate(in: after, allowShort: true) {
+                let after = String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !after.isEmpty,
+                   !isHabitationBodyLine(after),
+                   !isPowerOrEngineLine(after),
+                   let vin = firstVINCandidate(in: after, allowShort: true) {
                     return vin
                 }
             }
@@ -139,6 +173,7 @@ enum VehicleVINParsing {
             for offset in 1...2 where index + offset < lines.count {
                 let next = lines[index + offset]
                 if isHabitationBodyLine(next) { continue }
+                if isPowerOrEngineLine(next) { continue }
                 if vinLabels.contains(where: { next.contains($0) }) { continue }
                 if let vin = firstVINCandidate(in: next, allowShort: true) {
                     return vin
@@ -157,8 +192,9 @@ enum VehicleVINParsing {
     private static func firstNearMissVIN(in lines: [String]) -> String? {
         var candidates: [String] = []
         for line in lines {
+            if isIgnoredVINLine(line) { continue }
             let compact = canonicalize(line)
-            guard compact.count >= 16 else { continue }
+            guard compact.count >= 18 else { continue }
             if looksLikeTypeApproval(compact), compact.count < 20 { continue }
             candidates.append(contentsOf: nearMissISOCandidates(in: compact))
         }
@@ -167,24 +203,25 @@ enum VehicleVINParsing {
 
     private static func nearMissISOCandidates(in compact: String) -> [String] {
         let chars = Array(compact)
-        var windows: [String] = []
-        for start in 0..<chars.count where chars[start].isLetter {
-            let maxLength = min(19, chars.count - start)
-            guard maxLength >= 16 else { continue }
-            for length in 16...maxLength {
-                windows.append(String(chars[start..<(start + length)]))
-            }
-        }
+        guard chars.count >= 18 else { return [] }
 
         var fitted: [String] = []
-        for window in windows {
-            fitted.append(contentsOf: fitTo17CharacterVIN(window))
+        let lastStart = chars.count - 18
+        for start in 0...lastStart where chars[start].isLetter {
+            let remaining = chars.count - start
+            if remaining >= 18 {
+                fitted.append(contentsOf: fitTo17CharacterVIN(String(chars[start..<(start + 18)])))
+            }
+            if remaining >= 19 {
+                fitted.append(contentsOf: fitTo17CharacterVIN(String(chars[start..<(start + 19)])))
+            }
         }
         return fitted
     }
 
     private static func fitTo17CharacterVIN(_ value: String) -> [String] {
         if value.count == 17 { return [value] }
+        // OCR on Fiat-style VINs more often adds a zero than drops one.
         if value.count == 18 {
             return variantsByRemovingOneZero(from: value)
         }
@@ -192,9 +229,6 @@ enum VehicleVINParsing {
             return variantsByRemovingOneZero(from: value)
                 .flatMap(variantsByRemovingOneZero)
                 .filter { $0.count == 17 }
-        }
-        if value.count == 16 {
-            return variantsByInsertingZero(into: value)
         }
         return []
     }
@@ -205,16 +239,6 @@ enum VehicleVINParsing {
             guard chars[index] == "0" else { return nil }
             var next = chars
             next.remove(at: index)
-            return String(next)
-        }
-    }
-
-    private static func variantsByInsertingZero(into value: String) -> [String] {
-        let chars = Array(value)
-        guard chars.count >= 3 else { return [] }
-        return (3...chars.count).map { index in
-            var next = chars
-            next.insert("0", at: index)
             return String(next)
         }
     }
@@ -240,6 +264,7 @@ enum VehicleVINParsing {
 
     private static func isVINFragmentLine(_ line: String, allowDigitsOnly: Bool) -> Bool {
         if isHabitationBodyLine(line) { return false }
+        if isIgnoredVINLine(line) { return false }
         let compact = sanitize(line)
         guard (4...16).contains(compact.count) else { return false }
         let letters = letterCount(in: compact)
@@ -304,6 +329,15 @@ enum VehicleVINParsing {
         if vin.contains("200746") || vin.contains("2001116") || vin.contains("2018858") { return true }
         if vin.contains("70156") || vin.contains("9814") { return true }
         return false
+    }
+
+    /// Compressed OCR of `115 kW @ 3500 rpm` / `Power output`.
+    private static func looksLikePowerRating(_ value: String) -> Bool {
+        let compact = sanitize(value)
+        if compact.contains("UTPUT") { return true }
+        if compact.contains("POWER") || compact.contains("P0WER") { return true }
+        if compact.contains("RPM") { return true }
+        return compact.range(of: #"\d{2,3}K[WV]\d{3,5}"#, options: .regularExpression) != nil
     }
 
     private static func letterCount(in value: String) -> Int {

@@ -77,37 +77,43 @@ struct VehiclePlateReviewSheet: View {
                             suggestionToggle(
                                 kind == .caravan ? "MTPLM (kg)" : "MAM (kg)",
                                 value: formattedKg(suggestions.mtplmOrMamKg),
-                                isOn: $applyMTPLM
+                                isOn: $applyMTPLM,
+                                unlikely: suggestions.unlikelyMassFields.contains(.mtplmOrMam)
                             )
                             if kind == .motorhome {
                                 suggestionToggle(
                                     "GTW (kg)",
                                     value: formattedKg(suggestions.gtwKg),
-                                    isOn: $applyGTW
+                                    isOn: $applyGTW,
+                                    unlikely: suggestions.unlikelyMassFields.contains(.gtw)
                                 )
                             }
                             suggestionToggle(
                                 kind == .caravan ? "MIRO (kg)" : "MRO (kg)",
                                 value: formattedKg(suggestions.miroOrMroKg),
-                                isOn: $applyMIRO
+                                isOn: $applyMIRO,
+                                unlikely: suggestions.unlikelyMassFields.contains(.miro)
                             )
                             if kind == .caravan {
                                 suggestionToggle(
                                     "Caravan hitch limit (kg)",
                                     value: formattedKg(suggestions.hitchOrNoseKg),
-                                    isOn: $applyNose
+                                    isOn: $applyNose,
+                                    unlikely: suggestions.unlikelyMassFields.contains(.hitchOrNose)
                                 )
                             }
                             if kind == .motorhome {
                                 suggestionToggle(
                                     "Max front axle (kg)",
                                     value: formattedKg(suggestions.maxFrontAxleKg),
-                                    isOn: $applyFrontAxle
+                                    isOn: $applyFrontAxle,
+                                    unlikely: suggestions.unlikelyMassFields.contains(.frontAxle)
                                 )
                                 suggestionToggle(
                                     "Max rear axle (kg)",
                                     value: formattedKg(suggestions.maxRearAxleKg),
-                                    isOn: $applyRearAxle
+                                    isOn: $applyRearAxle,
+                                    unlikely: suggestions.unlikelyMassFields.contains(.rearAxle)
                                 )
                             }
                             suggestionToggle("Tyre size", value: suggestions.tyreSize, isOn: $applyTyreSize)
@@ -163,6 +169,14 @@ struct VehiclePlateReviewSheet: View {
                     Button("Close") { dismiss() }
                 }
             }
+            .onAppear {
+                applyMTPLM = !suggestions.unlikelyMassFields.contains(.mtplmOrMam)
+                applyGTW = !suggestions.unlikelyMassFields.contains(.gtw)
+                applyMIRO = !suggestions.unlikelyMassFields.contains(.miro)
+                applyNose = !suggestions.unlikelyMassFields.contains(.hitchOrNose)
+                applyFrontAxle = !suggestions.unlikelyMassFields.contains(.frontAxle)
+                applyRearAxle = !suggestions.unlikelyMassFields.contains(.rearAxle)
+            }
         }
     }
 
@@ -205,19 +219,30 @@ struct VehiclePlateReviewSheet: View {
     }
 
     @ViewBuilder
-    private func suggestionToggle(_ title: String, value: String?, isOn: Binding<Bool>) -> some View {
+    private func suggestionToggle(
+        _ title: String,
+        value: String?,
+        isOn: Binding<Bool>,
+        unlikely: Bool = false
+    ) -> some View {
         if let value, !value.isEmpty {
             Toggle(isOn: isOn) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(unlikely ? AppColors.red : AppColors.textPrimary)
                     Text(value)
                         .font(.caption)
-                        .foregroundStyle(AppColors.textSupporting)
+                        .foregroundStyle(unlikely ? AppColors.red : AppColors.textSupporting)
                         .fixedSize(horizontal: false, vertical: true)
+                    if unlikely {
+                        Text("Unlikely correct")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppColors.red)
+                    }
                 }
             }
-            .tint(Color.accentColor)
+            .tint(unlikely ? AppColors.red : Color.accentColor)
         }
     }
 }
