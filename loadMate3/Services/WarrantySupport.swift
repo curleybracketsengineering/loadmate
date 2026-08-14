@@ -426,6 +426,115 @@ enum WarrantySupport {
         }
         .sorted { $0.attachment.createdAt > $1.attachment.createdAt }
     }
+
+    // MARK: - Annual ownership costs
+
+    struct AnnualCostYear: Identifiable, Equatable {
+        let year: Int
+        let total: Double
+        let actualItemCount: Int
+        let estimatedItemCount: Int
+
+        var id: Int { year }
+
+        var detail: String {
+            switch (actualItemCount, estimatedItemCount) {
+            case (let actual, 0) where actual > 0:
+                return actual == 1 ? "1 actual cost" : "\(actual) actual costs"
+            case (0, let estimated) where estimated > 0:
+                return estimated == 1 ? "1 estimate" : "\(estimated) estimates"
+            default:
+                return "\(actualItemCount) actual · \(estimatedItemCount) estimated"
+            }
+        }
+    }
+
+    static func annualCosts(
+        events: [WarrantyEvent],
+        maintenanceRecords: [MaintenanceRecord],
+        faults: [FaultRecord],
+        calendar: Calendar = .current
+    ) -> [AnnualCostYear] {
+        var consumedMaintenanceIDs = Set<UUID>()
+        var consumedFaultIDs = Set<UUID>()
+        var contributions: [(year: Int, amount: Double, isActual: Bool)] = []
+
+        let maintenanceByID = Dictionary(uniqueKeysWithValues: maintenanceRecords.map { ($0.id, $0) })
+        let faultsByID = Dictionary(uniqueKeysWithValues: faults.map { ($0.id, $0) })
+
+        for event in events {
+            let linkedMaintenance = event.linkedMaintenanceID.flatMap { maintenanceByID[$0] }
+            let linkedFault = event.linkedFaultID.flatMap { faultsByID[$0] }
+            if let linkedMaintenance {
+                consumedMaintenanceIDs.insert(linkedMaintenance.id)
+            }
+            if let linkedFault {
+                consumedFaultIDs.insert(linkedFault.id)
+                if let linkedFromFault = linkedFault.linkedMaintenanceRecord {
+                    consumedMaintenanceIDs.insert(linkedFromFault.id)
+                }
+            }
+
+            let actual = event.actualCost ?? linkedMaintenance?.cost ?? linkedFault?.actualRepairCost
+            let estimate = event.estimatedCost ?? linkedFault?.estimatedRepairCost
+            guard let amount = actual ?? estimate else { continue }
+            let date = event.completedDate ?? event.scheduledDate
+            contributions.append((
+                year: calendar.component(.year, from: date),
+                amount: amount,
+                isActual: actual != nil
+            ))
+        }
+
+        for fault in faults where !consumedFaultIDs.contains(fault.id) {
+            let linkedMaintenance = fault.linkedMaintenanceRecord
+            if let linkedMaintenance {
+                consumedMaintenanceIDs.insert(linkedMaintenance.id)
+            }
+            let actual = fault.actualRepairCost ?? linkedMaintenance?.cost
+            let estimate = fault.estimatedRepairCost
+            guard let amount = actual ?? estimate else { continue }
+            let date = fault.resolvedDate ?? fault.discoveredDate
+            contributions.append((
+                year: calendar.component(.year, from: date),
+                amount: amount,
+                isActual: actual != nil
+            ))
+        }
+
+        for record in maintenanceRecords where !consumedMaintenanceIDs.contains(record.id) {
+            guard let amount = record.cost else { continue }
+            contributions.append((
+                year: calendar.component(.year, from: record.serviceDate),
+                amount: amount,
+                isActual: true
+            ))
+        }
+
+        let grouped = Dictionary(grouping: contributions, by: \.year)
+        return grouped.keys.sorted().compactMap { year in
+            let items = grouped[year] ?? []
+            let total = items.reduce(0) { $0 + $1.amount }
+            guard total > 0 || !items.isEmpty else { return nil }
+            return AnnualCostYear(
+                year: year,
+                total: total,
+                actualItemCount: items.filter(\.isActual).count,
+                estimatedItemCount: items.filter { !$0.isActual }.count
+            )
+        }
+    }
+
+    /// Always returns a cost line for timeline rows: amount when set, otherwise a prompt to add one.
+    static func costCaption(for event: WarrantyEvent) -> String {
+        guard let amount = event.effectiveCost else { return "Add cost" }
+        let label = event.usesEstimatedCost ? "Estimate" : "Actual"
+        return "\(Formatters.currency(amount)) · \(label)"
+    }
+
+    static func hasRecordedCost(for event: WarrantyEvent) -> Bool {
+        event.effectiveCost != nil
+    }
 }
 
 private extension Date {

@@ -119,7 +119,8 @@ struct MainTabView: View {
                 onNavigateToCare: { selectedTab = .care },
                 onNavigateToMaintenance: { navigateToPhoneMaintenance() },
                 onNavigateToTyreSafety: { navigateToPhoneTyreSafety() },
-                onNavigateToWarranty: { navigateToPhoneWarranty() }
+                onNavigateToWarranty: { navigateToPhoneWarranty() },
+                onNavigateToIncidents: { navigateToPhoneIncidents() }
             )
             .tag(AppTab.home)
             .tabItem { Label("Home", systemImage: "house") }
@@ -128,7 +129,10 @@ struct MainTabView: View {
                 .tag(AppTab.load)
                 .tabItem { Label("Load", systemImage: "shippingbox") }
 
-            SafetyView(onNavigateToMaintenance: { navigateToPhoneMaintenance() })
+            SafetyView(
+                onNavigateToMaintenance: { navigateToPhoneMaintenance() },
+                onNavigateToIncidents: { navigateToPhoneIncidents() }
+            )
                 .tag(AppTab.safety)
                 .tabItem { Label("Safety", systemImage: "shield") }
 
@@ -175,6 +179,11 @@ struct MainTabView: View {
     private func navigateToPhoneWarranty() {
         selectedTab = .care
         pendingCareDestination = .warranty
+    }
+
+    private func navigateToPhoneIncidents() {
+        selectedTab = .care
+        pendingCareDestination = .incidents
     }
 }
 

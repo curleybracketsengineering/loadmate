@@ -31,6 +31,14 @@ final class VehicleLookupTests: XCTestCase {
         XCTAssertFalse(UKRegistration.isPlausible("THISISWAYTOOLONG"))
     }
 
+    func testLikelyCompletePlateRejectsFragments() {
+        XCTAssertTrue(UKRegistration.isLikelyCompletePlate("AB12 CDE"))
+        XCTAssertTrue(UKRegistration.isLikelyCompletePlate("A123BCD"))
+        XCTAssertFalse(UKRegistration.isLikelyCompletePlate("AB12"))
+        XCTAssertFalse(UKRegistration.isLikelyCompletePlate("CDE"))
+        XCTAssertFalse(UKRegistration.isLikelyCompletePlate("HELLO"))
+    }
+
     func testFacadeRejectsInvalidRegistrationWithoutCallingProvider() async {
         let stub = StubVehicleLookupProvider(result: Self.sampleResult())
         let service = VehicleLookupService(provider: stub)

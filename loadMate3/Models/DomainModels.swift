@@ -196,6 +196,12 @@ final class VehicleProfile {
 
     /// Policy start / renewal anniversary. Nil when not set. Used for yearly insurance check actions.
     var insuranceStartDate: Date? = nil
+    /// Insurer name for accident recorder prefill.
+    var insuranceProviderName: String = ""
+    /// Policy number for accident recorder prefill.
+    var insurancePolicyNumber: String = ""
+    /// 24-hour claims phone for accident recorder prefill.
+    var insuranceClaimsPhone: String = ""
 
     // MARK: External dimensions (handbook / plate — for route and site planning)
 

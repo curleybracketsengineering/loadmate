@@ -10,6 +10,7 @@ enum SafetySegment: String, CaseIterable, Identifiable {
 
 struct SafetyView: View {
     var onNavigateToMaintenance: (() -> Void)?
+    var onNavigateToIncidents: (() -> Void)?
 
     @Environment(\.usePadLayout) private var usePadLayout
     @Environment(\.modelContext) private var modelContext
@@ -29,6 +30,8 @@ struct SafetyView: View {
     @State private var showDepartureChecklist = false
     @State private var showArrivalChecklist = false
     @State private var showStorageChecklist = false
+    @State private var showAccidentRecorder = false
+    @State private var showIncidentsSheet = false
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
@@ -131,6 +134,16 @@ struct SafetyView: View {
             .sheet(isPresented: $showStorageChecklist) {
                 NavigationStack { ChecklistView() }
             }
+            .fullScreenCover(isPresented: $showAccidentRecorder) {
+                if let profile = activeProfile {
+                    AccidentRecorderView(vehicleID: profile.id, profile: profile)
+                }
+            }
+            .sheet(isPresented: $showIncidentsSheet) {
+                NavigationStack {
+                    AccidentIncidentsView()
+                }
+            }
             .sheet(isPresented: $showAddTrip, onDismiss: { newTripName = "" }) {
                 AddTripSheet(name: $newTripName) {
                     guard let profile = activeProfile else { return }
@@ -160,6 +173,23 @@ struct SafetyView: View {
     private var todayContent: some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
             readinessBanner
+
+            if activeProfile != nil {
+                AccidentEntryCard(
+                    title: "I’ve had an accident",
+                    subtitle: "What to do now, photos, other plates and red flags."
+                ) {
+                    showAccidentRecorder = true
+                }
+                Button("Past incidents") {
+                    if let onNavigateToIncidents {
+                        onNavigateToIncidents()
+                    } else {
+                        showIncidentsSheet = true
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+            }
 
             VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                 Text("Today's Safety Status")

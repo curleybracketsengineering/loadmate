@@ -345,9 +345,35 @@ struct SettingsView: View {
     private func insuranceSettings(_ profile: VehicleProfile) -> some View {
         AppSettingsSection(
             "Insurance",
-            caption: "Optional. Set a date to add a yearly insurance check; leave blank to skip."
+            caption: "Optional. Set a date to add a yearly insurance check. Insurer details are used if you record an accident."
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                TextField("Insurer name", text: Binding(
+                    get: { profile.insuranceProviderName },
+                    set: {
+                        profile.insuranceProviderName = $0
+                        viewModel.save(modelContext)
+                    }
+                ))
+                TextField("Policy number", text: Binding(
+                    get: { profile.insurancePolicyNumber },
+                    set: {
+                        profile.insurancePolicyNumber = $0
+                        viewModel.save(modelContext)
+                    }
+                ))
+                TextField("Claims phone", text: Binding(
+                    get: { profile.insuranceClaimsPhone },
+                    set: {
+                        profile.insuranceClaimsPhone = $0
+                        viewModel.save(modelContext)
+                    }
+                ))
+                .keyboardType(.phonePad)
+                Text("If you travel in Europe, keep a paper European Accident Statement, hi-vis jackets, and check whether your cover abroad is comprehensive or third-party only.")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+
                 if profile.insuranceStartDate != nil {
                     DatePicker(
                         "Insurance",

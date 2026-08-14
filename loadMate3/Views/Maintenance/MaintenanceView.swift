@@ -705,7 +705,7 @@ private struct MaintenanceRecordEditorView: View {
         _title = State(initialValue: record?.title ?? "")
         _category = State(initialValue: record?.category ?? MaintenanceSupport.maintenanceCategories(for: profile.kind).first ?? .generalMaintenance)
         _serviceDate = State(initialValue: record?.serviceDate ?? Date())
-        _costText = State(initialValue: record?.cost.map { Self.currencyInputString($0) } ?? "")
+        _costText = State(initialValue: record?.cost.map { Formatters.currencyInputString($0) } ?? "")
         _supplier = State(initialValue: record?.supplier ?? "")
         _notes = State(initialValue: record?.notes ?? "")
         _hasReminderDate = State(initialValue: record?.reminderDate != nil)
@@ -791,7 +791,7 @@ private struct MaintenanceRecordEditorView: View {
             title: title.isEmpty ? category.displayName : title,
             category: category,
             serviceDate: serviceDate,
-            cost: Self.parseCurrency(costText),
+            cost: Formatters.parseCurrency(costText),
             supplier: supplier,
             notes: notes,
             reminderDate: hasReminderDate ? reminderDate : nil,
@@ -808,16 +808,8 @@ private struct MaintenanceRecordEditorView: View {
         dismiss()
     }
 
-    private static func parseCurrency(_ text: String) -> Double? {
-        Double(text.replacingOccurrences(of: ",", with: "."))
-    }
-
     private static func parseInteger(_ text: String) -> Double? {
         Double(text.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    private static func currencyInputString(_ value: Double) -> String {
-        String(format: "%.2f", value)
     }
 
     private static func integerInputString(_ value: Double) -> String {
@@ -977,8 +969,8 @@ struct FaultRecordEditorView: View {
         _discoveredDate = State(initialValue: record?.discoveredDate ?? Date())
         _hasResolvedDate = State(initialValue: record?.resolvedDate != nil)
         _resolvedDate = State(initialValue: record?.resolvedDate ?? Date())
-        _estimatedRepairCost = State(initialValue: record?.estimatedRepairCost.map { Self.currencyInputString($0) } ?? "")
-        _actualRepairCost = State(initialValue: record?.actualRepairCost.map { Self.currencyInputString($0) } ?? "")
+        _estimatedRepairCost = State(initialValue: record?.estimatedRepairCost.map { Formatters.currencyInputString($0) } ?? "")
+        _actualRepairCost = State(initialValue: record?.actualRepairCost.map { Formatters.currencyInputString($0) } ?? "")
         _linkedMaintenanceID = State(initialValue: record?.linkedMaintenanceRecord?.id)
         let existingFlag = record?.isWarrantyRelated ?? false
         _isWarrantyRelated = State(
@@ -1077,8 +1069,8 @@ struct FaultRecordEditorView: View {
             status: status,
             discoveredDate: discoveredDate,
             resolvedDate: hasResolvedDate ? resolvedDate : nil,
-            estimatedRepairCost: Self.parseCurrency(estimatedRepairCost),
-            actualRepairCost: Self.parseCurrency(actualRepairCost),
+            estimatedRepairCost: Formatters.parseCurrency(estimatedRepairCost),
+            actualRepairCost: Formatters.parseCurrency(actualRepairCost),
             linkedMaintenanceRecord: linkedRecord,
             isWarrantyRelated: isWarrantyRelated,
             in: modelContext
@@ -1091,14 +1083,6 @@ struct FaultRecordEditorView: View {
             )
         }
         dismiss()
-    }
-
-    private static func parseCurrency(_ text: String) -> Double? {
-        Double(text.replacingOccurrences(of: ",", with: "."))
-    }
-
-    private static func currencyInputString(_ value: Double) -> String {
-        String(format: "%.2f", value)
     }
 }
 

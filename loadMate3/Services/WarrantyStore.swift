@@ -80,6 +80,8 @@ enum WarrantyStore {
         linkedDocumentIDs: [UUID],
         linkedMaintenanceID: UUID?,
         linkedFaultID: UUID?,
+        estimatedCost: Double? = nil,
+        actualCost: Double? = nil,
         in context: ModelContext
     ) {
         event.yearNumber = yearNumber
@@ -94,6 +96,8 @@ enum WarrantyStore {
         event.linkedDocumentIDs = linkedDocumentIDs
         event.linkedMaintenanceID = linkedMaintenanceID
         event.linkedFaultID = linkedFaultID
+        event.estimatedCost = estimatedCost
+        event.actualCost = actualCost
         event.updatedAt = Date()
         try? context.save()
     }
@@ -147,6 +151,8 @@ enum WarrantyStore {
                 linkedDocumentIDs: [],
                 linkedMaintenanceID: nil,
                 linkedFaultID: nil,
+                estimatedCost: event.estimatedCost,
+                actualCost: nil,
                 in: context
             )
             occupiedDays.insert(day)

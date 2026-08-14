@@ -164,4 +164,19 @@ enum UKRegistration {
         guard normalized.contains(where: \.isLetter) else { return false }
         return normalized.allSatisfy { $0.isLetter || $0.isNumber }
     }
+
+    /// Stricter than `isPlausible` — used when reading a plate from a photo.
+    static func isLikelyCompletePlate(_ raw: String) -> Bool {
+        let normalized = normalizeForLookup(raw)
+        guard (5...8).contains(normalized.count) else { return false }
+        guard normalized.contains(where: \.isLetter), normalized.contains(where: \.isNumber) else { return false }
+
+        if normalized.wholeMatch(of: /^[A-Z]{2}[0-9]{2}[A-Z]{3}$/) != nil { return true }
+        if normalized.wholeMatch(of: /^[A-Z][0-9]{1,3}[A-Z]{3}$/) != nil { return true }
+        if normalized.wholeMatch(of: /^[A-Z]{3}[0-9]{1,3}[A-Z]$/) != nil { return true }
+        if normalized.wholeMatch(of: /^[A-Z]{3}[0-9]{4}$/) != nil { return true }
+        if normalized.wholeMatch(of: /^[A-Z]{1,3}[0-9]{2,4}$/) != nil { return true }
+        if normalized.wholeMatch(of: /^[0-9]{1,4}[A-Z]{1,3}$/) != nil { return true }
+        return false
+    }
 }

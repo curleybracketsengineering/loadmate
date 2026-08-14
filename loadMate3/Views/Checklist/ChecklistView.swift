@@ -5,6 +5,8 @@ struct ChecklistView: View {
     @Environment(\.usePadLayout) private var usePadLayout
     @Environment(\.padTopTabBarActive) private var padTopTabBarActive
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.isPresented) private var isPresented
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \ChecklistSection.sortOrder) private var sections: [ChecklistSection]
     @Query private var appStates: [AppState]
 
@@ -35,32 +37,30 @@ struct ChecklistView: View {
     @State private var expandedSectionIDs: Set<UUID> = []
 
     var body: some View {
-        NavigationStack {
-            checklistMain
-        }
-        .modifier(ChecklistDialogsModifier(
-            sections: sections,
-            modelContext: modelContext,
-            viewModel: viewModel,
-            showAddSection: $showAddSection,
-            newSectionTitle: $newSectionTitle,
-            sectionPendingRename: $sectionPendingRename,
-            renameField: $renameField,
-            sectionPendingSubgroup: $sectionPendingSubgroup,
-            newSubgroupTitle: $newSubgroupTitle,
-            groupPendingRename: $groupPendingRename,
-            subgroupRenameField: $subgroupRenameField,
-            groupPendingItem: $groupPendingItem,
-            newItemTitle: $newItemTitle,
-            itemPendingRename: $itemPendingRename,
-            itemRenameField: $itemRenameField,
-            showResetAllConfirm: $showResetAllConfirm
-        ))
-        .task(id: sections.count) {
-            let appState = AppStateStore.resolve(in: modelContext, existing: appStates)
-            viewModel.migrateLegacyChecklistIfNeeded(in: modelContext)
-            viewModel.ensureSeedData(in: modelContext, existingSections: sections, appState: appState)
-        }
+        checklistMain
+            .modifier(ChecklistDialogsModifier(
+                sections: sections,
+                modelContext: modelContext,
+                viewModel: viewModel,
+                showAddSection: $showAddSection,
+                newSectionTitle: $newSectionTitle,
+                sectionPendingRename: $sectionPendingRename,
+                renameField: $renameField,
+                sectionPendingSubgroup: $sectionPendingSubgroup,
+                newSubgroupTitle: $newSubgroupTitle,
+                groupPendingRename: $groupPendingRename,
+                subgroupRenameField: $subgroupRenameField,
+                groupPendingItem: $groupPendingItem,
+                newItemTitle: $newItemTitle,
+                itemPendingRename: $itemPendingRename,
+                itemRenameField: $itemRenameField,
+                showResetAllConfirm: $showResetAllConfirm
+            ))
+            .task(id: sections.count) {
+                let appState = AppStateStore.resolve(in: modelContext, existing: appStates)
+                viewModel.migrateLegacyChecklistIfNeeded(in: modelContext)
+                viewModel.ensureSeedData(in: modelContext, existingSections: sections, appState: appState)
+            }
     }
 
     @ViewBuilder
@@ -138,6 +138,14 @@ struct ChecklistView: View {
                             .foregroundStyle(Color.accentColor)
                     }
                     .accessibilityLabel("Checklist actions")
+                }
+
+                // Sheet presentations have no Back button, so give them an explicit exit.
+                if isPresented {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { dismiss() }
+                            .font(.body.weight(.semibold))
+                    }
                 }
             }
         }

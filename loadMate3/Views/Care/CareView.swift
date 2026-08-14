@@ -8,6 +8,7 @@ enum CareDestination: Hashable {
     case documents
     case checklist
     case history
+    case incidents
 }
 
 struct CareView: View {
@@ -20,6 +21,7 @@ struct CareView: View {
     @Query private var faultRecords: [FaultRecord]
     @Query private var warrantyPlans: [WarrantyPlan]
     @Query(sort: \ChecklistSection.sortOrder) private var checklistSections: [ChecklistSection]
+    @Query private var accidentRecords: [AccidentRecord]
 
     @Binding var pendingDestination: CareDestination?
     @State private var destination: CareDestination?
@@ -126,6 +128,13 @@ struct CareView: View {
                         systemImage: "clock.arrow.circlepath",
                         tint: AppColors.teal
                     ) { destination = .history }
+
+                    careHubCard(
+                        title: "Incidents",
+                        subtitle: incidentsSubtitle,
+                        systemImage: "exclamationmark.triangle.fill",
+                        tint: AppColors.red
+                    ) { destination = .incidents }
                 }
                 .padding(.horizontal, AppScreenMetrics.horizontalPadding)
                 .padding(.top, AppScreenMetrics.verticalScreenPadding)
@@ -154,6 +163,8 @@ struct CareView: View {
                     ChecklistView()
                 case .history:
                     VehicleHistoryView()
+                case .incidents:
+                    AccidentIncidentsView()
                 }
             }
         }
@@ -190,6 +201,18 @@ struct CareView: View {
             return "Plans, checks and documents."
         }
         return WarrantySupport.careHubSubtitle(plans: warrantyPlans, vehicleID: profile.id)
+    }
+
+    private var incidentsSubtitle: String {
+        guard let profile = activeProfile else {
+            return "Record an accident and build an insurer pack."
+        }
+        let count = accidentRecords.filter { $0.vehicleID == profile.id }.count
+        if count == 0 {
+            return "Record an accident, photos and other vehicles."
+        }
+        let noun = count == 1 ? "incident" : "incidents"
+        return "\(count) \(noun). Open, continue or share a pack."
     }
 
     private var historySubtitle: String {

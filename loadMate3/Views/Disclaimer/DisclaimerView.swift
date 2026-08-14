@@ -47,6 +47,9 @@ struct DisclaimerView: View {
                         paragraph(
                             "All calculations are estimates only. Always confirm your actual weights on a weighbridge before travelling, and check nose weight with a gauge when towing."
                         )
+                        paragraph(
+                            "Accident guidance is general help for a stressful moment, not legal advice. It cannot be correct for every country, police force or circumstance. Follow local emergency services and your insurer. If you look up another UK registration at the scene, that plate is sent to a third-party provider for MOT, tax and vehicle details only."
+                        )
                     }
                 }
                 .padding(.horizontal, AppScreenMetrics.horizontalPadding)

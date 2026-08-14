@@ -20,6 +20,7 @@ struct HomeDashboardPadView: View {
     @State private var newTripName = ""
     @State private var tripPendingRename: Trip?
     @State private var tripRenameField = ""
+    @State private var showAccidentRecorder = false
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
@@ -120,6 +121,15 @@ struct HomeDashboardPadView: View {
                     }
                 }
 
+                if activeProfile != nil {
+                    AccidentEntryCard(
+                        title: "I’ve had an accident",
+                        subtitle: "A helper for what to do, photos, other vehicles and an insurer pack."
+                    ) {
+                        showAccidentRecorder = true
+                    }
+                }
+
                 VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                     Text("Quick Actions")
                         .font(.headline.weight(.semibold))
@@ -147,6 +157,11 @@ struct HomeDashboardPadView: View {
                 _ = TripStore.addTrip(name: trimmed, to: profile, in: modelContext)
                 newTripName = ""
                 showAddTrip = false
+            }
+        }
+        .fullScreenCover(isPresented: $showAccidentRecorder) {
+            if let profile = activeProfile {
+                AccidentRecorderView(vehicleID: profile.id, profile: profile)
             }
         }
     }

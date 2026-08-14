@@ -4,10 +4,20 @@ import SwiftData
 struct SafetyPadView: View {
     var onNavigateToMaintenance: (() -> Void)?
 
+    @State private var showIncidents = false
+
     var body: some View {
-        SafetyView(onNavigateToMaintenance: onNavigateToMaintenance)
-            .environment(\.usePadLayout, false)
-            .navigationTitle("Safety")
+        SafetyView(
+            onNavigateToMaintenance: onNavigateToMaintenance,
+            onNavigateToIncidents: { showIncidents = true }
+        )
+        .environment(\.usePadLayout, false)
+        .navigationTitle("Safety")
+        .sheet(isPresented: $showIncidents) {
+            NavigationStack {
+                AccidentIncidentsView()
+            }
+        }
     }
 }
 

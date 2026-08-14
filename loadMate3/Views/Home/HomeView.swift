@@ -10,6 +10,7 @@ struct HomeView: View {
     var onNavigateToMaintenance: (() -> Void)?
     var onNavigateToTyreSafety: (() -> Void)?
     var onNavigateToWarranty: (() -> Void)?
+    var onNavigateToIncidents: (() -> Void)?
 
     @Environment(\.usePadLayout) private var usePadLayout
     @Environment(\.modelContext) private var modelContext
@@ -22,6 +23,7 @@ struct HomeView: View {
     @State private var newTripName = ""
     @State private var tripPendingRename: Trip?
     @State private var tripRenameField = ""
+    @State private var showAccidentRecorder = false
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
@@ -91,6 +93,15 @@ struct HomeView: View {
                         setupCard
                     }
 
+                    if activeProfile != nil {
+                        AccidentEntryCard(
+                            title: "I’ve had an accident",
+                            subtitle: "A helper for what to do, photos, other vehicles and an insurer pack."
+                        ) {
+                            showAccidentRecorder = true
+                        }
+                    }
+
                     quickActionsSection
                     moreSection
                 }
@@ -141,6 +152,11 @@ struct HomeView: View {
                     tripPendingRename = nil
                 }
                 Button("Cancel", role: .cancel) { tripPendingRename = nil }
+            }
+            .fullScreenCover(isPresented: $showAccidentRecorder) {
+                if let profile = activeProfile {
+                    AccidentRecorderView(vehicleID: profile.id, profile: profile)
+                }
             }
         }
     }
@@ -219,6 +235,15 @@ struct HomeView: View {
                 tint: AppColors.green
             ) {
                 onNavigateToTyreSafety?()
+            }
+
+            moreHubGroup(
+                title: "Incidents",
+                subtitle: "Accident records and insurer packs",
+                systemImage: "exclamationmark.triangle.fill",
+                tint: AppColors.red
+            ) {
+                onNavigateToIncidents?()
             }
         }
     }

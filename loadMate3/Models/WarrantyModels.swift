@@ -219,6 +219,8 @@ final class WarrantyEvent {
     var linkedDocumentIDsRaw: String = ""
     var linkedMaintenanceID: UUID?
     var linkedFaultID: UUID?
+    var estimatedCost: Double?
+    var actualCost: Double?
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 
@@ -311,5 +313,14 @@ extension WarrantyEvent {
         let trimmed = requirementDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { return trimmed }
         return serviceType.defaultRequirementDescription
+    }
+
+    /// Actual amount when recorded, otherwise the estimate. Nil when neither is set.
+    var effectiveCost: Double? {
+        actualCost ?? estimatedCost
+    }
+
+    var usesEstimatedCost: Bool {
+        actualCost == nil && estimatedCost != nil
     }
 }

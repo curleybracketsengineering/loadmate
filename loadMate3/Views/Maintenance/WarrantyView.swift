@@ -20,7 +20,6 @@ struct WarrantyView: View {
     @State private var showAddEvent = false
     @State private var showInfo = false
     @State private var showAddFault = false
-    @State private var showExportShare = false
     @State private var exportPDFData: Data?
     @State private var selectedEvent: WarrantyEvent?
     @State private var selectedFault: FaultRecord?
@@ -148,10 +147,11 @@ struct WarrantyView: View {
                 )
             }
         }
-        .sheet(isPresented: $showExportShare) {
-            if let exportPDFData {
-                WarrantyEvidenceShareSheet(pdfData: exportPDFData)
-            }
+        .sheet(item: Binding(
+            get: { exportPDFData.map { WarrantyPDFShareItem(data: $0) } },
+            set: { exportPDFData = $0?.data }
+        )) { item in
+            WarrantyEvidenceShareSheet(pdfData: item.data)
         }
         .task(id: insuranceSyncToken) {
             if let profile = activeProfile {
@@ -252,9 +252,11 @@ struct WarrantyView: View {
                 VehicleLookupSummarySection(profile: profile)
                 WarrantyDisclaimerInfoButton { showInfo = true }
 
+                yearlyCostsSection(events: plan.eventsList)
+
                 AppSettingsSection(
                     "Service timeline",
-                    caption: "Tap a service to edit. Insurance rows use the switch when done."
+                    caption: "Tap a service to edit cost and details. Insurance rows use the switch when done."
                 ) {
                     VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                         WarrantyTimelineView(
@@ -274,6 +276,40 @@ struct WarrantyView: View {
             .padding(.top, AppScreenMetrics.verticalScreenPadding)
             .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
             .padReadableContent(maxWidth: usePadLayout ? 960 : PadContentLayout.readableMaxWidth)
+        }
+    }
+
+    @ViewBuilder
+    private func yearlyCostsSection(events: [WarrantyEvent]) -> some View {
+        let years = WarrantySupport.annualCosts(
+            events: events,
+            maintenanceRecords: scopedMaintenance,
+            faults: scopedFaults
+        )
+        if !years.isEmpty {
+            AppSettingsSection(
+                "Yearly costs",
+                caption: "Approximate calendar-year totals. Actual amounts are used when recorded, otherwise estimates."
+            ) {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                    ForEach(years) { year in
+                        HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.controlSpacing) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(String(year.year))
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.primary)
+                                Text(year.detail)
+                                    .font(.caption)
+                                    .foregroundStyle(AppColors.textSupporting)
+                            }
+                            Spacer(minLength: 8)
+                            Text(Formatters.currency(year.total))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.primary)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -365,7 +401,7 @@ struct WarrantyView: View {
     }
 
     private func exportEvidencePack() {
-        guard let plan = activePlan, let profile = activeProfile else { return }
+        guard let plan = activePlan, activeProfile != nil else { return }
         exportPDFData = WarrantyEvidencePackBuilder.buildPDF(
             input: .init(
                 plan: plan,
@@ -375,7 +411,6 @@ struct WarrantyView: View {
                 faults: scopedFaults
             )
         )
-        showExportShare = true
     }
 }
 
@@ -467,7 +502,9 @@ private struct WarrantyTimelineView: View {
             ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
                 let isLast = index == events.count - 1
                 if event.serviceType == .insuranceRenewal {
-                    WarrantyTimelineInsuranceRow(event: event, isLast: isLast)
+                    WarrantyTimelineInsuranceRow(event: event, isLast: isLast) {
+                        onSelectEvent(event)
+                    }
                 } else {
                     Button { onSelectEvent(event) } label: {
                         WarrantyTimelineEventRow(
@@ -488,6 +525,7 @@ private struct WarrantyTimelineInsuranceRow: View {
 
     let event: WarrantyEvent
     let isLast: Bool
+    let onSelect: () -> Void
 
     private var isDone: Binding<Bool> {
         Binding(
@@ -518,22 +556,43 @@ private struct WarrantyTimelineInsuranceRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Text("Insurance")
-                        .font(.subheadline.weight(.semibold))
-                    Spacer(minLength: 8)
-                    Text(Formatters.date(event.scheduledDate))
-                        .font(.caption)
-                        .foregroundStyle(AppColors.textSupporting)
+                    Button(action: onSelect) {
+                        HStack(spacing: 8) {
+                            Text("Insurance")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.primary)
+                            Spacer(minLength: 8)
+                            Text(Formatters.date(event.scheduledDate))
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSupporting)
+                        }
+                    }
+                    .buttonStyle(.plain)
                     Toggle("Done", isOn: isDone)
                         .labelsHidden()
                         .tint(AppColors.green)
                         .accessibilityLabel("Insurance done")
                 }
 
-                Text(event.requirementText)
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSupporting)
-                    .fixedSize(horizontal: false, vertical: true)
+                Button(action: onSelect) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(event.requirementText)
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.leading)
+
+                        Text(WarrantySupport.costCaption(for: event))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(
+                                WarrantySupport.hasRecordedCost(for: event)
+                                    ? Color.primary
+                                    : AppColors.purple
+                            )
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
             }
             .padding(.bottom, isLast ? 0 : AppScreenMetrics.sectionSpacing)
         }
@@ -625,6 +684,14 @@ private struct WarrantyTimelineEventRow: View {
                     .font(.caption)
                     .foregroundStyle(AppColors.textSupporting)
 
+                Text(WarrantySupport.costCaption(for: event))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(
+                        WarrantySupport.hasRecordedCost(for: event)
+                            ? Color.primary
+                            : AppColors.purple
+                    )
+
                 Text(event.requirementText)
                     .font(.caption)
                     .foregroundStyle(Color.primary)
@@ -667,6 +734,7 @@ private struct WarrantyTimelineEventRow: View {
         if isImportantMilestone {
             parts.insert("Important year", at: 0)
         }
+        parts.append(WarrantySupport.costCaption(for: event))
         return parts.joined(separator: ", ")
     }
 
@@ -988,6 +1056,8 @@ private struct WarrantyEventEditorSheet: View {
     @State private var hasCompletedDate: Bool
     @State private var completedDate: Date
     @State private var linkedDocumentIDs: Set<UUID>
+    @State private var estimatedCostText: String
+    @State private var actualCostText: String
     @State private var pendingAttachments: [MaintenanceAttachmentDraft] = []
     @State private var repeatYearly = false
 
@@ -1003,6 +1073,8 @@ private struct WarrantyEventEditorSheet: View {
         _hasCompletedDate = State(initialValue: event?.completedDate != nil)
         _completedDate = State(initialValue: event?.completedDate ?? Date())
         _linkedDocumentIDs = State(initialValue: Set(event?.linkedDocumentIDs ?? []))
+        _estimatedCostText = State(initialValue: event?.estimatedCost.map { Formatters.currencyInputString($0) } ?? "")
+        _actualCostText = State(initialValue: event?.actualCost.map { Formatters.currencyInputString($0) } ?? "")
     }
 
     private var derivedYearNumber: Int {
@@ -1075,6 +1147,16 @@ private struct WarrantyEventEditorSheet: View {
                         Toggle("Mark as completed", isOn: $hasCompletedDate)
                         if hasCompletedDate {
                             DatePicker("Completed date", selection: $completedDate, displayedComponents: .date)
+                        }
+                    }
+
+                    AppSettingsSection(
+                        "Cost",
+                        caption: "Add an estimate now if you don’t have the invoice yet. Yearly totals use the actual amount when recorded, otherwise the estimate."
+                    ) {
+                        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                            AppLabeledTextField("Estimated cost", placeholder: "e.g. 350", text: $estimatedCostText, keyboard: .decimalPad)
+                            AppLabeledTextField("Actual cost", placeholder: "When known", text: $actualCostText, keyboard: .decimalPad)
                         }
                     }
 
@@ -1151,6 +1233,8 @@ private struct WarrantyEventEditorSheet: View {
             linkedDocumentIDs: Array(linkedDocumentIDs),
             linkedMaintenanceID: target.linkedMaintenanceID,
             linkedFaultID: target.linkedFaultID,
+            estimatedCost: Formatters.parseCurrency(estimatedCostText),
+            actualCost: Formatters.parseCurrency(actualCostText),
             in: modelContext
         )
         if !pendingAttachments.isEmpty {
@@ -1390,28 +1474,29 @@ private struct MOTClassInfoSheet: View {
     }
 }
 
+private struct WarrantyPDFShareItem: Identifiable {
+    let id = UUID()
+    let data: Data
+}
+
 private struct WarrantyEvidenceShareSheet: View {
     @Environment(\.dismiss) private var dismiss
     let pdfData: Data
 
-    private var shareURL: URL? {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Warranty-Evidence-Pack-\(UUID().uuidString).pdf")
-        do {
-            try pdfData.write(to: url, options: .atomic)
-            return url
-        } catch {
-            return nil
-        }
-    }
+    @State private var shareURL: URL?
 
     var body: some View {
         NavigationStack {
             VStack(spacing: AppScreenMetrics.sectionSpacing) {
-                Text("Your warranty evidence pack is ready to share or save.")
+                Text("Your warranty evidence pack is ready to share or save. It includes the service timeline.")
                     .font(.subheadline)
                     .foregroundStyle(AppColors.textSupporting)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+
+                PDFDocumentView(data: pdfData)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
                     .padding(.horizontal)
 
                 if let shareURL {
@@ -1429,15 +1514,25 @@ private struct WarrantyEvidenceShareSheet: View {
                         .font(.caption)
                         .foregroundStyle(AppColors.textSupporting)
                 }
-
-                Spacer()
             }
             .padding(.top, AppScreenMetrics.verticalScreenPadding)
+            .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
             .navigationTitle("Export")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
+                }
+            }
+            .onAppear {
+                guard shareURL == nil else { return }
+                let url = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("Warranty-Evidence-Pack-\(UUID().uuidString).pdf")
+                do {
+                    try pdfData.write(to: url, options: .atomic)
+                    shareURL = url
+                } catch {
+                    shareURL = nil
                 }
             }
         }
