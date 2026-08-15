@@ -528,27 +528,121 @@ final class WarrantySupportTests: XCTestCase {
         XCTAssertTrue(plan.eventsList.filter { $0.serviceType == .insuranceRenewal }.isEmpty)
     }
 
-    func testAnnualCostsPreferActualOverEstimate() {
+    func testAnnualCostsUseSingleRecordedCost() {
         let event = WarrantyEvent(vehicleID: UUID())
         event.scheduledDate = Calendar.current.date(from: DateComponents(year: 2028, month: 8, day: 14))!
-        event.estimatedCost = 400
         event.actualCost = 325
 
         let years = WarrantySupport.annualCosts(events: [event], maintenanceRecords: [], faults: [])
         XCTAssertEqual(years.count, 1)
         XCTAssertEqual(years[0].year, 2028)
         XCTAssertEqual(years[0].total, 325)
-        XCTAssertEqual(years[0].actualItemCount, 1)
-        XCTAssertEqual(years[0].estimatedItemCount, 0)
-        XCTAssertEqual(event.effectiveCost, 325)
-        XCTAssertFalse(event.usesEstimatedCost)
+        XCTAssertEqual(years[0].itemCount, 1)
+        XCTAssertEqual(event.cost, 325)
+    }
+
+    func testCustomCostItemUsesItsNameInWarrantyYearTitle() {
+        let event = WarrantyEvent(vehicleID: UUID())
+        event.yearNumber = 2
+        event.serviceType = .custom
+        event.requirementDescription = "Storage"
+        event.actualCost = 100
+
+        XCTAssertEqual(event.displayTitle, "Year 2 · Storage")
+        XCTAssertEqual(event.costItemName, "Storage")
+        XCTAssertEqual(event.cost, 100)
+    }
+
+    func testCostItemNestsUnderItsServiceAndCountsTowardsYearlyCosts() throws {
+        let plan = WarrantyPlan(vehicleID: UUID())
+        plan.purchaseDate = Calendar.current.date(from: DateComponents(year: 2024, month: 2, day: 7))!
+        plan.durationYears = 3
+        context.insert(plan)
+        WarrantyStore.generateAnnualEvents(plan: plan, in: context)
+
+        let yearTwo = try XCTUnwrap(plan.eventsList.first { $0.yearNumber == 2 })
+        yearTwo.actualCost = 350
+        let item = addStorageItem(to: yearTwo, in: plan, amount: 100)
+
+        XCTAssertFalse(plan.timelineEvents.contains { $0.id == item.id })
+        XCTAssertEqual(plan.costItems(for: yearTwo).map(\.id), [item.id])
+        XCTAssertEqual(WarrantySupport.combinedCost(for: yearTwo, items: [item]), 450)
+
+        let itemYear = Calendar.current.component(.year, from: item.scheduledDate)
+        let years = WarrantySupport.annualCosts(
+            events: plan.eventsList,
+            maintenanceRecords: [],
+            faults: []
+        )
+        let costsForItemYear = try XCTUnwrap(years.first { $0.year == itemYear })
+        XCTAssertEqual(costsForItemYear.total, 450)
+    }
+
+    func testDeletingServiceAlsoDeletesItsCostItems() throws {
+        let plan = WarrantyPlan(vehicleID: UUID())
+        plan.purchaseDate = Calendar.current.date(from: DateComponents(year: 2024, month: 2, day: 7))!
+        plan.durationYears = 3
+        context.insert(plan)
+        WarrantyStore.generateAnnualEvents(plan: plan, in: context)
+
+        let yearTwo = try XCTUnwrap(plan.eventsList.first { $0.yearNumber == 2 })
+        let item = addStorageItem(to: yearTwo, in: plan, amount: 100)
+        let itemID = item.id
+
+        WarrantyStore.delete(event: yearTwo, in: context)
+
+        XCTAssertFalse(plan.eventsList.contains { $0.id == itemID })
+        XCTAssertTrue(plan.eventsList.allSatisfy { $0.yearNumber != 2 })
+    }
+
+    func testCostItemsAreNotOfferedAsReminders() throws {
+        let plan = WarrantyPlan(vehicleID: UUID())
+        plan.purchaseDate = Calendar.current.date(from: DateComponents(year: 2024, month: 2, day: 7))!
+        plan.durationYears = 3
+        context.insert(plan)
+        WarrantyStore.generateAnnualEvents(plan: plan, in: context)
+
+        let yearTwo = try XCTUnwrap(plan.eventsList.first { $0.yearNumber == 2 })
+        let item = addStorageItem(to: yearTwo, in: plan, amount: 100)
+
+        let reminders = WarrantySupport.reminderItems(plans: [plan], vehicleID: plan.vehicleID)
+        XCTAssertFalse(reminders.contains { $0.eventID == item.id })
+        XCTAssertTrue(reminders.contains { $0.eventID == yearTwo.id })
+    }
+
+    @discardableResult
+    private func addStorageItem(
+        to parent: WarrantyEvent,
+        in plan: WarrantyPlan,
+        amount: Double
+    ) -> WarrantyEvent {
+        let item = WarrantyStore.createEvent(for: plan, in: context)
+        WarrantyStore.save(
+            event: item,
+            yearNumber: parent.yearNumber,
+            scheduledDate: parent.scheduledDate,
+            daysBefore: 0,
+            daysAfter: 0,
+            serviceType: .custom,
+            requirementDescription: "Storage",
+            sortOrder: item.sortOrder,
+            isManual: true,
+            completedDate: nil,
+            linkedDocumentIDs: [],
+            linkedMaintenanceID: nil,
+            linkedFaultID: nil,
+            parentEventID: parent.id,
+            cost: amount,
+            in: context
+        )
+        return item
     }
 
     func testAnnualCostsGroupByCalendarYearUsingCompletionWhenPresent() {
         let vehicleID = UUID()
         let scheduled2028 = WarrantyEvent(vehicleID: vehicleID)
         scheduled2028.scheduledDate = Calendar.current.date(from: DateComponents(year: 2028, month: 8, day: 14))!
-        scheduled2028.estimatedCost = 200
+        scheduled2028.actualCost = 200
 
         let completedIn2029 = WarrantyEvent(vehicleID: vehicleID)
         completedIn2029.scheduledDate = Calendar.current.date(from: DateComponents(year: 2028, month: 8, day: 14))!
@@ -562,12 +656,12 @@ final class WarrantySupportTests: XCTestCase {
         )
         XCTAssertEqual(years.map(\.year), [2028, 2029])
         XCTAssertEqual(years[0].total, 200)
-        XCTAssertEqual(years[0].estimatedItemCount, 1)
+        XCTAssertEqual(years[0].itemCount, 1)
         XCTAssertEqual(years[1].total, 250)
-        XCTAssertEqual(years[1].actualItemCount, 1)
+        XCTAssertEqual(years[1].itemCount, 1)
     }
 
-    func testEnsureYearlyRepeatsCopyEstimateButNotActual() throws {
+    func testEnsureYearlyRepeatsDoNotCopyCost() throws {
         let vehicleID = UUID()
         let plan = WarrantyPlan(vehicleID: vehicleID)
         plan.purchaseDate = Calendar.current.date(from: DateComponents(year: 2024, month: 2, day: 7))!
@@ -590,17 +684,14 @@ final class WarrantySupportTests: XCTestCase {
             linkedDocumentIDs: [],
             linkedMaintenanceID: nil,
             linkedFaultID: nil,
-            estimatedCost: 180,
-            actualCost: 165,
+            cost: 165,
             in: context
         )
 
         let created = WarrantyStore.ensureYearlyRepeats(for: plan, matching: seed, in: context)
         XCTAssertFalse(created.isEmpty)
-        XCTAssertEqual(seed.estimatedCost, 180)
         XCTAssertEqual(seed.actualCost, 165)
         for copy in created {
-            XCTAssertEqual(copy.estimatedCost, 180)
             XCTAssertNil(copy.actualCost)
         }
     }
@@ -613,7 +704,7 @@ final class WarrantySupportTests: XCTestCase {
 
         let fault = FaultRecord(vehicleID: vehicleID)
         fault.discoveredDate = Calendar.current.date(from: DateComponents(year: 2027, month: 6, day: 10))!
-        fault.estimatedRepairCost = 40
+        fault.actualRepairCost = 40
 
         let years = WarrantySupport.annualCosts(
             events: [],
@@ -623,9 +714,8 @@ final class WarrantySupportTests: XCTestCase {
         XCTAssertEqual(years.count, 1)
         XCTAssertEqual(years[0].year, 2027)
         XCTAssertEqual(years[0].total, 130)
-        XCTAssertEqual(years[0].actualItemCount, 1)
-        XCTAssertEqual(years[0].estimatedItemCount, 1)
-        XCTAssertEqual(years[0].detail, "1 actual · 1 estimated")
+        XCTAssertEqual(years[0].itemCount, 2)
+        XCTAssertEqual(years[0].detail, "2 costs")
     }
 
     func testAnnualCostsDeduplicateLinkedRecordsPreferringActual() {
@@ -646,8 +736,7 @@ final class WarrantySupportTests: XCTestCase {
         )
         XCTAssertEqual(years.count, 1)
         XCTAssertEqual(years[0].total, 150)
-        XCTAssertEqual(years[0].actualItemCount, 1)
-        XCTAssertEqual(years[0].estimatedItemCount, 0)
+        XCTAssertEqual(years[0].itemCount, 1)
     }
 
     func testAnnualCostsDeduplicateFaultLinkedToMaintenance() {
@@ -658,7 +747,6 @@ final class WarrantySupportTests: XCTestCase {
 
         let fault = FaultRecord(vehicleID: vehicleID)
         fault.discoveredDate = Calendar.current.date(from: DateComponents(year: 2026, month: 5, day: 2))!
-        fault.estimatedRepairCost = 80
         fault.actualRepairCost = 220
         fault.linkedMaintenanceRecord = maintenance
 
@@ -669,8 +757,7 @@ final class WarrantySupportTests: XCTestCase {
         )
         XCTAssertEqual(years.count, 1)
         XCTAssertEqual(years[0].total, 220)
-        XCTAssertEqual(years[0].actualItemCount, 1)
-        XCTAssertEqual(years[0].estimatedItemCount, 0)
+        XCTAssertEqual(years[0].itemCount, 1)
     }
 
     func testAnnualCostsOmitYearsWithNoAmounts() {
@@ -681,17 +768,13 @@ final class WarrantySupportTests: XCTestCase {
         XCTAssertTrue(years.isEmpty)
     }
 
-    func testCostCaptionPromptsWhenMissingAndLabelsWhenPresent() {
+    func testCostCaptionPromptsWhenMissingAndShowsAmountWhenPresent() {
         let event = WarrantyEvent(vehicleID: UUID())
         XCTAssertEqual(WarrantySupport.costCaption(for: event), "Add cost")
         XCTAssertFalse(WarrantySupport.hasRecordedCost(for: event))
 
-        event.estimatedCost = 250
-        XCTAssertTrue(WarrantySupport.costCaption(for: event).contains("Estimate"))
+        event.actualCost = 250
+        XCTAssertEqual(WarrantySupport.costCaption(for: event), Formatters.currency(250))
         XCTAssertTrue(WarrantySupport.hasRecordedCost(for: event))
-
-        event.actualCost = 275
-        XCTAssertTrue(WarrantySupport.costCaption(for: event).contains("Actual"))
-        XCTAssertFalse(event.usesEstimatedCost)
     }
 }

@@ -946,8 +946,7 @@ struct FaultRecordEditorView: View {
     @State private var discoveredDate: Date
     @State private var hasResolvedDate: Bool
     @State private var resolvedDate: Date
-    @State private var estimatedRepairCost: String
-    @State private var actualRepairCost: String
+    @State private var repairCost: String
     @State private var linkedMaintenanceID: UUID?
     @State private var isWarrantyRelated: Bool
     @State private var pendingAttachments: [MaintenanceAttachmentDraft] = []
@@ -969,8 +968,7 @@ struct FaultRecordEditorView: View {
         _discoveredDate = State(initialValue: record?.discoveredDate ?? Date())
         _hasResolvedDate = State(initialValue: record?.resolvedDate != nil)
         _resolvedDate = State(initialValue: record?.resolvedDate ?? Date())
-        _estimatedRepairCost = State(initialValue: record?.estimatedRepairCost.map { Formatters.currencyInputString($0) } ?? "")
-        _actualRepairCost = State(initialValue: record?.actualRepairCost.map { Formatters.currencyInputString($0) } ?? "")
+        _repairCost = State(initialValue: record?.repairCost.map { Formatters.currencyInputString($0) } ?? "")
         _linkedMaintenanceID = State(initialValue: record?.linkedMaintenanceRecord?.id)
         let existingFlag = record?.isWarrantyRelated ?? false
         _isWarrantyRelated = State(
@@ -1015,8 +1013,7 @@ struct FaultRecordEditorView: View {
                                     DatePicker("Date resolved", selection: $resolvedDate, displayedComponents: .date)
                                 }
                             }
-                            AppLabeledTextField("Estimated repair cost", placeholder: "Optional", text: $estimatedRepairCost, keyboard: .decimalPad)
-                            AppLabeledTextField("Actual repair cost", placeholder: "Optional", text: $actualRepairCost, keyboard: .decimalPad)
+                            AppLabeledTextField("Repair cost", placeholder: "Optional", text: $repairCost, keyboard: .decimalPad)
                             Picker("Linked maintenance record", selection: $linkedMaintenanceID) {
                                 Text("None").tag(nil as UUID?)
                                 ForEach(maintenanceRecords) { maintenance in
@@ -1069,8 +1066,7 @@ struct FaultRecordEditorView: View {
             status: status,
             discoveredDate: discoveredDate,
             resolvedDate: hasResolvedDate ? resolvedDate : nil,
-            estimatedRepairCost: Formatters.parseCurrency(estimatedRepairCost),
-            actualRepairCost: Formatters.parseCurrency(actualRepairCost),
+            repairCost: Formatters.parseCurrency(repairCost),
             linkedMaintenanceRecord: linkedRecord,
             isWarrantyRelated: isWarrantyRelated,
             in: modelContext

@@ -18,8 +18,7 @@ enum FaultStore {
         status: FaultStatus,
         discoveredDate: Date,
         resolvedDate: Date?,
-        estimatedRepairCost: Double?,
-        actualRepairCost: Double?,
+        repairCost: Double?,
         linkedMaintenanceRecord: MaintenanceRecord?,
         isWarrantyRelated: Bool = false,
         in context: ModelContext
@@ -30,8 +29,8 @@ enum FaultStore {
         fault.status = status
         fault.discoveredDate = discoveredDate
         fault.resolvedDate = status.isResolved ? resolvedDate : nil
-        fault.estimatedRepairCost = estimatedRepairCost
-        fault.actualRepairCost = actualRepairCost
+        fault.actualRepairCost = repairCost
+        fault.estimatedRepairCost = nil
         fault.linkedMaintenanceRecord = linkedMaintenanceRecord
         fault.isWarrantyRelated = isWarrantyRelated
         fault.updatedAt = Date()

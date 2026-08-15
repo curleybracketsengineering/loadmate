@@ -80,8 +80,8 @@ enum WarrantyStore {
         linkedDocumentIDs: [UUID],
         linkedMaintenanceID: UUID?,
         linkedFaultID: UUID?,
-        estimatedCost: Double? = nil,
-        actualCost: Double? = nil,
+        parentEventID: UUID? = nil,
+        cost: Double? = nil,
         in context: ModelContext
     ) {
         event.yearNumber = yearNumber
@@ -96,8 +96,9 @@ enum WarrantyStore {
         event.linkedDocumentIDs = linkedDocumentIDs
         event.linkedMaintenanceID = linkedMaintenanceID
         event.linkedFaultID = linkedFaultID
-        event.estimatedCost = estimatedCost
-        event.actualCost = actualCost
+        event.parentEventID = parentEventID
+        event.actualCost = cost
+        event.estimatedCost = nil
         event.updatedAt = Date()
         try? context.save()
     }
@@ -151,8 +152,7 @@ enum WarrantyStore {
                 linkedDocumentIDs: [],
                 linkedMaintenanceID: nil,
                 linkedFaultID: nil,
-                estimatedCost: event.estimatedCost,
-                actualCost: nil,
+                cost: nil,
                 in: context
             )
             occupiedDays.insert(day)
@@ -163,16 +163,25 @@ enum WarrantyStore {
     }
 
     static func delete(event: WarrantyEvent, in context: ModelContext) {
+        if let plan = event.plan {
+            for item in plan.costItems(for: event) {
+                remove(event: item, in: context)
+            }
+        }
+        remove(event: event, in: context)
+        try? context.save()
+    }
+
+    private static func remove(event: WarrantyEvent, in context: ModelContext) {
         for attachment in event.attachmentsList {
             MaintenanceAttachmentStore.delete(attachment, in: context)
         }
         context.delete(event)
-        try? context.save()
     }
 
     static func delete(plan: WarrantyPlan, in context: ModelContext) {
         for event in plan.eventsList {
-            delete(event: event, in: context)
+            remove(event: event, in: context)
         }
         context.delete(plan)
         try? context.save()

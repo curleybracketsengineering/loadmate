@@ -22,6 +22,7 @@ struct WarrantyView: View {
     @State private var showAddFault = false
     @State private var exportPDFData: Data?
     @State private var selectedEvent: WarrantyEvent?
+    @State private var costItemParent: WarrantyEvent?
     @State private var selectedFault: FaultRecord?
     @State private var showRegenerateConfirm = false
 
@@ -122,6 +123,16 @@ struct WarrantyView: View {
         .sheet(item: $selectedEvent) { event in
             if let plan = activePlan {
                 WarrantyEventEditorSheet(plan: plan, event: event, documents: scopedDocuments)
+            }
+        }
+        .sheet(item: $costItemParent) { parentEvent in
+            if let plan = activePlan {
+                WarrantyEventEditorSheet(
+                    plan: plan,
+                    event: nil,
+                    documents: scopedDocuments,
+                    costItemFor: parentEvent
+                )
             }
         }
         .sheet(isPresented: $showInfo) {
@@ -261,8 +272,9 @@ struct WarrantyView: View {
                     VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                         WarrantyTimelineView(
                             plan: plan,
-                            events: plan.eventsList,
-                            onSelectEvent: { selectedEvent = $0 }
+                            events: plan.timelineEvents,
+                            onSelectEvent: { selectedEvent = $0 },
+                            onAddCostItem: { costItemParent = $0 }
                         )
                         AppSecondaryButton("Add service event") {
                             showAddEvent = true
@@ -289,7 +301,7 @@ struct WarrantyView: View {
         if !years.isEmpty {
             AppSettingsSection(
                 "Yearly costs",
-                caption: "Approximate calendar-year totals. Actual amounts are used when recorded, otherwise estimates."
+                caption: "Calendar-year totals from recorded costs."
             ) {
                 VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                     ForEach(years) { year in
@@ -490,6 +502,7 @@ private struct WarrantyTimelineView: View {
     let plan: WarrantyPlan
     let events: [WarrantyEvent]
     let onSelectEvent: (WarrantyEvent) -> Void
+    let onAddCostItem: (WarrantyEvent) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -506,14 +519,15 @@ private struct WarrantyTimelineView: View {
                         onSelectEvent(event)
                     }
                 } else {
-                    Button { onSelectEvent(event) } label: {
-                        WarrantyTimelineEventRow(
-                            event: event,
-                            events: events,
-                            isLast: isLast
-                        )
-                    }
-                    .buttonStyle(.plain)
+                    WarrantyTimelineEventRow(
+                        event: event,
+                        events: events,
+                        costItems: plan.costItems(for: event),
+                        isLast: isLast,
+                        onSelect: { onSelectEvent(event) },
+                        onSelectCostItem: onSelectEvent,
+                        onAddCostItem: { onAddCostItem(event) }
+                    )
                 }
             }
         }
@@ -635,7 +649,11 @@ private struct WarrantyTimelineAnchorRow: View {
 private struct WarrantyTimelineEventRow: View {
     let event: WarrantyEvent
     let events: [WarrantyEvent]
+    let costItems: [WarrantyEvent]
     let isLast: Bool
+    let onSelect: () -> Void
+    let onSelectCostItem: (WarrantyEvent) -> Void
+    let onAddCostItem: () -> Void
 
     private var status: WarrantyEventStatus {
         WarrantySupport.status(for: event, among: events)
@@ -658,58 +676,71 @@ private struct WarrantyTimelineEventRow: View {
             }
             .frame(width: 16)
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(event.displayTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(isImportantMilestone ? AppColors.purple : Color.primary)
-                    Spacer(minLength: 8)
-                    Text(WarrantySupport.statusDisplayName(for: status))
-                        .font(.caption2.weight(.semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(statusColor.opacity(0.15))
-                        .foregroundStyle(statusColor)
-                        .clipShape(Capsule())
+            VStack(alignment: .leading, spacing: 8) {
+                Button(action: onSelect) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(event.displayTitle)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(isImportantMilestone ? AppColors.purple : Color.primary)
+                            Spacer(minLength: 8)
+                            Text(WarrantySupport.statusDisplayName(for: status))
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(statusColor.opacity(0.15))
+                                .foregroundStyle(statusColor)
+                                .clipShape(Capsule())
+                        }
+
+                        if isImportantMilestone {
+                            Text("Important year — complete on or before the purchase anniversary")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(AppColors.purple)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Text(Formatters.date(event.scheduledDate))
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+
+                        Text(WarrantySupport.costCaption(for: event))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(
+                                WarrantySupport.hasRecordedCost(for: event)
+                                    ? Color.primary
+                                    : AppColors.purple
+                            )
+
+                        Text(event.requirementText)
+                            .font(.caption)
+                            .foregroundStyle(Color.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(WarrantySupport.windowSubtitle(for: event))
+                            .font(.caption2)
+                            .foregroundStyle(isImportantMilestone ? AppColors.purple.opacity(0.9) : AppColors.textSupporting)
+
+                        if !event.attachmentsList.isEmpty || !event.linkedDocumentIDs.isEmpty {
+                            Text("\(event.attachmentsList.count + event.linkedDocumentIDs.count) evidence item(s)")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(AppColors.purple)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(accessibilityLabel)
                 }
+                .buttonStyle(.plain)
 
-                if isImportantMilestone {
-                    Text("Important year — complete on or before the purchase anniversary")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(AppColors.purple)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Text(Formatters.date(event.scheduledDate))
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSupporting)
-
-                Text(WarrantySupport.costCaption(for: event))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(
-                        WarrantySupport.hasRecordedCost(for: event)
-                            ? Color.primary
-                            : AppColors.purple
-                    )
-
-                Text(event.requirementText)
-                    .font(.caption)
-                    .foregroundStyle(Color.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(WarrantySupport.windowSubtitle(for: event))
-                    .font(.caption2)
-                    .foregroundStyle(isImportantMilestone ? AppColors.purple.opacity(0.9) : AppColors.textSupporting)
-
-                if !event.attachmentsList.isEmpty || !event.linkedDocumentIDs.isEmpty {
-                    Text("\(event.attachmentsList.count + event.linkedDocumentIDs.count) evidence item(s)")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(AppColors.purple)
-                }
+                WarrantyCostItemsBlock(
+                    event: event,
+                    items: costItems,
+                    onSelectItem: onSelectCostItem,
+                    onAddItem: onAddCostItem
+                )
             }
             .padding(.bottom, isLast ? 0 : AppScreenMetrics.sectionSpacing)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(accessibilityLabel)
         }
     }
 
@@ -746,6 +777,69 @@ private struct WarrantyTimelineEventRow: View {
         case .upcoming: return Color.secondary
         case .planned: return Color.secondary.opacity(0.85)
         }
+    }
+}
+
+private struct WarrantyCostItemsBlock: View {
+    let event: WarrantyEvent
+    let items: [WarrantyEvent]
+    let onSelectItem: (WarrantyEvent) -> Void
+    let onAddItem: () -> Void
+
+    private var scopeLabel: String {
+        event.yearNumber > 0 ? "year \(event.yearNumber)" : "this service"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !items.isEmpty {
+                Text("Other costs in \(scopeLabel)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppColors.textSupporting)
+
+                ForEach(items) { item in
+                    Button { onSelectItem(item) } label: {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(item.costItemName)
+                                .font(.caption)
+                                .foregroundStyle(Color.primary)
+                            Spacer(minLength: 8)
+                            Text(WarrantySupport.costCaption(for: item))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(
+                                    WarrantySupport.hasRecordedCost(for: item)
+                                        ? Color.primary
+                                        : AppColors.purple
+                                )
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(item.costItemName), \(WarrantySupport.costCaption(for: item))")
+                }
+
+                if let total = WarrantySupport.combinedCost(for: event, items: items) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("Year total")
+                            .font(.caption.weight(.semibold))
+                        Spacer(minLength: 8)
+                        Text(Formatters.currency(total))
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(Color.primary)
+                }
+            }
+
+            Button(action: onAddItem) {
+                Label(items.isEmpty ? "Add cost to \(scopeLabel)" : "Add another cost", systemImage: "plus.circle")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppColors.purple)
+        }
+        .padding(AppScreenMetrics.controlSpacing)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(LyneqoTheme.softTeal.opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
     }
 }
 
@@ -1047,6 +1141,7 @@ private struct WarrantyEventEditorSheet: View {
     let plan: WarrantyPlan
     let event: WarrantyEvent?
     let documents: [DocumentRecord]
+    let costItemFor: WarrantyEvent?
 
     @State private var scheduledDate: Date
     @State private var daysBefore: Int
@@ -1056,25 +1151,44 @@ private struct WarrantyEventEditorSheet: View {
     @State private var hasCompletedDate: Bool
     @State private var completedDate: Date
     @State private var linkedDocumentIDs: Set<UUID>
-    @State private var estimatedCostText: String
-    @State private var actualCostText: String
+    @State private var costText: String
     @State private var pendingAttachments: [MaintenanceAttachmentDraft] = []
     @State private var repeatYearly = false
 
-    init(plan: WarrantyPlan, event: WarrantyEvent?, documents: [DocumentRecord]) {
+    init(
+        plan: WarrantyPlan,
+        event: WarrantyEvent?,
+        documents: [DocumentRecord],
+        costItemFor: WarrantyEvent? = nil
+    ) {
         self.plan = plan
         self.event = event
         self.documents = documents
-        _scheduledDate = State(initialValue: event?.scheduledDate ?? Date())
-        _daysBefore = State(initialValue: event?.daysBefore ?? WarrantySupport.defaultDaysBefore)
-        _daysAfter = State(initialValue: event?.daysAfter ?? WarrantySupport.defaultDaysAfter)
-        _serviceType = State(initialValue: event?.serviceType ?? .normalService)
+        self.costItemFor = costItemFor
+        _scheduledDate = State(initialValue: event?.scheduledDate ?? costItemFor?.scheduledDate ?? Date())
+        _daysBefore = State(initialValue: event?.daysBefore ?? (costItemFor == nil ? WarrantySupport.defaultDaysBefore : 0))
+        _daysAfter = State(initialValue: event?.daysAfter ?? (costItemFor == nil ? WarrantySupport.defaultDaysAfter : 0))
+        _serviceType = State(initialValue: event?.serviceType ?? (costItemFor == nil ? .normalService : .custom))
         _requirementDescription = State(initialValue: event?.requirementDescription ?? "")
         _hasCompletedDate = State(initialValue: event?.completedDate != nil)
         _completedDate = State(initialValue: event?.completedDate ?? Date())
         _linkedDocumentIDs = State(initialValue: Set(event?.linkedDocumentIDs ?? []))
-        _estimatedCostText = State(initialValue: event?.estimatedCost.map { Formatters.currencyInputString($0) } ?? "")
-        _actualCostText = State(initialValue: event?.actualCost.map { Formatters.currencyInputString($0) } ?? "")
+        _costText = State(initialValue: event?.cost.map { Formatters.currencyInputString($0) } ?? "")
+    }
+
+    private var isCostItem: Bool {
+        event?.isCostItem == true || costItemFor != nil
+    }
+
+    private var parentEventID: UUID? {
+        event?.parentEventID ?? costItemFor?.id
+    }
+
+    private var canSave: Bool {
+        guard isCostItem else { return true }
+        let hasName = !requirementDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasCost = Formatters.parseCurrency(costText) != nil
+        return hasName && hasCost
     }
 
     private var derivedYearNumber: Int {
@@ -1088,6 +1202,19 @@ private struct WarrantyEventEditorSheet: View {
         return "Custom event (due date is not a clear service year from purchase)"
     }
 
+    private var heroTitle: String {
+        if isCostItem {
+            return event == nil ? "Add item" : "Edit item"
+        }
+        return event == nil ? "New service event" : "Edit service event"
+    }
+
+    /// The service year an item belongs to, e.g. "year 2".
+    private var costItemScopeLabel: String {
+        let year = costItemFor?.yearNumber ?? event?.yearNumber ?? derivedYearNumber
+        return year > 0 ? "year \(year)" : "this service"
+    }
+
     private var repeatCaption: String {
         let end = WarrantySupport.yearlyRepeatEndDate(for: plan, startingFrom: scheduledDate)
         let count = WarrantySupport.yearlyOccurrenceDates(from: scheduledDate, through: end).count
@@ -1099,68 +1226,81 @@ private struct WarrantyEventEditorSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
                     AppHeroSection(
-                        systemImage: "calendar.badge.clock",
-                        title: event == nil ? "New service event" : "Edit service event",
-                        subtitle: "Set the due date, action window, and what work is required."
+                        systemImage: isCostItem ? "sterlingsign.circle" : "calendar.badge.clock",
+                        title: heroTitle,
+                        subtitle: isCostItem
+                            ? "Something that falls in \(costItemScopeLabel), such as storage. Counts towards yearly totals — separate from warranty claims."
+                            : "Set the due date, action window, and what work is required."
                     )
 
-                    AppSettingsSection("Schedule") {
+                    AppSettingsSection(isCostItem ? "Date" : "Schedule") {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                            DatePicker("Due date", selection: $scheduledDate, displayedComponents: .date)
+                            DatePicker(isCostItem ? "Date" : "Due date", selection: $scheduledDate, displayedComponents: .date)
                             Text(yearLabelText)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(AppColors.textSupporting)
-                            Stepper("Days before: \(daysBefore)", value: $daysBefore, in: 0...365)
-                            Stepper("Days after: \(daysAfter)", value: $daysAfter, in: 0...365)
-                            Toggle("Repeat yearly", isOn: $repeatYearly)
-                            if repeatYearly {
-                                Text(repeatCaption)
-                                    .font(.caption)
-                                    .foregroundStyle(AppColors.textSupporting)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }
-
-                    AppSettingsSection("Requirement") {
-                        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                            Picker("Service type", selection: $serviceType) {
-                                ForEach(WarrantyServiceType.allCases) { option in
-                                    Text(option.displayName).tag(option)
+                            if !isCostItem {
+                                Stepper("Days before: \(daysBefore)", value: $daysBefore, in: 0...365)
+                                Stepper("Days after: \(daysAfter)", value: $daysAfter, in: 0...365)
+                                Toggle("Repeat yearly", isOn: $repeatYearly)
+                                if repeatYearly {
+                                    Text(repeatCaption)
+                                        .font(.caption)
+                                        .foregroundStyle(AppColors.textSupporting)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
-                            .onChange(of: serviceType) { _, newValue in
-                                if requirementDescription.isEmpty || WarrantyServiceType.allCases.map(\.defaultRequirementDescription).contains(requirementDescription) {
-                                    requirementDescription = newValue.defaultRequirementDescription
-                                }
-                            }
-
-                            TextEditor(text: $requirementDescription)
-                                .frame(minHeight: 100)
-                                .padding(8)
-                                .background(LyneqoTheme.card)
-                                .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
                         }
                     }
 
-                    AppSettingsSection("Completion") {
-                        Toggle("Mark as completed", isOn: $hasCompletedDate)
-                        if hasCompletedDate {
-                            DatePicker("Completed date", selection: $completedDate, displayedComponents: .date)
-                        }
-                    }
-
-                    AppSettingsSection(
-                        "Cost",
-                        caption: "Add an estimate now if you don’t have the invoice yet. Yearly totals use the actual amount when recorded, otherwise the estimate."
-                    ) {
+                    AppSettingsSection(isCostItem ? "Item" : "Requirement") {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                            AppLabeledTextField("Estimated cost", placeholder: "e.g. 350", text: $estimatedCostText, keyboard: .decimalPad)
-                            AppLabeledTextField("Actual cost", placeholder: "When known", text: $actualCostText, keyboard: .decimalPad)
+                            if isCostItem {
+                                AppLabeledTextField(
+                                    "Item name",
+                                    placeholder: "e.g. Storage",
+                                    text: $requirementDescription
+                                )
+                            } else {
+                                Picker("Service type", selection: $serviceType) {
+                                    ForEach(WarrantyServiceType.allCases) { option in
+                                        Text(option.displayName).tag(option)
+                                    }
+                                }
+                                .onChange(of: serviceType) { _, newValue in
+                                    if requirementDescription.isEmpty || WarrantyServiceType.allCases.map(\.defaultRequirementDescription).contains(requirementDescription) {
+                                        requirementDescription = newValue.defaultRequirementDescription
+                                    }
+                                }
+
+                                TextEditor(text: $requirementDescription)
+                                    .frame(minHeight: 100)
+                                    .padding(8)
+                                    .background(LyneqoTheme.card)
+                                    .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
+                            }
                         }
                     }
 
-                    if !documents.isEmpty {
+                    if !isCostItem {
+                        AppSettingsSection("Completion") {
+                            Toggle("Mark as completed", isOn: $hasCompletedDate)
+                            if hasCompletedDate {
+                                DatePicker("Completed date", selection: $completedDate, displayedComponents: .date)
+                            }
+                        }
+                    }
+
+                    AppSettingsSection("Cost") {
+                        AppLabeledTextField(
+                            "Cost",
+                            placeholder: isCostItem ? "e.g. 100" : "e.g. 350",
+                            text: $costText,
+                            keyboard: .decimalPad
+                        )
+                    }
+
+                    if !documents.isEmpty, !isCostItem {
                         AppSettingsSection("Linked documents", caption: "Attach existing warranty paperwork to this event.") {
                             VStack(alignment: .leading, spacing: 8) {
                                 ForEach(documents) { doc in
@@ -1186,12 +1326,16 @@ private struct WarrantyEventEditorSheet: View {
                         )
                     }
 
-                    AppPrimaryButton(event == nil ? "Save event" : "Save changes", systemImage: "checkmark.circle.fill") {
+                    AppPrimaryButton(
+                        event == nil ? (isCostItem ? "Add item" : "Save event") : "Save changes",
+                        systemImage: "checkmark.circle.fill"
+                    ) {
                         save()
                     }
+                    .disabled(!canSave)
 
                     if event != nil {
-                        Button("Delete event", role: .destructive) {
+                        Button(isCostItem ? "Delete item" : "Delete event", role: .destructive) {
                             if let event { WarrantyStore.delete(event: event, in: modelContext) }
                             dismiss()
                         }
@@ -1203,7 +1347,7 @@ private struct WarrantyEventEditorSheet: View {
                 .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
             }
             .appScreenBackground()
-            .navigationTitle(event == nil ? "Add Event" : "Edit Event")
+            .navigationTitle(isCostItem ? (event == nil ? "Add Item" : "Edit Item") : (event == nil ? "Add Event" : "Edit Event"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1233,8 +1377,8 @@ private struct WarrantyEventEditorSheet: View {
             linkedDocumentIDs: Array(linkedDocumentIDs),
             linkedMaintenanceID: target.linkedMaintenanceID,
             linkedFaultID: target.linkedFaultID,
-            estimatedCost: Formatters.parseCurrency(estimatedCostText),
-            actualCost: Formatters.parseCurrency(actualCostText),
+            parentEventID: parentEventID,
+            cost: Formatters.parseCurrency(costText),
             in: modelContext
         )
         if !pendingAttachments.isEmpty {

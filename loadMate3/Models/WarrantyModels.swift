@@ -219,6 +219,9 @@ final class WarrantyEvent {
     var linkedDocumentIDsRaw: String = ""
     var linkedMaintenanceID: UUID?
     var linkedFaultID: UUID?
+    /// Set when this row is an ownership cost within another service year (e.g. storage in year 2).
+    var parentEventID: UUID?
+    /// Legacy storage retained so existing estimates can be shown as a single cost.
     var estimatedCost: Double?
     var actualCost: Double?
     var createdAt: Date = Date()
@@ -254,6 +257,16 @@ final class WarrantyEvent {
 }
 
 extension WarrantyPlan {
+    /// Service rows shown on the timeline. Year costs nest inside their parent service instead.
+    var timelineEvents: [WarrantyEvent] {
+        eventsList.filter { !$0.isCostItem }
+    }
+
+    /// Ownership costs attached to a service year (storage, extras, etc.) — not warranty claims.
+    func costItems(for event: WarrantyEvent) -> [WarrantyEvent] {
+        eventsList.filter { $0.parentEventID == event.id }
+    }
+
     var eventsList: [WarrantyEvent] {
         (events ?? []).sorted { lhs, rhs in
             let lhsDay = Calendar.current.startOfDay(for: lhs.scheduledDate)
@@ -279,6 +292,16 @@ extension WarrantyEvent {
         serviceType == .serviceWithBodyCheck
     }
 
+    var isCostItem: Bool {
+        parentEventID != nil
+    }
+
+    /// Short label for a year-cost row, e.g. "Storage".
+    var costItemName: String {
+        let trimmed = requirementDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? serviceType.displayName : trimmed
+    }
+
     var displayTitle: String {
         if serviceType == .mot {
             if yearNumber > 0 {
@@ -291,6 +314,12 @@ extension WarrantyEvent {
         }
         if serviceType == .insuranceRenewal {
             return "Insurance"
+        }
+        if serviceType == .custom {
+            let title = requirementDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !title.isEmpty {
+                return yearNumber > 0 ? "Year \(yearNumber) · \(title)" : title
+            }
         }
         if yearNumber > 0 {
             return isImportantMilestone ? "Year \(yearNumber) · Milestone" : "Year \(yearNumber)"
@@ -315,12 +344,8 @@ extension WarrantyEvent {
         return serviceType.defaultRequirementDescription
     }
 
-    /// Actual amount when recorded, otherwise the estimate. Nil when neither is set.
-    var effectiveCost: Double? {
+    /// The item's single recorded cost. Falls back to legacy estimate data.
+    var cost: Double? {
         actualCost ?? estimatedCost
-    }
-
-    var usesEstimatedCost: Bool {
-        actualCost == nil && estimatedCost != nil
     }
 }

@@ -191,7 +191,7 @@ enum WarrantySupport {
             return []
         }
 
-        return plan.eventsList.compactMap { event in
+        return plan.timelineEvents.compactMap { event in
             guard event.completedDate == nil else { return nil }
             let due = reminderDate(for: event)
             return WarrantyReminderItem(
@@ -319,7 +319,7 @@ enum WarrantySupport {
     ) -> WarrantyEvent? {
         guard let plan = plan(for: vehicleID, from: plans) else { return nil }
 
-        let openEvents = plan.eventsList.filter { $0.completedDate == nil }
+        let openEvents = plan.timelineEvents.filter { $0.completedDate == nil }
         let inWindow = openEvents.filter { status(for: $0, now: now) == .inWindow }
         if let next = inWindow.sorted(by: { $0.scheduledDate < $1.scheduledDate }).first {
             return next
@@ -432,20 +432,12 @@ enum WarrantySupport {
     struct AnnualCostYear: Identifiable, Equatable {
         let year: Int
         let total: Double
-        let actualItemCount: Int
-        let estimatedItemCount: Int
+        let itemCount: Int
 
         var id: Int { year }
 
         var detail: String {
-            switch (actualItemCount, estimatedItemCount) {
-            case (let actual, 0) where actual > 0:
-                return actual == 1 ? "1 actual cost" : "\(actual) actual costs"
-            case (0, let estimated) where estimated > 0:
-                return estimated == 1 ? "1 estimate" : "\(estimated) estimates"
-            default:
-                return "\(actualItemCount) actual · \(estimatedItemCount) estimated"
-            }
+            itemCount == 1 ? "1 cost" : "\(itemCount) costs"
         }
     }
 
@@ -457,7 +449,7 @@ enum WarrantySupport {
     ) -> [AnnualCostYear] {
         var consumedMaintenanceIDs = Set<UUID>()
         var consumedFaultIDs = Set<UUID>()
-        var contributions: [(year: Int, amount: Double, isActual: Bool)] = []
+        var contributions: [(year: Int, amount: Double)] = []
 
         let maintenanceByID = Dictionary(uniqueKeysWithValues: maintenanceRecords.map { ($0.id, $0) })
         let faultsByID = Dictionary(uniqueKeysWithValues: faults.map { ($0.id, $0) })
@@ -475,14 +467,17 @@ enum WarrantySupport {
                 }
             }
 
-            let actual = event.actualCost ?? linkedMaintenance?.cost ?? linkedFault?.actualRepairCost
-            let estimate = event.estimatedCost ?? linkedFault?.estimatedRepairCost
-            guard let amount = actual ?? estimate else { continue }
+            guard let amount = event.actualCost
+                ?? linkedMaintenance?.cost
+                ?? linkedFault?.repairCost
+                ?? event.estimatedCost
+            else {
+                continue
+            }
             let date = event.completedDate ?? event.scheduledDate
             contributions.append((
                 year: calendar.component(.year, from: date),
-                amount: amount,
-                isActual: actual != nil
+                amount: amount
             ))
         }
 
@@ -491,14 +486,16 @@ enum WarrantySupport {
             if let linkedMaintenance {
                 consumedMaintenanceIDs.insert(linkedMaintenance.id)
             }
-            let actual = fault.actualRepairCost ?? linkedMaintenance?.cost
-            let estimate = fault.estimatedRepairCost
-            guard let amount = actual ?? estimate else { continue }
+            guard let amount = fault.actualRepairCost
+                ?? linkedMaintenance?.cost
+                ?? fault.estimatedRepairCost
+            else {
+                continue
+            }
             let date = fault.resolvedDate ?? fault.discoveredDate
             contributions.append((
                 year: calendar.component(.year, from: date),
-                amount: amount,
-                isActual: actual != nil
+                amount: amount
             ))
         }
 
@@ -506,8 +503,7 @@ enum WarrantySupport {
             guard let amount = record.cost else { continue }
             contributions.append((
                 year: calendar.component(.year, from: record.serviceDate),
-                amount: amount,
-                isActual: true
+                amount: amount
             ))
         }
 
@@ -519,21 +515,26 @@ enum WarrantySupport {
             return AnnualCostYear(
                 year: year,
                 total: total,
-                actualItemCount: items.filter(\.isActual).count,
-                estimatedItemCount: items.filter { !$0.isActual }.count
+                itemCount: items.count
             )
         }
     }
 
     /// Always returns a cost line for timeline rows: amount when set, otherwise a prompt to add one.
     static func costCaption(for event: WarrantyEvent) -> String {
-        guard let amount = event.effectiveCost else { return "Add cost" }
-        let label = event.usesEstimatedCost ? "Estimate" : "Actual"
-        return "\(Formatters.currency(amount)) · \(label)"
+        guard let amount = event.cost else { return "Add cost" }
+        return Formatters.currency(amount)
     }
 
     static func hasRecordedCost(for event: WarrantyEvent) -> Bool {
-        event.effectiveCost != nil
+        event.cost != nil
+    }
+
+    /// Service cost plus any other costs in that year. Nil when nothing has an amount yet.
+    static func combinedCost(for event: WarrantyEvent, items: [WarrantyEvent]) -> Double? {
+        let amounts = ([event] + items).compactMap(\.cost)
+        guard !amounts.isEmpty else { return nil }
+        return amounts.reduce(0, +)
     }
 }
 

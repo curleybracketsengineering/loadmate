@@ -234,6 +234,7 @@ final class FaultRecord {
     var statusRaw: String = FaultStatus.open.rawValue
     var discoveredDate: Date = Date()
     var resolvedDate: Date?
+    /// Legacy storage retained so existing estimates can be shown as a single cost.
     var estimatedRepairCost: Double?
     var actualRepairCost: Double?
     var createdAt: Date = Date()
@@ -326,5 +327,10 @@ extension DocumentRecord {
 extension FaultRecord {
     var attachmentsList: [MaintenanceAttachment] {
         (attachments ?? []).sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// The fault's single recorded repair cost. Falls back to legacy estimate data.
+    var repairCost: Double? {
+        actualRepairCost ?? estimatedRepairCost
     }
 }
