@@ -42,10 +42,6 @@ struct ChecklistPadLayout: View {
         return sections.first { $0.id == selectedSectionID } ?? sections.first
     }
 
-    private var overallCounts: (completed: Int, total: Int) {
-        ChecklistProgress.overall(in: sections)
-    }
-
     var body: some View {
         HStack(spacing: 0) {
             Spacer(minLength: PadContentLayout.horizontalGutter)
@@ -84,7 +80,7 @@ struct ChecklistPadLayout: View {
                     .font(.largeTitle.weight(.bold))
                     .foregroundStyle(Color.primary)
 
-                overallProgressCard
+                tripRow
 
                 VStack(spacing: AppScreenMetrics.controlSpacing) {
                     ForEach(sections) { section in
@@ -106,35 +102,6 @@ struct ChecklistPadLayout: View {
             .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
         }
         .scrollIndicators(.hidden)
-    }
-
-    private var overallProgressCard: some View {
-        let counts = overallCounts
-        let fraction = ChecklistProgress.fraction(completed: counts.completed, total: counts.total)
-        let percent = ChecklistProgress.percent(completed: counts.completed, total: counts.total)
-
-        return VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-            HStack(alignment: .center, spacing: AppScreenMetrics.fieldSpacing) {
-                ChecklistProgressRing(completed: counts.completed, total: counts.total)
-
-                VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
-                    Text("Overall progress")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.primary)
-                    Text("\(counts.completed) of \(counts.total) complete")
-                        .font(.caption)
-                        .foregroundStyle(Color.secondary)
-                    ChecklistLinearProgressBar(fraction: fraction)
-                    Text("\(percent)%")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppColors.blue)
-                }
-            }
-
-            tripRow
-        }
-        .padding(AppScreenMetrics.cardInteriorPadding)
-        .background(cardBackground)
     }
 
     @ViewBuilder

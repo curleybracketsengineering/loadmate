@@ -60,8 +60,15 @@ struct AccidentPhotoChecklistSection: View {
                 Image(systemName: photos.isEmpty ? "circle" : "checkmark.circle.fill")
                     .foregroundStyle(photos.isEmpty ? AppColors.textSupporting : AppColors.green)
                     .accessibilityHidden(true)
-                Text(kind.displayName)
-                    .font(.subheadline.weight(.semibold))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(kind.displayName)
+                        .font(.subheadline.weight(.semibold))
+                    if !photos.isEmpty {
+                        Text(photos.count == 1 ? "1 photo" : "\(photos.count) photos")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                    }
+                }
                 Spacer(minLength: 8)
                 Button("Add") {
                     pendingKind = kind

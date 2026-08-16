@@ -6,6 +6,7 @@ final class AccidentGuidanceTests: XCTestCase {
         var input = AccidentGuidanceInput()
         input.jurisdiction = .unitedKingdom
         input.detailsExchanged = true
+        input.hasOtherVehicles = true
 
         let result = AccidentGuidance.evaluate(input)
         XCTAssertFalse(result.shouldCallEmergencyNow)
@@ -15,6 +16,39 @@ final class AccidentGuidanceTests: XCTestCase {
         XCTAssertTrue(result.shouldNotifyInsurer)
         XCTAssertTrue(result.cards.contains(where: { $0.kind == .disclaimer }))
         XCTAssertTrue(result.cards.contains(where: { $0.kind == .insurer }))
+    }
+
+    func testUKDoesNotForcePoliceWhenNoOtherParty() {
+        var input = AccidentGuidanceInput()
+        input.jurisdiction = .unitedKingdom
+        input.detailsExchanged = false
+
+        let result = AccidentGuidance.evaluate(input)
+        XCTAssertFalse(result.shouldReportPolice)
+        XCTAssertEqual(result.processBranch, .ukStandard)
+        XCTAssertFalse(result.cards.contains(where: { $0.kind == .police }))
+    }
+
+    func testUKForcesPoliceWhenOtherVehicleAndNoExchange() {
+        var input = AccidentGuidanceInput()
+        input.jurisdiction = .unitedKingdom
+        input.hasOtherVehicles = true
+        input.detailsExchanged = false
+
+        let result = AccidentGuidance.evaluate(input)
+        XCTAssertTrue(result.shouldReportPolice)
+        XCTAssertEqual(result.processBranch, .ukPoliceFlag)
+    }
+
+    func testNoOtherVehicleSuppressesExchangePoliceEvenIfVehiclesRecorded() {
+        var input = AccidentGuidanceInput()
+        input.hasOtherVehicles = true
+        input.noOtherVehicle = true
+        input.detailsExchanged = false
+
+        let result = AccidentGuidance.evaluate(input)
+        XCTAssertFalse(result.shouldReportPolice)
+        XCTAssertFalse(input.hasOtherParty)
     }
 
     func testInjuryCallsEmergencyAndPolice() {
@@ -168,11 +202,32 @@ final class AccidentGuidanceTests: XCTestCase {
     func testCaravanPhotoKindsIncludeHitch() {
         var input = AccidentGuidanceInput()
         input.vehicleKind = .caravan
+        input.hasTowOrTrailer = true
         let kinds = AccidentGuidance.photoKinds(for: input)
         XCTAssertTrue(kinds.contains(.hitch))
         XCTAssertTrue(kinds.contains(.trailer))
         XCTAssertTrue(kinds.contains(.positions))
         XCTAssertTrue(kinds.contains(.plate))
+    }
+
+    func testCaravanNotTowingOmitsHitch() {
+        var input = AccidentGuidanceInput()
+        input.vehicleKind = .caravan
+        input.hasTowOrTrailer = false
+        let kinds = AccidentGuidance.photoKinds(for: input)
+        XCTAssertFalse(kinds.contains(.hitch))
+        XCTAssertFalse(kinds.contains(.trailer))
+    }
+
+    func testSingleVehicleOmitsOtherDamageAndDocuments() {
+        var input = AccidentGuidanceInput()
+        input.noOtherVehicle = true
+        let kinds = AccidentGuidance.photoKinds(for: input)
+        XCTAssertFalse(kinds.contains(.damageOther))
+        XCTAssertFalse(kinds.contains(.documents))
+        XCTAssertTrue(kinds.contains(.positions))
+        XCTAssertTrue(kinds.contains(.plate))
+        XCTAssertTrue(kinds.contains(.damageOwn))
     }
 
     func testMotorhomeWithoutTowOmitsHitch() {

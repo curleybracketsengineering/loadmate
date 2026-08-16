@@ -3,8 +3,8 @@ import UIKit
 
 enum AccidentEvidencePackBuilder {
     struct Input {
-        let vehicleName: String
         let vehicleKind: VehicleKind
+        let filingIdentity: String
         let ownRegistration: String
         let insurerName: String
         let insurerPolicyNumber: String
@@ -71,20 +71,16 @@ enum AccidentEvidencePackBuilder {
             drawBody(AccidentGuidance.helperDisclaimer)
 
             drawBody("Your vehicle", bold: true)
-            drawBody(input.vehicleName.isEmpty ? input.vehicleKind.displayName : input.vehicleName)
-            drawBody(input.vehicleKind.displayName)
-            if !input.ownRegistration.isEmpty {
-                drawBody("Registration: \(input.ownRegistration)")
+            if input.vehicleKind == .caravan {
+                drawBody("Vehicle you were driving — usually the tow car, not the caravan.")
             }
-            if !input.insurerName.isEmpty {
-                drawBody("Insurer: \(input.insurerName)")
+            for line in ownVehicleLines(from: input) {
+                drawBody(line)
             }
-            if !input.insurerPolicyNumber.isEmpty {
-                drawBody("Policy: \(input.insurerPolicyNumber)")
+            for line in ownDetailLines(from: input.record) {
+                drawBody(line)
             }
-            if !input.insurerClaimsPhone.isEmpty {
-                drawBody("Claims phone: \(input.insurerClaimsPhone)")
-            }
+            drawBody("Recorded with \(input.filingIdentity)")
 
             drawBody("Incident", bold: true)
             drawBody("When: \(Formatters.dateTime(input.record.occurredAt))")
@@ -196,5 +192,72 @@ enum AccidentEvidencePackBuilder {
             drawBody("About this pack", bold: true)
             drawBody("This pack summarises what you recorded in Lyneqo. It is not an official European Accident Statement and is not a substitute for exchanging details, calling emergency services, or reporting to your insurer.")
         }
+    }
+
+    static func makeInput(
+        record: AccidentRecord,
+        profile: VehicleProfile,
+        photoImages: [(AccidentPhotoKind, UIImage)]
+    ) -> Input {
+        Input(
+            vehicleKind: profile.kind,
+            filingIdentity: AccidentStore.filingIdentityLine(for: profile),
+            ownRegistration: AccidentStore.resolvedOwnRegistration(on: record, profile: profile),
+            insurerName: AccidentStore.resolvedOwnInsurerName(on: record, profile: profile),
+            insurerPolicyNumber: AccidentStore.resolvedOwnInsurancePolicyNumber(on: record, profile: profile),
+            insurerClaimsPhone: AccidentStore.resolvedOwnInsuranceClaimsPhone(on: record, profile: profile),
+            record: record,
+            photoImages: photoImages
+        )
+    }
+
+    static func ownVehicleLines(from input: Input) -> [String] {
+        var lines: [String] = []
+        let registration = input.ownRegistration.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !registration.isEmpty {
+            lines.append("Registration: \(UKRegistration.displayFormatted(registration))")
+        }
+        let lookup = input.record.ownLookupIdentityLine
+        if input.record.hasOwnLookupSnapshot, !input.record.ownLookupSnapshotIsStale, !lookup.isEmpty {
+            lines.append("Lookup: \(lookup)")
+        }
+        if input.record.hasOwnLookupSnapshot, !input.record.ownLookupSnapshotIsStale {
+            if !input.record.ownLookupMotStatus.isEmpty {
+                lines.append("MOT: \(input.record.ownLookupMotStatus)")
+            }
+            if !input.record.ownLookupTaxStatus.isEmpty {
+                lines.append("Tax: \(input.record.ownLookupTaxStatus)")
+            }
+            if input.record.ownLookupMarkedForExport {
+                lines.append("Marked for export: Yes")
+            }
+            if let checked = input.record.ownLookupCheckedAt {
+                lines.append(Formatters.checkedAtCaption(checked))
+            }
+        }
+        let insurer = input.insurerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !insurer.isEmpty {
+            lines.append("Insurer: \(insurer)")
+        }
+        let policy = input.insurerPolicyNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !policy.isEmpty {
+            lines.append("Policy: \(policy)")
+        }
+        let claims = input.insurerClaimsPhone.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !claims.isEmpty {
+            lines.append("Claims phone: \(claims)")
+        }
+        return lines
+    }
+
+    static func ownDetailLines(from record: AccidentRecord) -> [String] {
+        var lines: [String] = []
+        let name = record.ownName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let phone = record.ownPhone.trimmingCharacters(in: .whitespacesAndNewlines)
+        let address = record.ownAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty { lines.append("Name: \(name)") }
+        if !phone.isEmpty { lines.append("Phone: \(phone)") }
+        if !address.isEmpty { lines.append("Address: \(address)") }
+        return lines
     }
 }

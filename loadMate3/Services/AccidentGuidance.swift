@@ -13,6 +13,14 @@ struct AccidentGuidanceInput: Equatable, Sendable {
     var hasTowOrTrailer: Bool = false
     var redFlags: Set<AccidentRedFlag> = []
     var otherVehicleIsForeign: Bool = false
+    var noOtherVehicle: Bool = false
+    var hasOtherVehicles: Bool = false
+
+    /// Another party was involved, so exchanging details still applies.
+    var hasOtherParty: Bool {
+        if noOtherVehicle { return false }
+        return hasOtherVehicles || otherDriverRefused
+    }
 }
 
 struct AccidentGuidanceCard: Identifiable, Equatable, Sendable {
@@ -170,10 +178,11 @@ enum AccidentGuidance {
             || input.suspectedImpairmentOrViolence
             || input.hitAndRun
         let ukPoliceFlags = input.redFlags.filter(\.raisesPoliceReportInUK)
+        let missingExchange = input.hasOtherParty && !input.detailsExchanged
         let shouldReportPolice: Bool = {
             if shouldCallEmergencyNow { return true }
             if input.jurisdiction.isUnitedKingdom {
-                return !input.detailsExchanged
+                return missingExchange
                     || input.anyoneInjured
                     || input.otherDriverRefused
                     || !ukPoliceFlags.isEmpty
@@ -185,9 +194,9 @@ enum AccidentGuidance {
                 return input.anyoneInjured
                     || input.otherDriverRefused
                     || input.hitAndRun
-                    || !input.detailsExchanged
+                    || missingExchange
             }
-            return input.anyoneInjured || input.hitAndRun || !input.detailsExchanged
+            return input.anyoneInjured || input.hitAndRun || missingExchange
         }()
 
         let branch = processBranch(for: input, shouldReportPolice: shouldReportPolice)
@@ -228,7 +237,7 @@ enum AccidentGuidance {
                 return .ukForeignVehicle
             }
             let report = shouldReportPolice ?? (
-                !input.detailsExchanged
+                (input.hasOtherParty && !input.detailsExchanged)
                     || input.anyoneInjured
                     || input.hitAndRun
                     || input.otherDriverRefused
@@ -241,16 +250,19 @@ enum AccidentGuidance {
     static func photoKinds(for input: AccidentGuidanceInput) -> [AccidentPhotoKind] {
         var kinds: [AccidentPhotoKind] = [
             .positions,
-            .damageOwn,
-            .damageOther,
             .plate,
-            .road,
-            .documents
+            .damageOwn
         ]
-        let includeHitch = input.vehicleKind == .caravan || input.hasTowOrTrailer
-        if includeHitch {
-            kinds.insert(.hitch, at: 4)
-            kinds.insert(.trailer, at: 5)
+        if input.hasOtherParty {
+            kinds.append(.damageOther)
+        }
+        kinds.append(.road)
+        if input.hasTowOrTrailer {
+            kinds.append(.hitch)
+            kinds.append(.trailer)
+        }
+        if input.hasOtherParty {
+            kinds.append(.documents)
         }
         kinds.append(.other)
         return kinds

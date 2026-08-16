@@ -25,6 +25,7 @@ struct WarrantyView: View {
     @State private var costItemParent: WarrantyEvent?
     @State private var selectedFault: FaultRecord?
     @State private var showRegenerateConfirm = false
+    @State private var showsAllCostYears = false
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(
@@ -69,6 +70,11 @@ struct WarrantyView: View {
 
     private var otherFaults: [FaultRecord] {
         WarrantySupport.unflaggedFaults(from: scopedFaults, events: planEvents)
+    }
+
+    private var nextActionableEvent: WarrantyEvent? {
+        guard let profile = activeProfile else { return nil }
+        return WarrantySupport.nextActionableEvent(plans: warrantyPlans, vehicleID: profile.id)
     }
 
     var body: some View {
@@ -259,15 +265,23 @@ struct WarrantyView: View {
     private func configuredBody(profile: VehicleProfile, plan: WarrantyPlan) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                WarrantyCoverageBanner(plan: plan)
+                VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                    WarrantyCoverageBanner(plan: plan)
+                    if let next = nextActionableEvent {
+                        WarrantyNextUpCard(
+                            event: next,
+                            events: plan.timelineEvents,
+                            onSelect: { selectedEvent = next }
+                        )
+                    }
+                }
                 VehicleLookupSummarySection(profile: profile)
-                WarrantyDisclaimerInfoButton { showInfo = true }
 
                 yearlyCostsSection(events: plan.eventsList)
 
                 AppSettingsSection(
                     "Service timeline",
-                    caption: "Tap a service to edit cost and details. Insurance rows use the switch when done."
+                    caption: "Tap any row to edit. Use the switch to mark insurance done."
                 ) {
                     VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                         WarrantyTimelineView(
@@ -304,7 +318,7 @@ struct WarrantyView: View {
                 caption: "Calendar-year totals from recorded costs."
             ) {
                 VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                    ForEach(years) { year in
+                    ForEach(visibleCostYears(from: years)) { year in
                         HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.controlSpacing) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(String(year.year))
@@ -320,9 +334,34 @@ struct WarrantyView: View {
                                 .foregroundStyle(Color.primary)
                         }
                     }
+
+                    if years.count > 2 {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showsAllCostYears.toggle()
+                            }
+                        } label: {
+                            Label(
+                                showsAllCostYears ? "Show fewer years" : "See all \(years.count) years",
+                                systemImage: showsAllCostYears ? "chevron.up" : "chevron.down"
+                            )
+                            .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(AppColors.purple)
+                    }
                 }
             }
         }
+    }
+
+    /// Keeps the section short: current and next year by default, with the most recent years as a fallback.
+    private func visibleCostYears(from years: [WarrantySupport.AnnualCostYear]) -> [WarrantySupport.AnnualCostYear] {
+        guard !showsAllCostYears, years.count > 2 else { return years }
+        let currentYear = Calendar.current.component(.year, from: Date())
+        let upcoming = years.filter { $0.year >= currentYear }
+        guard upcoming.count >= 2 else { return Array(years.suffix(2)) }
+        return Array(upcoming.prefix(2))
     }
 
     private var warrantyItemsSection: some View {
@@ -498,6 +537,108 @@ private struct WarrantyCoverageBanner: View {
     }
 }
 
+private func warrantyStatusColor(_ status: WarrantyEventStatus) -> Color {
+    switch status {
+    case .completed: return AppColors.green
+    case .inWindow: return .accentColor
+    case .overdue: return AppColors.red
+    case .upcoming: return Color.secondary
+    case .planned: return Color.secondary.opacity(0.85)
+    }
+}
+
+/// Later years stay unbadged so overdue, in-window and completed rows stand out.
+private func warrantyShowsStatusBadge(_ status: WarrantyEventStatus) -> Bool {
+    status != .planned
+}
+
+private func warrantyDoneBinding(for event: WarrantyEvent, in context: ModelContext) -> Binding<Bool> {
+    Binding(
+        get: { event.completedDate != nil },
+        set: { done in
+            event.completedDate = done ? (event.completedDate ?? Date()) : nil
+            event.updatedAt = Date()
+            try? context.save()
+        }
+    )
+}
+
+private struct WarrantyStatusBadge: View {
+    let status: WarrantyEventStatus
+
+    var body: some View {
+        Text(WarrantySupport.statusDisplayName(for: status))
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(warrantyStatusColor(status).opacity(0.15))
+            .foregroundStyle(warrantyStatusColor(status))
+            .clipShape(Capsule())
+    }
+}
+
+/// Pulls the one thing to act on out of a long plan so it is visible without scrolling.
+private struct WarrantyNextUpCard: View {
+    @Environment(\.modelContext) private var modelContext
+
+    let event: WarrantyEvent
+    let events: [WarrantyEvent]
+    let onSelect: () -> Void
+
+    private var status: WarrantyEventStatus {
+        WarrantySupport.status(for: event, among: events)
+    }
+
+    private var isInsurance: Bool {
+        event.serviceType == .insuranceRenewal
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: AppScreenMetrics.controlSpacing) {
+            Button(action: onSelect) {
+                HStack(alignment: .center, spacing: AppScreenMetrics.controlSpacing) {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.title3)
+                        .foregroundStyle(warrantyStatusColor(status))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Next up")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(AppColors.textSupporting)
+                        Text(isInsurance ? "Insurance" : event.displayTitle)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.primary)
+                            .multilineTextAlignment(.leading)
+                        Text(Formatters.date(event.scheduledDate))
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                    }
+                    Spacer(minLength: 8)
+                    WarrantyStatusBadge(status: status)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isInsurance {
+                Toggle("Done", isOn: warrantyDoneBinding(for: event, in: modelContext))
+                    .labelsHidden()
+                    .tint(AppColors.green)
+                    .accessibilityLabel("Insurance done")
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.secondary)
+            }
+        }
+        .padding(AppScreenMetrics.cardInteriorPadding)
+        .background(LyneqoTheme.card)
+        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                .stroke(LyneqoTheme.border, lineWidth: 1)
+        }
+    }
+}
+
 private struct WarrantyTimelineView: View {
     let plan: WarrantyPlan
     let events: [WarrantyEvent]
@@ -542,14 +683,7 @@ private struct WarrantyTimelineInsuranceRow: View {
     let onSelect: () -> Void
 
     private var isDone: Binding<Bool> {
-        Binding(
-            get: { event.completedDate != nil },
-            set: { done in
-                event.completedDate = done ? (event.completedDate ?? Date()) : nil
-                event.updatedAt = Date()
-                try? modelContext.save()
-            }
-        )
+        warrantyDoneBinding(for: event, in: modelContext)
     }
 
     var body: some View {
@@ -568,34 +702,16 @@ private struct WarrantyTimelineInsuranceRow: View {
             }
             .frame(width: 16)
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Button(action: onSelect) {
-                        HStack(spacing: 8) {
-                            Text("Insurance")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Color.primary)
-                            Spacer(minLength: 8)
-                            Text(Formatters.date(event.scheduledDate))
-                                .font(.caption)
-                                .foregroundStyle(AppColors.textSupporting)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    Toggle("Done", isOn: isDone)
-                        .labelsHidden()
-                        .tint(AppColors.green)
-                        .accessibilityLabel("Insurance done")
-                }
-
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Button(action: onSelect) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(event.requirementText)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("Insurance")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.primary)
+                        Text(Formatters.date(event.scheduledDate))
                             .font(.caption)
                             .foregroundStyle(AppColors.textSupporting)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .multilineTextAlignment(.leading)
-
+                        Spacer(minLength: 8)
                         Text(WarrantySupport.costCaption(for: event))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(
@@ -605,10 +721,18 @@ private struct WarrantyTimelineInsuranceRow: View {
                             )
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Insurance renewal, \(Formatters.date(event.scheduledDate)), \(WarrantySupport.costCaption(for: event))")
                 }
                 .buttonStyle(.plain)
+
+                Toggle("Done", isOn: isDone)
+                    .labelsHidden()
+                    .tint(AppColors.green)
+                    .accessibilityLabel("Insurance done")
             }
-            .padding(.bottom, isLast ? 0 : AppScreenMetrics.sectionSpacing)
+            .padding(.bottom, isLast ? 0 : AppScreenMetrics.fieldSpacing)
         }
         .accessibilityElement(children: .contain)
     }
@@ -659,8 +783,14 @@ private struct WarrantyTimelineEventRow: View {
         WarrantySupport.status(for: event, among: events)
     }
 
+    @State private var showsDetail = false
+
     private var isImportantMilestone: Bool {
         event.isImportantMilestone
+    }
+
+    private var evidenceCount: Int {
+        event.attachmentsList.count + event.linkedDocumentIDs.count
     }
 
     var body: some View {
@@ -684,13 +814,28 @@ private struct WarrantyTimelineEventRow: View {
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(isImportantMilestone ? AppColors.purple : Color.primary)
                             Spacer(minLength: 8)
-                            Text(WarrantySupport.statusDisplayName(for: status))
-                                .font(.caption2.weight(.semibold))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(statusColor.opacity(0.15))
-                                .foregroundStyle(statusColor)
-                                .clipShape(Capsule())
+                            if evidenceCount > 0 {
+                                Label("\(evidenceCount)", systemImage: "paperclip")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(AppColors.purple)
+                            }
+                            if warrantyShowsStatusBadge(status) {
+                                WarrantyStatusBadge(status: status)
+                            }
+                        }
+
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(Formatters.date(event.scheduledDate))
+                                .font(.caption)
+                                .foregroundStyle(AppColors.textSupporting)
+                            Spacer(minLength: 8)
+                            Text(WarrantySupport.costCaption(for: event))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(
+                                    WarrantySupport.hasRecordedCost(for: event)
+                                        ? Color.primary
+                                        : AppColors.purple
+                                )
                         }
 
                         if isImportantMilestone {
@@ -699,39 +844,15 @@ private struct WarrantyTimelineEventRow: View {
                                 .foregroundStyle(AppColors.purple)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-
-                        Text(Formatters.date(event.scheduledDate))
-                            .font(.caption)
-                            .foregroundStyle(AppColors.textSupporting)
-
-                        Text(WarrantySupport.costCaption(for: event))
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(
-                                WarrantySupport.hasRecordedCost(for: event)
-                                    ? Color.primary
-                                    : AppColors.purple
-                            )
-
-                        Text(event.requirementText)
-                            .font(.caption)
-                            .foregroundStyle(Color.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Text(WarrantySupport.windowSubtitle(for: event))
-                            .font(.caption2)
-                            .foregroundStyle(isImportantMilestone ? AppColors.purple.opacity(0.9) : AppColors.textSupporting)
-
-                        if !event.attachmentsList.isEmpty || !event.linkedDocumentIDs.isEmpty {
-                            Text("\(event.attachmentsList.count + event.linkedDocumentIDs.count) evidence item(s)")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(AppColors.purple)
-                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel(accessibilityLabel)
                 }
                 .buttonStyle(.plain)
+
+                detailDisclosure
 
                 WarrantyCostItemsBlock(
                     event: event,
@@ -742,6 +863,40 @@ private struct WarrantyTimelineEventRow: View {
             }
             .padding(.bottom, isLast ? 0 : AppScreenMetrics.sectionSpacing)
         }
+    }
+
+    /// Requirement and window text is long, so it stays folded until asked for.
+    @ViewBuilder
+    private var detailDisclosure: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showsDetail.toggle()
+                }
+            } label: {
+                Label(
+                    showsDetail ? "Hide details" : "What's involved",
+                    systemImage: showsDetail ? "chevron.up" : "chevron.down"
+                )
+                .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppColors.purple)
+            .accessibilityHint("Shows the requirement and action window for this service")
+
+            if showsDetail {
+                Text(event.requirementText)
+                    .font(.caption)
+                    .foregroundStyle(Color.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(WarrantySupport.windowSubtitle(for: event))
+                    .font(.caption2)
+                    .foregroundStyle(isImportantMilestone ? AppColors.purple.opacity(0.9) : AppColors.textSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -770,13 +925,7 @@ private struct WarrantyTimelineEventRow: View {
     }
 
     private var statusColor: Color {
-        switch status {
-        case .completed: return AppColors.green
-        case .inWindow: return .accentColor
-        case .overdue: return AppColors.red
-        case .upcoming: return Color.secondary
-        case .planned: return Color.secondary.opacity(0.85)
-        }
+        warrantyStatusColor(status)
     }
 }
 
@@ -836,10 +985,14 @@ private struct WarrantyCostItemsBlock: View {
             .buttonStyle(.plain)
             .foregroundStyle(AppColors.purple)
         }
-        .padding(AppScreenMetrics.controlSpacing)
+        .padding(items.isEmpty ? 0 : AppScreenMetrics.controlSpacing)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LyneqoTheme.softTeal.opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
+        .background {
+            if !items.isEmpty {
+                RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
+                    .fill(LyneqoTheme.softTeal.opacity(0.35))
+            }
+        }
     }
 }
 
@@ -1134,7 +1287,7 @@ private struct WarrantyPlanEditorSheet: View {
 
 // MARK: - Event editor
 
-private struct WarrantyEventEditorSheet: View {
+struct WarrantyEventEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 

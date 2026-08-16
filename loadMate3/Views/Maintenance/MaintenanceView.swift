@@ -23,11 +23,14 @@ struct MaintenanceView: View {
     @State private var showMaintenanceList = false
     @State private var showDocumentsList = false
     @State private var showFaultsList = false
-    @State private var showHistory = false
+    @State private var faultsExpanded = false
+    @State private var serviceHistoryExpanded = false
 
     @State private var selectedMaintenanceRecord: MaintenanceRecord?
     @State private var selectedDocumentRecord: DocumentRecord?
     @State private var selectedFaultRecord: FaultRecord?
+    @State private var selectedWarrantyEvent: WarrantyEvent?
+    @State private var showWarrantyFromReminder = false
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(
@@ -51,12 +54,8 @@ struct MaintenanceView: View {
         return MaintenanceSupport.faultRecords(for: profile.id, from: faultRecords)
     }
 
-    private var summary: MaintenanceDashboardSummary {
-        MaintenanceSupport.dashboardSummary(
-            maintenanceRecords: scopedMaintenanceRecords,
-            documents: scopedDocuments,
-            faults: scopedFaults
-        )
+    private var openFaultCount: Int {
+        scopedFaults.filter { !$0.status.isResolved }.count
     }
 
     private var reminderItems: [MaintenanceReminderItem] {
@@ -72,6 +71,13 @@ struct MaintenanceView: View {
         .sorted { $0.dueDate < $1.dueDate }
     }
 
+    /// Reminders beyond a year sit too far out to act on, so the dashboard stops at 12 months.
+    private var visibleReminderItems: [MaintenanceReminderItem] {
+        reminderItems.filter { dayDelta(for: $0.dueDate) <= Self.reminderHorizonDays }
+    }
+
+    private static let reminderHorizonDays = 365
+
     var body: some View {
         NavigationStack {
             Group {
@@ -79,7 +85,6 @@ struct MaintenanceView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
                             VehicleLookupSummarySection(profile: profile)
-                            summarySection
                             remindersSection
                             faultDashboardSection
                             maintenancePreviewSection(profile: profile)
@@ -170,82 +175,36 @@ struct MaintenanceView: View {
                 selectedFaultRecord = record
             }
         }
-        .sheet(isPresented: $showHistory) {
-            MaintenanceHistoryTimelineView(
-                maintenanceRecords: scopedMaintenanceRecords,
-                documentRecords: scopedDocuments,
-                faultRecords: scopedFaults,
-                warrantyPlans: WarrantySupport.showsWarrantyFeatures(for: activeProfile)
-                    ? warrantyPlans.filter { $0.vehicleID == activeProfile?.id }
-                    : []
-            )
-        }
-    }
-
-    private var summarySection: some View {
-        AppSettingsSection("Summary", caption: "Upcoming work, open issues and recent activity at a glance.") {
-            LazyVGrid(
-                columns: Array(
-                    repeating: GridItem(.flexible(), spacing: AppScreenMetrics.controlSpacing),
-                    count: 3
-                ),
-                spacing: AppScreenMetrics.controlSpacing
-            ) {
-                MaintenanceDashboardCard(
-                    title: "Upcoming",
-                    value: summary.upcomingTitle,
-                    detail: summary.upcomingSubtitle,
-                    tint: reminderItems.first.map { tintColor(for: $0.dueDate) } ?? .accentColor,
-                    action: { showHistory = true }
-                )
-                MaintenanceDashboardCard(
-                    title: "Outstanding",
-                    value: outstandingSummaryValue,
-                    detail: outstandingSummaryDetail,
-                    tint: outstandingSummaryTint,
-                    action: {
-                        if summary.outstandingFaults > 0 {
-                            showFaultsList = true
-                        } else {
-                            showDocumentsList = true
-                        }
-                    }
-                )
-                MaintenanceDashboardCard(
-                    title: "Recent Activity",
-                    value: summary.recentActivityTitle,
-                    detail: summary.recentActivitySubtitle,
-                    tint: .secondary,
-                    action: { showHistory = true }
-                )
+        .sheet(item: $selectedWarrantyEvent) { event in
+            if let plan = WarrantySupport.plan(for: event.vehicleID, from: warrantyPlans) {
+                WarrantyEventEditorSheet(plan: plan, event: event, documents: scopedDocuments)
             }
+        }
+        .sheet(isPresented: $showWarrantyFromReminder) {
+            WarrantyView()
         }
     }
 
     private var remindersSection: some View {
-        AppSettingsSection("Reminders", caption: "Due and overdue items that should stay visible on the dashboard.") {
-            if reminderItems.isEmpty {
-                Text("No reminders yet. Add reminder dates or expiry dates to highlight future maintenance.")
+        AppSettingsSection("Reminders", caption: "Due in the next 12 months, soonest first.") {
+            if visibleReminderItems.isEmpty {
+                Text(reminderItems.isEmpty
+                    ? "No reminders yet. Add reminder dates or expiry dates to highlight future maintenance."
+                    : "Nothing due in the next 12 months.")
                     .font(.subheadline)
                     .foregroundStyle(AppColors.textSupporting)
             } else {
-                VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                    ForEach(Array(reminderItems.prefix(5))) { item in
-                        HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
-                            Image(systemName: "calendar.badge.clock")
-                                .foregroundStyle(tintColor(for: item.dueDate))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.title)
-                                    .font(.subheadline.weight(.semibold))
-                                Text(item.subtitle)
-                                    .font(.caption)
-                                    .foregroundStyle(AppColors.textSupporting)
-                                Text(MaintenanceSupport.relativeDueText(for: item.dueDate))
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(tintColor(for: item.dueDate))
-                            }
-                            Spacer()
-                        }
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 240), spacing: AppScreenMetrics.controlSpacing)],
+                    spacing: AppScreenMetrics.controlSpacing
+                ) {
+                    ForEach(visibleReminderItems) { item in
+                        MaintenanceReminderCard(
+                            item: item,
+                            tint: tintColor(for: item.dueDate),
+                            dueText: MaintenanceSupport.relativeDueText(for: item.dueDate),
+                            action: { openReminder(item) }
+                        )
                     }
                 }
             }
@@ -253,48 +212,95 @@ struct MaintenanceView: View {
     }
 
     private var faultDashboardSection: some View {
-        MaintenanceCompactSectionRow(
+        MaintenanceExpandableSection(
             caption: "Track issues that still need attention and prioritise the important ones first.",
             label: "Faults",
+            isExpanded: $faultsExpanded,
             addAccessibilityLabel: "Add fault",
-            viewAccessibilityLabel: "View all faults",
-            onAdd: { showFaultCreate = true },
-            onView: { showFaultsList = true }
+            onAdd: { showFaultCreate = true }
         ) {
-            HStack(spacing: 10) {
-                MaintenanceMetricCount(
-                    count: MaintenanceSupport.highPriorityFaultCount(scopedFaults),
-                    tint: .red,
-                    accessibilityLabel: "High priority faults"
+            Text("\(openFaultCount) open")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(openFaultCount > 0 ? AppColors.orange : AppColors.green)
+                .monospacedDigit()
+                .accessibilityLabel("\(openFaultCount) open faults")
+        } content: {
+            if scopedFaults.isEmpty {
+                MaintenanceInlineEmptyState(
+                    message: "No faults recorded.",
+                    actionTitle: "Add fault",
+                    action: { showFaultCreate = true }
                 )
-                MaintenanceMetricCount(
-                    count: MaintenanceSupport.mediumPriorityFaultCount(scopedFaults),
-                    tint: .orange,
-                    accessibilityLabel: "Medium priority faults"
-                )
-                MaintenanceMetricCount(
-                    count: MaintenanceSupport.lowPriorityFaultCount(scopedFaults),
-                    tint: .yellow,
-                    accessibilityLabel: "Low priority faults"
-                )
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(scopedFaults.prefix(5).enumerated()), id: \.element.id) { index, record in
+                        MaintenanceInlineRecordRow(
+                            title: record.title.isEmpty ? "Untitled fault" : record.title,
+                            detail: "\(record.severity.displayName) • \(record.status.displayName)",
+                            tint: faultTint(for: record.severity),
+                            action: { selectedFaultRecord = record }
+                        )
+                        if index < min(scopedFaults.count, 5) - 1 {
+                            Divider()
+                        }
+                    }
+                }
+
+                if scopedFaults.count > 5 {
+                    Button("See all \(scopedFaults.count) faults") {
+                        showFaultsList = true
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, AppScreenMetrics.smallSpacing)
+                }
             }
         }
     }
 
     private func maintenancePreviewSection(profile: VehicleProfile) -> some View {
-        MaintenanceCompactSectionRow(
+        MaintenanceExpandableSection(
             caption: "Scheduled services, repairs and ongoing upkeep for this \(profile.kind.displayName.lowercased()).",
-            label: "Maintenance",
+            label: "Service history",
+            isExpanded: $serviceHistoryExpanded,
             addAccessibilityLabel: "Add maintenance record",
-            viewAccessibilityLabel: "View all maintenance",
-            onAdd: { showMaintenanceCreate = true },
-            onView: { showMaintenanceList = true }
+            onAdd: { showMaintenanceCreate = true }
         ) {
-            MaintenanceMetricCount(
-                count: scopedMaintenanceRecords.count,
-                tint: .blue,
-                accessibilityLabel: "Maintenance records"
-            )
+            Text("\(scopedMaintenanceRecords.count) record\(scopedMaintenanceRecords.count == 1 ? "" : "s")")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColors.blue)
+                .monospacedDigit()
+        } content: {
+            if scopedMaintenanceRecords.isEmpty {
+                MaintenanceInlineEmptyState(
+                    message: "No service records yet.",
+                    actionTitle: "Add service record",
+                    action: { showMaintenanceCreate = true }
+                )
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(scopedMaintenanceRecords.prefix(5).enumerated()), id: \.element.id) { index, record in
+                        MaintenanceInlineRecordRow(
+                            title: record.title.isEmpty ? record.category.displayName : record.title,
+                            detail: "\(record.category.displayName) • \(Formatters.date(record.serviceDate))",
+                            tint: AppColors.blue,
+                            action: { selectedMaintenanceRecord = record }
+                        )
+                        if index < min(scopedMaintenanceRecords.count, 5) - 1 {
+                            Divider()
+                        }
+                    }
+                }
+
+                if scopedMaintenanceRecords.count > 5 {
+                    Button("See all \(scopedMaintenanceRecords.count) records") {
+                        showMaintenanceList = true
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, AppScreenMetrics.smallSpacing)
+                }
+            }
         }
     }
 
@@ -315,6 +321,51 @@ struct MaintenanceView: View {
         }
     }
 
+    private func openReminder(_ item: MaintenanceReminderItem) {
+        switch item.kind {
+        case .maintenance:
+            guard let id = reminderUUID(in: item.id, removing: "maintenance-"),
+                  let record = scopedMaintenanceRecords.first(where: { $0.id == id })
+            else {
+                showMaintenanceList = true
+                return
+            }
+            selectedMaintenanceRecord = record
+
+        case .documentReminder:
+            openDocumentReminder(item, prefix: "document-reminder-")
+
+        case .documentExpiry:
+            openDocumentReminder(item, prefix: "document-expiry-")
+
+        case .warrantyEvent:
+            guard let id = reminderUUID(in: item.id, removing: "warranty-"),
+                  let event = warrantyPlans
+                    .flatMap(\.eventsList)
+                    .first(where: { $0.id == id })
+            else {
+                showWarrantyFromReminder = true
+                return
+            }
+            selectedWarrantyEvent = event
+        }
+    }
+
+    private func openDocumentReminder(_ item: MaintenanceReminderItem, prefix: String) {
+        guard let id = reminderUUID(in: item.id, removing: prefix),
+              let record = scopedDocuments.first(where: { $0.id == id })
+        else {
+            showDocumentsList = true
+            return
+        }
+        selectedDocumentRecord = record
+    }
+
+    private func reminderUUID(in value: String, removing prefix: String) -> UUID? {
+        guard value.hasPrefix(prefix) else { return nil }
+        return UUID(uuidString: String(value.dropFirst(prefix.count)))
+    }
+
     private func dayDelta(for date: Date) -> Int {
         Calendar.current.dateComponents(
             [.day],
@@ -323,46 +374,238 @@ struct MaintenanceView: View {
         ).day ?? 0
     }
 
-    private var outstandingSummaryValue: String {
-        if summary.outstandingFaults == 0 && summary.documentCount == 0 {
-            return "All clear"
-        }
-        var parts: [String] = []
-        if summary.outstandingFaults > 0 {
-            parts.append("\(summary.outstandingFaults) fault\(summary.outstandingFaults == 1 ? "" : "s")")
-        }
-        if summary.documentCount > 0 {
-            parts.append("\(summary.documentCount) doc\(summary.documentCount == 1 ? "" : "s")")
-        }
-        return parts.joined(separator: " • ")
-    }
-
-    private var outstandingSummaryDetail: String {
-        if summary.outstandingFaults > 0 {
-            return "\(faultDetailText) • \(summary.documentCount) stored"
-        }
-        if summary.documentCount > 0 {
-            return "No open faults • paperwork on file"
-        }
-        return "Faults and documents will appear here"
-    }
-
-    private var outstandingSummaryTint: Color {
-        if summary.outstandingFaults > 0 { return .orange }
-        if summary.documentCount > 0 { return .blue }
-        return AppColors.green
-    }
-
-    private var faultDetailText: String {
-        "\(MaintenanceSupport.highPriorityFaultCount(scopedFaults)) high, \(MaintenanceSupport.mediumPriorityFaultCount(scopedFaults)) medium, \(MaintenanceSupport.lowPriorityFaultCount(scopedFaults)) low"
-    }
-
     private func tintColor(for dueDate: Date) -> Color {
         let delta = dayDelta(for: dueDate)
 
         if delta < 0 { return .red }
         if delta <= 7 { return .orange }
         return .accentColor
+    }
+
+    private func faultTint(for severity: FaultSeverity) -> Color {
+        switch severity {
+        case .high: return .red
+        case .medium: return .orange
+        case .low: return .yellow
+        case .information: return .blue
+        }
+    }
+}
+
+private struct MaintenanceReminderCard: View {
+    let item: MaintenanceReminderItem
+    let tint: Color
+    let dueText: String
+    let action: () -> Void
+
+    private var icon: String {
+        switch item.kind {
+        case .maintenance: return "wrench.and.screwdriver.fill"
+        case .documentExpiry: return "calendar.badge.exclamationmark"
+        case .documentReminder: return "doc.text.fill"
+        case .warrantyEvent: return "checkmark.seal.fill"
+        }
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
+                HStack(spacing: AppScreenMetrics.smallSpacing) {
+                    Image(systemName: icon)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(tint)
+                        .frame(width: 28, height: 28)
+                        .background(tint.opacity(0.12))
+                        .clipShape(Circle())
+                        .accessibilityHidden(true)
+
+                    Text(dueText)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(tint)
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.secondary)
+                        .accessibilityHidden(true)
+                }
+
+                Text(item.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(item.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 0)
+            }
+            .padding(AppScreenMetrics.cardInteriorPadding)
+            .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                    .fill(LyneqoTheme.card)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
+                    .strokeBorder(tint.opacity(0.25), lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(item.title). \(dueText). \(item.subtitle)")
+        .accessibilityHint("Opens this reminder")
+    }
+}
+
+private struct MaintenanceExpandableSection<Metrics: View, Content: View>: View {
+    let caption: String
+    let label: String
+    @Binding var isExpanded: Bool
+    let addAccessibilityLabel: String
+    let onAdd: () -> Void
+    @ViewBuilder let metrics: Metrics
+    @ViewBuilder let content: Content
+
+    init(
+        caption: String,
+        label: String,
+        isExpanded: Binding<Bool>,
+        addAccessibilityLabel: String,
+        onAdd: @escaping () -> Void,
+        @ViewBuilder metrics: () -> Metrics,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.caption = caption
+        self.label = label
+        _isExpanded = isExpanded
+        self.addAccessibilityLabel = addAccessibilityLabel
+        self.onAdd = onAdd
+        self.metrics = metrics()
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            Text(caption)
+                .font(.caption)
+                .foregroundStyle(AppColors.textSupporting)
+                .fixedSize(horizontal: false, vertical: true)
+
+            AppGroupedCard {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                    HStack(spacing: AppScreenMetrics.controlSpacing) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isExpanded.toggle()
+                            }
+                        } label: {
+                            HStack(spacing: AppScreenMetrics.controlSpacing) {
+                                Text(label)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.primary)
+                                metrics
+                                Spacer(minLength: 0)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(isExpanded ? "Collapse" : "Expand") \(label)")
+
+                        Button(action: onAdd) {
+                            Image(systemName: "plus")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(Color.accentColor)
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(addAccessibilityLabel)
+
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isExpanded.toggle()
+                            }
+                        } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.secondary)
+                                .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(isExpanded ? "Collapse" : "Expand") \(label)")
+                    }
+
+                    if isExpanded {
+                        AppSectionDivider()
+                        content
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct MaintenanceInlineRecordRow: View {
+    let title: String
+    let detail: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AppScreenMetrics.controlSpacing) {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 8, height: 8)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                    Text(title)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.primary)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.secondary)
+                    .accessibilityHidden(true)
+            }
+            .padding(.vertical, AppScreenMetrics.smallSpacing)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct MaintenanceInlineEmptyState: View {
+    let message: String
+    let actionTitle: String
+    let action: () -> Void
+
+    var body: some View {
+        HStack(spacing: AppScreenMetrics.controlSpacing) {
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(AppColors.textSupporting)
+            Spacer(minLength: 0)
+            Button(actionTitle, action: action)
+                .font(.subheadline.weight(.semibold))
+        }
+        .padding(.vertical, AppScreenMetrics.smallSpacing)
     }
 }
 
@@ -448,46 +691,6 @@ private struct MaintenanceMetricCount: View {
     }
 }
 
-private struct MaintenanceDashboardCard: View {
-    let title: String
-    let value: String
-    let detail: String
-    let tint: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(tint)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
-                Text(value)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.primary)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.85)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text(detail)
-                    .font(.caption2)
-                    .foregroundStyle(AppColors.textSupporting)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.85)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous)
-                    .fill(LyneqoTheme.softTeal)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 private struct MaintenanceRecordsListView: View {
     @Environment(\.dismiss) private var dismiss
     let records: [MaintenanceRecord]
@@ -517,7 +720,7 @@ private struct MaintenanceRecordsListView: View {
                     }
                 }
             }
-            .navigationTitle("Maintenance")
+            .navigationTitle("Service history")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

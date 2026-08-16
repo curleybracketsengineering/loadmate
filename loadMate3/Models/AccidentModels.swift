@@ -114,7 +114,7 @@ enum AccidentProcessBranch: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
-        case .ukStandard: return "UK guidance"
+        case .ukStandard: return "UK — exchange details"
         case .ukPoliceFlag: return "UK — consider reporting to police"
         case .ukForeignVehicle: return "UK — foreign vehicle"
         case .europeEAS: return "Europe — accident statement"
@@ -222,10 +222,41 @@ final class AccidentRecord {
     var detailsExchanged: Bool = false
     var insuranceCertificateSeen: Bool = false
     var otherDriverRefused: Bool = false
+    /// True when this was a single-vehicle incident (no other party to exchange with).
+    var noOtherVehicle: Bool = false
+    /// True when a caravan or trailer was attached at the time of the incident.
+    var wasTowing: Bool = false
 
     var policeReported: Bool = false
     var policeReference: String = ""
     var insurerNotified: Bool = false
+
+    /// Your name at the time of this incident (for exchanging details). Not stored on the vehicle profile.
+    var ownName: String = ""
+    /// Your address at the time of this incident.
+    var ownAddress: String = ""
+    /// Your phone at the time of this incident.
+    var ownPhone: String = ""
+
+    /// Vehicle you were driving — often the tow car, not the caravan or motorhome this incident is filed against.
+    var ownRegistration: String = ""
+    /// Insurer for the vehicle you were driving. Prefills from Settings; may differ from the profiled vehicle.
+    var ownInsurerName: String = ""
+    var ownInsurancePolicyNumber: String = ""
+    var ownInsuranceClaimsPhone: String = ""
+
+    var ownLookupMake: String = ""
+    var ownLookupModel: String = ""
+    var ownLookupColour: String = ""
+    var ownLookupTaxStatus: String = ""
+    var ownLookupMotStatus: String = ""
+    var ownLookupMotExpiryDate: Date?
+    var ownLookupMarkedForExport: Bool = false
+    var ownLookupCheckedAt: Date?
+    var ownLookupPending: Bool = false
+    var ownLookupErrorMessage: String = ""
+    /// Normalised plate the own-vehicle lookup snapshot belongs to.
+    var ownLookupRegistration: String = ""
 
     var factualNotes: String = ""
     var easCircumstancesNotes: String = ""
@@ -282,6 +313,33 @@ final class AccidentRecord {
 
     var photosList: [AccidentPhoto] {
         (photos ?? []).sorted { $0.capturedAt < $1.capturedAt }
+    }
+
+    var displayOwnRegistration: String {
+        let trimmed = ownRegistration.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return UKRegistration.displayFormatted(trimmed)
+    }
+
+    var hasOwnLookupSnapshot: Bool {
+        !ownLookupMake.isEmpty
+            || !ownLookupModel.isEmpty
+            || !ownLookupColour.isEmpty
+            || !ownLookupMotStatus.isEmpty
+            || !ownLookupTaxStatus.isEmpty
+            || ownLookupCheckedAt != nil
+    }
+
+    /// True when the stored snapshot was fetched for a different plate than the one now entered.
+    var ownLookupSnapshotIsStale: Bool {
+        guard hasOwnLookupSnapshot else { return false }
+        return UKRegistration.normalizeForLookup(ownRegistration) != ownLookupRegistration
+    }
+
+    var ownLookupIdentityLine: String {
+        [ownLookupMake, ownLookupModel, ownLookupColour]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 }
 

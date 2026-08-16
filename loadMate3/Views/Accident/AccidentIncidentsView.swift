@@ -127,14 +127,9 @@ struct AccidentIncidentsView: View {
             return (photo.kind, image)
         }
         exportPDFData = AccidentEvidencePackBuilder.buildPDF(
-            input: .init(
-                vehicleName: profile.name,
-                vehicleKind: profile.kind,
-                ownRegistration: profile.registrationMark,
-                insurerName: profile.insuranceProviderName,
-                insurerPolicyNumber: profile.insurancePolicyNumber,
-                insurerClaimsPhone: profile.insuranceClaimsPhone,
+            input: AccidentEvidencePackBuilder.makeInput(
                 record: record,
+                profile: profile,
                 photoImages: photos
             )
         )

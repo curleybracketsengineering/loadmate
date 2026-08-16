@@ -135,14 +135,14 @@ private struct TyreSafetyOverviewView: View {
 
                 setupBar
 
-                WheelNutTorqueSection(profile: profile)
-
                 TyreCardsGrid(
                     records: records,
                     pressureUnit: pressureUnit,
                     onSelectRecord: onSelectRecord,
                     onLogPressure: onLogPressure
                 )
+
+                WheelNutTorqueSection(profile: profile)
 
                 quickActionsRow
 
@@ -170,15 +170,10 @@ private struct TyreSafetyOverviewView: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
-                Text("Tyre safety")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(Color.primary)
-                Text("Age, pressure, condition and replacement planning")
-                    .font(.subheadline)
-                    .foregroundStyle(AppColors.textSupporting)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text("Age, pressure, condition and replacement planning")
+                .font(.subheadline)
+                .foregroundStyle(AppColors.textSupporting)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: AppScreenMetrics.smallSpacing)
             if actionNeededCount > 0 {
                 Button {
@@ -396,14 +391,8 @@ private struct TyreStatusCard: View {
                         Text(record.conditionCallToAction)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(statusColor)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous)
-                                    .fill(statusColor.opacity(0.12))
-                            )
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -413,8 +402,8 @@ private struct TyreStatusCard: View {
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint("Opens tyre details")
 
-            Button(action: onLogPressure) {
-                Text("Log pressure or photo")
+            Button(action: record.statusLevel == .incomplete ? onSelect : onLogPressure) {
+                Text(record.statusLevel == .incomplete ? "Add tyre information" : "Log pressure or photo")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
                     .frame(maxWidth: .infinity)
@@ -425,8 +414,16 @@ private struct TyreStatusCard: View {
                     )
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Log pressure or photo for \(record.displayName)")
-            .accessibilityHint("Opens pressure and photo inspection for this tyre")
+            .accessibilityLabel(
+                record.statusLevel == .incomplete
+                    ? "Add information for \(record.displayName)"
+                    : "Log pressure or photo for \(record.displayName)"
+            )
+            .accessibilityHint(
+                record.statusLevel == .incomplete
+                    ? "Opens tyre details"
+                    : "Opens pressure and photo inspection for this tyre"
+            )
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
         // Do not use maxHeight: .infinity — it expands hit testing over later cards in the grid.
@@ -1504,26 +1501,39 @@ private struct WheelNutTorqueSection: View {
     let profile: VehicleProfile
 
     var body: some View {
-        AppSettingsSection("Wheel nut torque", caption: profile.wheelNutTorqueSectionCaption) {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                if profile.kind == .caravan {
-                    VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
-                        Text("Fitted wheels")
-                            .font(.subheadline.weight(.semibold))
-                        Picker("Fitted wheels", selection: fittedMaterialBinding) {
-                            ForEach(FittedWheelMaterial.allCases) { material in
-                                Text(material.displayName).tag(material)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                    }
+        AppGroupedCard {
+            HStack(alignment: .center, spacing: AppScreenMetrics.controlSpacing) {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                    Text("Wheel nut torque")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.primary)
+                    Text(profile.wheelNutTorqueSectionCaption)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                AppLabeledNumberField(
-                    "Wheel nut torque (Nm)",
-                    caption: profile.activeWheelNutTorqueFieldCaption,
+
+                Spacer(minLength: AppScreenMetrics.smallSpacing)
+
+                if profile.kind == .caravan {
+                    Picker("Fitted wheels", selection: fittedMaterialBinding) {
+                        ForEach(FittedWheelMaterial.allCases) { material in
+                            Text(material.displayName).tag(material)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                }
+
+                AppBoundedNumberField(
                     value: torqueBinding,
                     fractionDigitsUpperBound: 0
                 )
+                .frame(width: 120)
+
+                Text("Nm")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColors.textSupporting)
             }
         }
         .onAppear {

@@ -1,4 +1,5 @@
 import Combine
+import Contacts
 import CoreLocation
 import MapKit
 import PhotosUI
@@ -21,6 +22,7 @@ struct AccidentRecorderView: View {
     @StateObject private var locationCapture = AccidentLocationCapture()
     @State private var exportPDFData: Data?
     @State private var lookingUpVehicleID: UUID?
+    @State private var lookingUpOwnVehicle = false
     @State private var scanningVehicle: AccidentOtherVehicle?
     @State private var showPlateCamera = false
     @State private var showPlateLibrary = false
@@ -36,7 +38,10 @@ struct AccidentRecorderView: View {
     @State private var isSearchingLocation = false
     @State private var isConfirmingLocation = false
     @State private var locationSearchError: String?
+    @State private var pinJurisdiction: AccidentJurisdiction?
     @State private var showAskMIDInfo = false
+    @State private var showMyCardPicker = false
+    @State private var myCardError: String?
 
     private var guidance: AccidentGuidanceResult {
         guard let record else {
@@ -51,6 +56,11 @@ struct AccidentRecorderView: View {
                 AccidentStepIndicator(step: $step)
                     .padding(.horizontal, AppScreenMetrics.horizontalPadding)
                     .padding(.top, AppScreenMetrics.smallSpacing)
+                Text("Saved on this device as you go.")
+                    .font(.caption2)
+                    .foregroundStyle(AppColors.textSupporting)
+                    .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                    .padding(.top, 2)
 
                 ScrollView {
                     Group {
@@ -148,6 +158,14 @@ struct AccidentRecorderView: View {
             } message: {
                 Text("If you cannot confirm the other driver’s insurance, askMID can look up their details after an accident for £10. You usually get the insurer name, policy number and claims contact details. This is not proof of cover.")
             }
+            .sheet(isPresented: $showMyCardPicker) {
+                MyCardContactPicker { contact in
+                    if let record {
+                        applyMyCard(contact, to: record)
+                    }
+                }
+                .ignoresSafeArea()
+            }
         }
     }
 
@@ -175,14 +193,41 @@ struct AccidentRecorderView: View {
                 Text("Have you had an accident?")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(LyneqoTheme.deepNavy)
-                Text("First, tell us where it happened.")
+                Text("First, check that everyone is safe.")
                     .font(.subheadline)
                     .foregroundStyle(AppColors.textSupporting)
             }
 
+            AppSettingsSection("Safety", caption: "Answer what you can. You can change this later.") {
+                sceneQuestion(
+                    "Anyone injured?",
+                    isOn: boolBinding(record, \.anyoneInjured),
+                    advice: "Do not move an injured person unless they are in immediate danger.",
+                    callNumber: record.jurisdiction.emergencyNumber
+                )
+                sceneQuestion(
+                    "Road blocked, fire, or people in danger?",
+                    isOn: boolBinding(record, \.sceneUnsafeOrBlocked),
+                    advice: "Move to a safe place if you can do so without putting anyone at greater risk.",
+                    callNumber: record.jurisdiction.emergencyNumber
+                )
+                sceneQuestion(
+                    "Suspect drink, drugs or violence?",
+                    isOn: boolBinding(record, \.suspectedImpairmentOrViolence),
+                    advice: "Call from a safe place. Do not confront the other driver.",
+                    callNumber: record.jurisdiction.emergencyNumber
+                )
+                sceneQuestion(
+                    "Other driver left or is leaving?",
+                    isOn: boolBinding(record, \.hitAndRun),
+                    advice: "Do not follow them. Note the plate, vehicle and direction of travel.",
+                    callNumber: record.jurisdiction.emergencyNumber
+                )
+            }
+
             AppSettingsSection(
                 "Where did it happen?",
-                caption: "Use your current position, search for a place, or move the pin. Nothing is committed until you confirm."
+                caption: "Use your current position, search, or drag the pin. Next keeps this location."
             ) {
                 HStack(spacing: AppScreenMetrics.smallSpacing) {
                     TextField(
@@ -234,31 +279,15 @@ struct AccidentRecorderView: View {
                         )
                     )
                     .id(locationMapRevision)
-                    .frame(height: 220)
+                    .frame(height: 200)
                     .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
 
                     if locationNeedsConfirmation {
-                        VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
-                            Label("Is this the correct accident location?", systemImage: "location.circle.fill")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(LyneqoTheme.deepNavy)
-                            Text("If not, drag the pin to the correct place before confirming.")
-                                .font(.caption)
-                                .foregroundStyle(AppColors.textSupporting)
-                            AppPrimaryButton(
-                                isConfirmingLocation ? "Confirming…" : "Confirm this location"
-                            ) {
-                                Task {
-                                    await confirmLocation(record)
-                                }
-                            }
-                            .disabled(isConfirmingLocation)
-                        }
-                        .padding(AppScreenMetrics.controlSpacing)
-                        .background(LyneqoTheme.softTeal)
-                        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.fieldCornerRadius, style: .continuous))
+                        Text("Drag the pin if this is wrong. Next saves this location.")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
                     } else {
-                        Text("Location confirmed. You can still drag the pin to correct it.")
+                        Text("Location saved. You can still drag the pin to correct it.")
                             .font(.caption)
                             .foregroundStyle(AppColors.textSupporting)
                     }
@@ -278,15 +307,24 @@ struct AccidentRecorderView: View {
                 }
                 .pickerStyle(.menu)
 
-                Text("Suggested from the confirmed map pin. Change it if the suggestion is wrong.")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSupporting)
+                if let pinJurisdiction, pinJurisdiction != record.jurisdiction {
+                    AppWarningBanner(
+                        message: "The map pin looks like \(pinJurisdiction.displayName), but the country is set to \(record.jurisdiction.displayName). Change whichever is wrong."
+                    )
+                }
 
-                TextField("What3Words (optional)", text: stringBinding(record, \.what3Words))
-                    .textInputAutocapitalization(.never)
+                DisclosureGroup("More location detail") {
+                    VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                        Text("Suggested from the map pin. Change it if the suggestion is wrong.")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                        TextField("What3Words (optional)", text: stringBinding(record, \.what3Words))
+                            .textInputAutocapitalization(.never)
+                    }
+                    .padding(.top, AppScreenMetrics.smallSpacing)
+                }
+                .font(.subheadline.weight(.semibold))
             }
-
-            AppWarningBanner(message: AccidentGuidance.helperDisclaimer)
 
             AppSettingsSection("When") {
                 DatePicker(
@@ -295,34 +333,16 @@ struct AccidentRecorderView: View {
                     displayedComponents: [.date, .hourAndMinute]
                 )
             }
-
-            AppSettingsSection("Scene", caption: "Answer what you can. You can change this later.") {
-                sceneQuestion(
-                    "Anyone injured?",
-                    isOn: boolBinding(record, \.anyoneInjured),
-                    advice: "Call \(record.jurisdiction.emergencyNumber) now. Do not move an injured person unless they are in immediate danger."
-                )
-                sceneQuestion(
-                    "Road blocked, fire, or people in danger?",
-                    isOn: boolBinding(record, \.sceneUnsafeOrBlocked),
-                    advice: "Call \(record.jurisdiction.emergencyNumber) now. Move to a safe place if you can do so without putting anyone at greater risk."
-                )
-                sceneQuestion(
-                    "Suspect drink, drugs or violence?",
-                    isOn: boolBinding(record, \.suspectedImpairmentOrViolence),
-                    advice: "Call \(record.jurisdiction.emergencyNumber) from a safe place. Do not confront the other driver."
-                )
-                sceneQuestion(
-                    "Other driver left or is leaving?",
-                    isOn: boolBinding(record, \.hitAndRun),
-                    advice: "Call \(record.jurisdiction.emergencyNumber) while it is happening. Do not follow them; note the plate, vehicle and direction of travel."
-                )
-            }
         }
     }
 
     @ViewBuilder
-    private func sceneQuestion(_ title: String, isOn: Binding<Bool>, advice: String) -> some View {
+    private func sceneQuestion(
+        _ title: String,
+        isOn: Binding<Bool>,
+        advice: String,
+        callNumber: String
+    ) -> some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
             Toggle(title, isOn: isOn)
             if isOn.wrappedValue {
@@ -331,6 +351,12 @@ struct AccidentRecorderView: View {
                     .foregroundStyle(LyneqoTheme.Status.danger)
                     .fixedSize(horizontal: false, vertical: true)
                     .transition(.opacity.combined(with: .move(edge: .top)))
+                Button("Call \(callNumber)") {
+                    if let url = URL(string: "tel://\(callNumber)") {
+                        openURL(url)
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isOn.wrappedValue)
@@ -338,79 +364,242 @@ struct AccidentRecorderView: View {
 
     private func doNowStep(_ record: AccidentRecord) -> some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-            ForEach(guidance.cards) { card in
+            ForEach(doNowPriorityCards) { card in
                 AccidentGuidanceCardView(card: card) { url in
                     openURL(url)
                 }
             }
 
             AppSettingsSection("At the scene") {
-                Toggle("Details exchanged?", isOn: boolBinding(record, \.detailsExchanged))
-                Toggle("Saw their insurance or Green Card?", isOn: boolBinding(record, \.insuranceCertificateSeen))
-                Toggle("They refused to cooperate?", isOn: boolBinding(record, \.otherDriverRefused))
+                Toggle(
+                    "No other vehicle involved?",
+                    isOn: Binding(
+                        get: { record.noOtherVehicle },
+                        set: {
+                            record.noOtherVehicle = $0
+                            if $0 {
+                                record.detailsExchanged = false
+                                record.otherDriverRefused = false
+                            }
+                            AccidentStore.refreshProcessBranch(for: record, profile: profile)
+                            AccidentStore.save(record, in: modelContext)
+                        }
+                    )
+                )
+
+                if !record.noOtherVehicle {
+                    Toggle("Details exchanged?", isOn: boolBinding(record, \.detailsExchanged))
+                    Toggle("Saw their insurance or Green Card?", isOn: boolBinding(record, \.insuranceCertificateSeen))
+                    Toggle("They refused to cooperate?", isOn: boolBinding(record, \.otherDriverRefused))
+                }
+
                 Toggle("Police informed?", isOn: boolBinding(record, \.policeReported))
                 if record.policeReported {
                     TextField("Police reference", text: stringBinding(record, \.policeReference))
                 }
 
-                Text("If they show documents and agree, photograph them here. Photos stay on this device.")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSupporting)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 4)
+                if !record.noOtherVehicle {
+                    Text("If they show documents and agree, photograph them here. Photos stay on this device.")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
 
-                AccidentDocumentPhotoCaptureRow(
-                    vehicleID: vehicleID,
-                    record: record,
-                    kind: .documents,
-                    emptyIcon: "doc.text.image",
-                    confirmationMessage: "Only photograph insurance or a Green Card if they show it. Do not take documents from them.",
-                    onSaved: {
-                        record.insuranceCertificateSeen = true
-                        AccidentStore.save(record, in: modelContext)
-                    }
-                )
+                    AccidentDocumentPhotoCaptureRow(
+                        vehicleID: vehicleID,
+                        record: record,
+                        kind: .documents,
+                        emptyIcon: "doc.text.image",
+                        confirmationMessage: "Only photograph insurance or a Green Card if they show it. Do not take documents from them.",
+                        onSaved: {
+                            record.insuranceCertificateSeen = true
+                            AccidentStore.save(record, in: modelContext)
+                        }
+                    )
 
-                AccidentDocumentPhotoCaptureRow(
-                    vehicleID: vehicleID,
-                    record: record,
-                    kind: .drivingLicence,
-                    emptyIcon: "person.text.rectangle",
-                    captionFilter: "scene-driving-licence",
-                    captionOnSave: "scene-driving-licence",
-                    confirmationMessage: "Only continue if the driver has offered the licence and agrees to it being photographed."
-                )
+                    AccidentDocumentPhotoCaptureRow(
+                        vehicleID: vehicleID,
+                        record: record,
+                        kind: .drivingLicence,
+                        emptyIcon: "person.text.rectangle",
+                        captionFilter: "scene-driving-licence",
+                        captionOnSave: "scene-driving-licence",
+                        confirmationMessage: "Only continue if the driver has offered the licence and agrees to it being photographed."
+                    )
+                }
+            }
+
+            ForEach(doNowFollowUpCards) { card in
+                AccidentGuidanceCardView(card: card) { url in
+                    openURL(url)
+                }
+            }
+        }
+    }
+
+    private var doNowPriorityCards: [AccidentGuidanceCard] {
+        guidance.cards.filter { $0.kind == .emergency || $0.kind == .police }
+    }
+
+    private var doNowFollowUpCards: [AccidentGuidanceCard] {
+        guidance.cards.filter { card in
+            switch card.kind {
+            case .emergency, .police, .disclaimer, .photos, .insurer:
+                return false
+            case .note:
+                return card.id != "brexit-claim"
+            default:
+                return true
             }
         }
     }
 
     private func vehiclesStep(_ record: AccidentRecord) -> some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-            Text("Add every other vehicle. UK plates can be looked up for MOT, tax and SORN. Insurance cannot be checked here.")
+            Text("The vehicle you were driving, then the other vehicle if there was one. UK plates can be looked up for MOT, tax and SORN.")
                 .font(.subheadline)
                 .foregroundStyle(AppColors.textSupporting)
 
-            if !profile.registrationMark.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                AppSettingsSection("Your vehicle") {
-                    labeled("Registration", UKRegistration.displayFormatted(profile.registrationMark))
-                    if !profile.insuranceProviderName.isEmpty {
-                        labeled("Insurer", profile.insuranceProviderName)
+            yourDetailsCard(record)
+
+            if record.noOtherVehicle {
+                AppSettingsSection("Other vehicles", caption: "Single-vehicle incident — nothing to exchange.") {
+                    AppSecondaryButton("There was another vehicle") {
+                        record.noOtherVehicle = false
+                        AccidentStore.refreshProcessBranch(for: record, profile: profile)
+                        AccidentStore.save(record, in: modelContext)
                     }
-                    if !profile.insurancePolicyNumber.isEmpty {
-                        labeled("Policy", profile.insurancePolicyNumber)
+                }
+            } else {
+                ForEach(record.otherVehiclesList) { vehicle in
+                    otherVehicleCard(vehicle, record: record)
+                }
+
+                if record.otherVehiclesList.isEmpty {
+                    AppPrimaryButton("Add the other vehicle", systemImage: "car.fill") {
+                        _ = AccidentStore.addOtherVehicle(to: record, in: modelContext)
                     }
-                    if !profile.insuranceClaimsPhone.isEmpty {
-                        labeled("Claims", profile.insuranceClaimsPhone)
+                    AppSecondaryButton("No other vehicle") {
+                        record.noOtherVehicle = true
+                        AccidentStore.refreshProcessBranch(for: record, profile: profile)
+                        AccidentStore.save(record, in: modelContext)
+                    }
+                } else {
+                    AppSecondaryButton("Add other vehicle") {
+                        _ = AccidentStore.addOtherVehicle(to: record, in: modelContext)
                     }
                 }
             }
+        }
+    }
 
-            ForEach(record.otherVehiclesList) { vehicle in
-                otherVehicleCard(vehicle, record: record)
-            }
+    @ViewBuilder
+    private func yourDetailsCard(_ record: AccidentRecord) -> some View {
+        AppSettingsSection(
+            "Your details",
+            caption: profile.kind == .caravan
+                ? "Usually the tow car, not the caravan. Filed under \(AccidentStore.filingIdentityLine(for: profile))."
+                : "Change the plate if you were not in this motorhome. Filed under \(AccidentStore.filingIdentityLine(for: profile))."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
+                    Text("Registration")
+                        .font(.headline)
+                    Text("The vehicle you were driving.")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.textSupporting)
+                }
 
-            AppSecondaryButton("Add other vehicle") {
-                _ = AccidentStore.addOtherVehicle(to: record, in: modelContext)
+                HStack(alignment: .center, spacing: AppScreenMetrics.smallSpacing) {
+                    AppBoundedTextField(
+                        placeholder: "e.g. AB12 CDE",
+                        text: Binding(
+                            get: { record.ownRegistration },
+                            set: { newValue in
+                                record.ownRegistration = newValue
+                                _ = AccidentStore.clearOwnLookupSnapshotIfStale(for: record)
+                                AccidentStore.save(record, in: modelContext)
+                            }
+                        ),
+                        keyboard: .asciiCapable
+                    )
+                    .textInputAutocapitalization(.characters)
+
+                    Button("Look up") {
+                        lookupOwnVehicle(on: record)
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .disabled(
+                        lookingUpOwnVehicle
+                            || record.ownRegistration.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
+                }
+
+                if lookingUpOwnVehicle {
+                    ProgressView("Looking up vehicle…")
+                } else if !record.ownLookupErrorMessage.isEmpty {
+                    Text(record.ownLookupErrorMessage)
+                        .font(.caption)
+                        .foregroundStyle(LyneqoTheme.Status.danger)
+                    if record.ownLookupPending {
+                        Button("Retry lookup") { lookupOwnVehicle(on: record) }
+                            .font(.caption.weight(.semibold))
+                    }
+                }
+
+                if record.hasOwnLookupSnapshot, !record.ownLookupSnapshotIsStale {
+                    labeled("Lookup", record.ownLookupIdentityLine)
+                    labeled("MOT", record.ownLookupMotStatus)
+                    labeled("Tax", record.ownLookupTaxStatus)
+                    if record.ownLookupMarkedForExport {
+                        labeled("Export", "Marked for export")
+                    }
+                    if let checked = record.ownLookupCheckedAt {
+                        Text(Formatters.checkedAtCaption(checked))
+                            .font(.caption)
+                            .foregroundStyle(AppColors.textSupporting)
+                    }
+                }
+
+                Toggle(
+                    "Were you towing a caravan or trailer?",
+                    isOn: Binding(
+                        get: { record.wasTowing },
+                        set: {
+                            record.wasTowing = $0
+                            AccidentStore.refreshProcessBranch(for: record, profile: profile)
+                            AccidentStore.save(record, in: modelContext)
+                        }
+                    )
+                )
+
+                AppSecondaryButton("Fill from My Card") {
+                    myCardError = nil
+                    showMyCardPicker = true
+                }
+
+                Text("Copies name, address and phone from Contacts → My Card onto this incident.")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let myCardError {
+                    AppWarningBanner(message: myCardError)
+                }
+
+                TextField("Your name", text: stringBinding(record, \.ownName))
+                    .textContentType(.name)
+                TextField("Your phone", text: stringBinding(record, \.ownPhone))
+                    .keyboardType(.phonePad)
+                    .textContentType(.telephoneNumber)
+                TextField("Your address", text: stringBinding(record, \.ownAddress), axis: .vertical)
+                    .lineLimit(2...4)
+                    .textContentType(.fullStreetAddress)
+
+                TextField("Insurer", text: stringBinding(record, \.ownInsurerName))
+                TextField("Policy number", text: stringBinding(record, \.ownInsurancePolicyNumber))
+                TextField("Claims phone", text: stringBinding(record, \.ownInsuranceClaimsPhone))
+                    .keyboardType(.phonePad)
             }
         }
     }
@@ -591,6 +780,19 @@ struct AccidentRecorderView: View {
                 .font(.subheadline)
                 .foregroundStyle(AppColors.textSupporting)
 
+            Toggle(
+                "Were you towing a caravan or trailer?",
+                isOn: Binding(
+                    get: { record.wasTowing },
+                    set: {
+                        record.wasTowing = $0
+                        AccidentStore.refreshProcessBranch(for: record, profile: profile)
+                        AccidentStore.save(record, in: modelContext)
+                    }
+                )
+            )
+            .font(.subheadline.weight(.medium))
+
             AccidentPhotoChecklistSection(
                 vehicleID: vehicleID,
                 record: record,
@@ -684,10 +886,6 @@ struct AccidentRecorderView: View {
                     _ = AccidentStore.addWitness(to: record, in: modelContext)
                 }
             }
-
-            AppSettingsSection("Follow up") {
-                Toggle("Told my insurer?", isOn: boolBinding(record, \.insurerNotified))
-            }
         }
     }
 
@@ -695,16 +893,27 @@ struct AccidentRecorderView: View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
             AppWarningBanner(message: AccidentGuidance.helperDisclaimer)
 
-            AppSettingsSection("Summary") {
-                labeled("When", Formatters.dateTime(record.occurredAt))
-                labeled("Where", record.jurisdiction.displayName)
-                labeled("Process", record.processBranch.displayName)
-                labeled("Injured", record.anyoneInjured ? "Yes" : "No / not sure")
-                labeled("Police", record.policeReported ? (record.policeReference.isEmpty ? "Reported" : record.policeReference) : "Not yet")
-                labeled("Insurer", record.insurerNotified ? "Notified" : "Not yet")
-                labeled("Other vehicles", "\(record.otherVehiclesList.count)")
-                labeled("Photos", "\(record.photosList.count)")
-                labeled("CCTV / video", cctvSummary(record))
+            AppSettingsSection("Summary", caption: "Tap a row to go back and change it.") {
+                summaryJump("When", Formatters.dateTime(record.occurredAt), to: .scene)
+                summaryJump("Where", reviewWhereLine(record), to: .scene)
+                summaryJump("Injured", record.anyoneInjured ? "Yes" : "No / not sure", to: .scene)
+                summaryJump("Your vehicle", reviewVehicleLine(record), to: .vehicles)
+                summaryJump(
+                    "Other vehicles",
+                    record.noOtherVehicle ? "None — single vehicle" : "\(record.otherVehiclesList.count)",
+                    to: .vehicles
+                )
+                summaryJump("Photos", "\(record.photosList.count)", to: .photos)
+                summaryJump("CCTV / video", cctvSummary(record), to: .details)
+                summaryJump(
+                    "Police",
+                    record.policeReported ? (record.policeReference.isEmpty ? "Reported" : record.policeReference) : "Not yet",
+                    to: .doNow
+                )
+            }
+
+            AppSettingsSection("Follow up") {
+                Toggle("Told my insurer?", isOn: boolBinding(record, \.insurerNotified))
             }
 
             if guidance.cards.contains(where: { $0.kind == .police || $0.kind == .emergency }) {
@@ -719,10 +928,48 @@ struct AccidentRecorderView: View {
                 }
             }
 
+            if record.photosList.isEmpty && record.otherVehiclesList.isEmpty && !record.noOtherVehicle {
+                Text("This pack will be thin until you add the other vehicle or photos.")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+            }
+
             AppPrimaryButton("Share incident pack", systemImage: "square.and.arrow.up") {
                 exportPack(record)
             }
         }
+    }
+
+    private func summaryJump(_ title: String, _ value: String, to destination: AccidentRecorderStep) -> some View {
+        Button {
+            step = destination
+        } label: {
+            HStack(alignment: .top) {
+                labeled(title, value)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color(.tertiaryLabel))
+                    .padding(.top, 2)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens \(destination.title)")
+    }
+
+    private func reviewWhereLine(_ record: AccidentRecord) -> String {
+        let place = record.locationDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        if place.isEmpty { return record.jurisdiction.displayName }
+        return "\(place) · \(record.jurisdiction.displayName)"
+    }
+
+    private func reviewVehicleLine(_ record: AccidentRecord) -> String {
+        let plate = record.displayOwnRegistration
+        let identity = record.ownLookupIdentityLine
+        if plate.isEmpty { return "Not recorded" }
+        if record.hasOwnLookupSnapshot, !record.ownLookupSnapshotIsStale, !identity.isEmpty {
+            return "\(plate) · \(identity)"
+        }
+        return plate
     }
 
     private func labeled(_ title: String, _ value: String) -> some View {
@@ -778,6 +1025,19 @@ struct AccidentRecorderView: View {
         lookup(vehicle, on: record)
     }
 
+    private func lookupOwnVehicle(on record: AccidentRecord) {
+        lookingUpOwnVehicle = true
+        Task {
+            _ = await AccidentStore.lookupOwnUKPlate(
+                record.ownRegistration,
+                on: record,
+                using: vehicleLookup,
+                in: modelContext
+            )
+            lookingUpOwnVehicle = false
+        }
+    }
+
     private func lookup(_ vehicle: AccidentOtherVehicle, on record: AccidentRecord) {
         lookingUpVehicleID = vehicle.id
         Task {
@@ -799,26 +1059,36 @@ struct AccidentRecorderView: View {
             return (photo.kind, image)
         }
         exportPDFData = AccidentEvidencePackBuilder.buildPDF(
-            input: .init(
-                vehicleName: profile.name,
-                vehicleKind: profile.kind,
-                ownRegistration: profile.registrationMark,
-                insurerName: profile.insuranceProviderName,
-                insurerPolicyNumber: profile.insurancePolicyNumber,
-                insurerClaimsPhone: profile.insuranceClaimsPhone,
+            input: AccidentEvidencePackBuilder.makeInput(
                 record: record,
+                profile: profile,
                 photoImages: photos
             )
         )
     }
 
+    private func applyMyCard(_ contact: CNContact, to record: AccidentRecord) {
+        let details = MyCardContactMapper.details(from: contact)
+        if details.isEmpty {
+            myCardError = MyCardContactError.emptyMeCard.errorDescription
+            return
+        }
+        record.ownName = details.name
+        record.ownAddress = details.address
+        record.ownPhone = details.phone
+        AccidentStore.save(record, in: modelContext)
+        myCardError = nil
+    }
+
     private func ensureRecord() {
         if let existing {
             record = existing
+            AccidentStore.backfillLegacyOwnVehicleIfNeeded(on: existing, from: profile)
+            AccidentStore.save(existing, in: modelContext)
             return
         }
         if record == nil {
-            let created = AccidentStore.createRecord(for: vehicleID, in: modelContext)
+            let created = AccidentStore.createRecord(for: vehicleID, profile: profile, in: modelContext)
             record = created
         }
         applyLocationIfNeeded()
@@ -883,6 +1153,7 @@ struct AccidentRecorderView: View {
 
                 locationDraft = result.placemark.coordinate
                 locationDraftCountryCode = result.placemark.countryCode
+                pinJurisdiction = AccidentJurisdiction.inferred(fromCountryCode: result.placemark.countryCode)
                 locationNeedsConfirmation = true
                 locationMapRevision += 1
                 isSearchingLocation = false
@@ -914,6 +1185,7 @@ struct AccidentRecorderView: View {
         let countryCode = placemark?.isoCountryCode ?? locationDraftCountryCode
         if let inferred = AccidentJurisdiction.inferred(fromCountryCode: countryCode) {
             record.jurisdiction = inferred
+            pinJurisdiction = inferred
         }
         if let placemark, let address = formattedAddress(from: placemark), !address.isEmpty {
             record.locationDescription = address
@@ -950,12 +1222,25 @@ struct AccidentRecorderView: View {
 
     private func move(by delta: Int) {
         if let record {
+            if step == .scene, delta > 0, locationNeedsConfirmation {
+                Task {
+                    await confirmLocation(record)
+                    AccidentStore.refreshProcessBranch(for: record, profile: profile)
+                    AccidentStore.save(record, in: modelContext)
+                    advanceStep(by: delta)
+                }
+                return
+            }
             AccidentStore.refreshProcessBranch(for: record, profile: profile)
             AccidentStore.save(record, in: modelContext)
             Task {
                 await AccidentStore.retryPendingLookups(on: record, using: vehicleLookup, in: modelContext)
             }
         }
+        advanceStep(by: delta)
+    }
+
+    private func advanceStep(by delta: Int) {
         let all = AccidentRecorderStep.allCases
         guard let index = all.firstIndex(of: step) else { return }
         let next = index + delta

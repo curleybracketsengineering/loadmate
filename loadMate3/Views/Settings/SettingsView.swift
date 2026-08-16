@@ -208,7 +208,7 @@ struct SettingsView: View {
                 profilePendingRename = nil
             }
         }
-        .confirmationDialog("Scan vehicle plate", isPresented: $showPlateSourcePicker, titleVisibility: .visible) {
+        .confirmationDialog("Scan manufacturer plate", isPresented: $showPlateSourcePicker, titleVisibility: .visible) {
             if UIImagePickerController.isSourceTypeAvailable(.camera) {
                 Button("Take photo") { showPlateCamera = true }
             }
@@ -427,11 +427,7 @@ struct SettingsView: View {
     private func profileSubtitle(_ profile: VehicleProfile) -> String {
         let manufacturer = profile.manufacturer.trimmingCharacters(in: .whitespacesAndNewlines)
         let modelName = profile.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let identity = [manufacturer, modelName].filter { !$0.isEmpty }.joined(separator: " ")
-        if identity.isEmpty {
-            return "\(profile.kind.displayName) — \(profile.name)"
-        }
-        return "\(profile.kind.displayName) — \(profile.name)\n\(identity)"
+        return [manufacturer, modelName].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     private static let developerEmail = "smatheson6@icloude.com"
@@ -517,25 +513,22 @@ struct SettingsView: View {
             HStack(alignment: .top, spacing: AppScreenMetrics.smallSpacing) {
                 AppSectionHeading(
                     "My vehicles",
-                    caption: "Switch between caravan and motorhome. Each has its own limits; use trips on Load for separate packing lists."
+                    caption: "Switch between caravan and motorhome. Each has its own limits."
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Menu {
-                    Button {
-                        showAddVehicle = true
-                    } label: {
-                        Label("Add vehicle", systemImage: "plus.circle")
-                    }
+                Button {
+                    showAddVehicle = true
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "plus.circle")
                         .font(.body.weight(.medium))
                         .foregroundStyle(Color.accentColor)
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .accessibilityLabel("Vehicle list actions")
-                .pointerHelp("Options")
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add vehicle")
+                .pointerHelp("Add vehicle")
             }
 
             AppGroupedCard {
@@ -633,13 +626,21 @@ struct SettingsView: View {
                 AppAlignedLabeledNumberFieldRow(
                     left: AppLabeledNumberField(
                         "MTPLM (kg)",
-                        caption: "Maximum Technically Permissible Laden Mass",
+                        caption: captionForSummaryField(
+                            "Maximum Technically Permissible Laden Mass",
+                            missingLabel: "MTPLM (kg)",
+                            on: profile
+                        ),
                         value: binding(for: \.mtplmKg, on: profile),
                         fractionDigitsUpperBound: 0
                     ),
                     right: AppLabeledNumberField(
                         "MIRO (kg)",
-                        caption: "Mass in Running Order — used when no weighbridge weight is entered",
+                        caption: captionForSummaryField(
+                            "Mass in Running Order — used when no weighbridge weight is entered",
+                            missingLabel: "MIRO (kg) or weighbridge weight (kg)",
+                            on: profile
+                        ),
                         value: binding(for: \.baseWeightKg, on: profile),
                         fractionDigitsUpperBound: 0
                     )
@@ -647,7 +648,11 @@ struct SettingsView: View {
                 AppAlignedLabeledNumberFieldRow(
                     left: AppLabeledNumberField(
                         "Weighbridge weight (kg)",
-                        caption: "Actual caravan weight before trip items — used instead of MIRO when entered",
+                        caption: captionForSummaryField(
+                            "Actual caravan weight before trip items — used instead of MIRO when entered",
+                            missingLabel: "MIRO (kg) or weighbridge weight (kg)",
+                            on: profile
+                        ),
                         value: binding(for: \.weighbridgeWeightKg, on: profile),
                         fractionDigitsUpperBound: 0
                     ),
@@ -663,19 +668,31 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 AppLabeledNumberField(
                     "MTPLM (kg)",
-                    caption: "Maximum Technically Permissible Laden Mass",
+                    caption: captionForSummaryField(
+                        "Maximum Technically Permissible Laden Mass",
+                        missingLabel: "MTPLM (kg)",
+                        on: profile
+                    ),
                     value: binding(for: \.mtplmKg, on: profile),
                     fractionDigitsUpperBound: 0
                 )
                 AppLabeledNumberField(
                     "MIRO (kg)",
-                    caption: "Mass in Running Order — used when no weighbridge weight is entered",
+                    caption: captionForSummaryField(
+                        "Mass in Running Order — used when no weighbridge weight is entered",
+                        missingLabel: "MIRO (kg) or weighbridge weight (kg)",
+                        on: profile
+                    ),
                     value: binding(for: \.baseWeightKg, on: profile),
                     fractionDigitsUpperBound: 0
                 )
                 AppLabeledNumberField(
                     "Weighbridge weight (kg)",
-                    caption: "Actual caravan weight before trip items — used instead of MIRO when entered",
+                    caption: captionForSummaryField(
+                        "Actual caravan weight before trip items — used instead of MIRO when entered",
+                        missingLabel: "MIRO (kg) or weighbridge weight (kg)",
+                        on: profile
+                    ),
                     value: binding(for: \.weighbridgeWeightKg, on: profile),
                     fractionDigitsUpperBound: 0
                 )
@@ -689,6 +706,91 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
+    private func motorhomePlateFields(_ profile: VehicleProfile) -> some View {
+        if usePadLayout {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                AppAlignedLabeledNumberFieldRow(
+                    left: AppLabeledNumberField(
+                        "MAM (kg)",
+                        caption: captionForSummaryField(
+                            "Maximum Authorised Mass (gross laden limit)",
+                            missingLabel: "MAM (kg)",
+                            on: profile
+                        ),
+                        value: binding(for: \.mtplmKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    ),
+                    right: AppLabeledNumberField(
+                        "GTW (kg)",
+                        caption: "Gross train weight — plated vehicle + trailer maximum, not tow-bar nose load",
+                        value: binding(for: \.gtwKg, on: profile),
+                        fractionDigitsUpperBound: 0
+                    )
+                )
+                AppLabeledNumberField(
+                    "MRO (kg)",
+                    caption: captionForSummaryField(
+                        "Mass in Running Order — used when no weighbridge reading is entered",
+                        missingLabel: "MRO (kg) or weighbridge weight",
+                        on: profile
+                    ),
+                    value: binding(for: \.baseWeightKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+                AppLabeledNumberField(
+                    "Weighbridge gross (kg)",
+                    caption: captionForSummaryField(
+                        "Total laden mass before trip items (optional if axle weights entered)",
+                        missingLabel: "MRO (kg) or weighbridge weight",
+                        on: profile
+                    ),
+                    value: binding(for: \.weighbridgeWeightKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+            }
+        } else {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                AppLabeledNumberField(
+                    "MAM (kg)",
+                    caption: captionForSummaryField(
+                        "Maximum Authorised Mass (gross laden limit)",
+                        missingLabel: "MAM (kg)",
+                        on: profile
+                    ),
+                    value: binding(for: \.mtplmKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+                AppLabeledNumberField(
+                    "GTW (kg)",
+                    caption: "Gross train weight — plated vehicle + trailer maximum, not tow-bar nose load",
+                    value: binding(for: \.gtwKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+                AppLabeledNumberField(
+                    "MRO (kg)",
+                    caption: captionForSummaryField(
+                        "Mass in Running Order — used when no weighbridge reading is entered",
+                        missingLabel: "MRO (kg) or weighbridge weight",
+                        on: profile
+                    ),
+                    value: binding(for: \.baseWeightKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+                AppLabeledNumberField(
+                    "Weighbridge gross (kg)",
+                    caption: captionForSummaryField(
+                        "Total laden mass before trip items (optional if axle weights entered)",
+                        missingLabel: "MRO (kg) or weighbridge weight",
+                        on: profile
+                    ),
+                    value: binding(for: \.weighbridgeWeightKg, on: profile),
+                    fractionDigitsUpperBound: 0
+                )
+            }
+        }
+    }
+
     // MARK: - Caravan
 
     @ViewBuilder
@@ -696,6 +798,7 @@ struct SettingsView: View {
         AppSettingsSection("Caravan", caption: "Weights from your caravan plate or handbook.") {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 plateScanControls(for: profile)
+                caravanPlateFields(profile)
                 AppLabeledTextField(
                     "Manufacturer",
                     caption: "Brand from the manufacturer plate when shown",
@@ -715,7 +818,6 @@ struct SettingsView: View {
                     text: stringBinding(for: \.vinChassisNumber, on: profile)
                 )
                 vinChipScanControls(for: profile)
-                caravanPlateFields(profile)
                 Toggle(isOn: boolBinding(for: \.hasBikeRack, on: profile)) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Bike rack fitted")
@@ -736,7 +838,11 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 AppLabeledNumberField(
                     "Car tow ball limit (kg)",
-                    caption: "Maximum tow ball weight your car can handle",
+                    caption: captionForSummaryField(
+                        "Maximum tow ball weight your car can handle",
+                        missingLabel: "Car tow ball limit (kg)",
+                        on: profile
+                    ),
                     value: binding(for: \.carMaxTowBallKg, on: profile),
                     fractionDigitsUpperBound: 0
                 )
@@ -860,6 +966,7 @@ struct SettingsView: View {
                     keyboard: .asciiCapable
                 )
                 vehicleLookupControls(for: profile)
+                motorhomePlateFields(profile)
                 AppLabeledTextField(
                     "Manufacturer",
                     caption: "Brand from the manufacturer plate when shown",
@@ -884,64 +991,6 @@ struct SettingsView: View {
                     placeholder: "e.g. 16-0792-1592616",
                     text: stringBinding(for: \.bodyCellNumber, on: profile)
                 )
-                vinChipScanControls(for: profile)
-                if usePadLayout {
-                    VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                        AppAlignedLabeledNumberFieldRow(
-                            left: AppLabeledNumberField(
-                                "MAM (kg)",
-                                caption: "Maximum Authorised Mass (gross laden limit)",
-                                value: binding(for: \.mtplmKg, on: profile),
-                                fractionDigitsUpperBound: 0
-                            ),
-                            right: AppLabeledNumberField(
-                                "GTW (kg)",
-                                caption: "Gross train weight — plated vehicle + trailer maximum, not tow-bar nose load",
-                                value: binding(for: \.gtwKg, on: profile),
-                                fractionDigitsUpperBound: 0
-                            )
-                        )
-                        AppLabeledNumberField(
-                            "MRO (kg)",
-                            caption: "Mass in Running Order — used when no weighbridge reading is entered",
-                            value: binding(for: \.baseWeightKg, on: profile),
-                            fractionDigitsUpperBound: 0
-                        )
-                        AppLabeledNumberField(
-                            "Weighbridge gross (kg)",
-                            caption: "Total laden mass before trip items (optional if axle weights entered)",
-                            value: binding(for: \.weighbridgeWeightKg, on: profile),
-                            fractionDigitsUpperBound: 0
-                        )
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                        AppLabeledNumberField(
-                            "MAM (kg)",
-                            caption: "Maximum Authorised Mass (gross laden limit)",
-                            value: binding(for: \.mtplmKg, on: profile),
-                            fractionDigitsUpperBound: 0
-                        )
-                        AppLabeledNumberField(
-                            "GTW (kg)",
-                            caption: "Gross train weight — plated vehicle + trailer maximum, not tow-bar nose load",
-                            value: binding(for: \.gtwKg, on: profile),
-                            fractionDigitsUpperBound: 0
-                        )
-                        AppLabeledNumberField(
-                            "MRO (kg)",
-                            caption: "Mass in Running Order — used when no weighbridge reading is entered",
-                            value: binding(for: \.baseWeightKg, on: profile),
-                            fractionDigitsUpperBound: 0
-                        )
-                        AppLabeledNumberField(
-                            "Weighbridge gross (kg)",
-                            caption: "Total laden mass before trip items (optional if axle weights entered)",
-                            value: binding(for: \.weighbridgeWeightKg, on: profile),
-                            fractionDigitsUpperBound: 0
-                        )
-                    }
-                }
             }
         }
 
@@ -1078,13 +1127,21 @@ struct SettingsView: View {
                 AppAlignedLabeledNumberFieldRow(
                     left: AppLabeledNumberField(
                         "Max front axle (kg)",
-                        caption: "Plated front axle limit",
+                        caption: captionForSummaryField(
+                            "Plated front axle limit",
+                            missingLabel: "Max front axle (kg)",
+                            on: profile
+                        ),
                         value: binding(for: \.maxFrontAxleKg, on: profile),
                         fractionDigitsUpperBound: 0
                     ),
                     right: AppLabeledNumberField(
                         "Max rear axle (kg)",
-                        caption: "Plated rear axle limit",
+                        caption: captionForSummaryField(
+                            "Plated rear axle limit",
+                            missingLabel: "Max rear axle (kg)",
+                            on: profile
+                        ),
                         value: binding(for: \.maxRearAxleKg, on: profile),
                         fractionDigitsUpperBound: 0
                     )
@@ -1113,7 +1170,11 @@ struct SettingsView: View {
                     )
                     AppLabeledNumberField(
                         "Max front axle (kg)",
-                        caption: "Plated front axle limit",
+                        caption: captionForSummaryField(
+                            "Plated front axle limit",
+                            missingLabel: "Max front axle (kg)",
+                            on: profile
+                        ),
                         value: binding(for: \.maxFrontAxleKg, on: profile),
                         fractionDigitsUpperBound: 0
                     )
@@ -1135,7 +1196,11 @@ struct SettingsView: View {
                     )
                     AppLabeledNumberField(
                         "Max rear axle (kg)",
-                        caption: "Plated rear axle limit",
+                        caption: captionForSummaryField(
+                            "Plated rear axle limit",
+                            missingLabel: "Max rear axle (kg)",
+                            on: profile
+                        ),
                         value: binding(for: \.maxRearAxleKg, on: profile),
                         fractionDigitsUpperBound: 0
                     )
@@ -1211,33 +1276,44 @@ struct SettingsView: View {
         )
     }
 
+    private func captionForSummaryField(
+        _ caption: String,
+        missingLabel: String,
+        on profile: VehicleProfile
+    ) -> String {
+        if profile.missingWeightCalculationFieldLabels.contains(missingLabel) {
+            return "Needed for Summary. \(caption)"
+        }
+        return caption
+    }
+
     private func plateScanPickerMessage(for kind: VehicleKind) -> String {
         switch kind {
         case .caravan:
-            return "Photograph the manufacturer plate so manufacturer, model, MTPLM/MAM, MIRO/MRO, axle limits, VIN, tyre size, pressure and wheel nut torque can be suggested."
+            return "Photograph the manufacturer plate in the gas locker, not the number plate."
         case .motorhome:
-            return "Photograph the manufacturer plate so manufacturer, model, MAM, GTW, MRO, axle limits, VIN, body/cell number, tyre size and pressure can be suggested."
+            return "Photograph the manufacturer plate in the engine bay or gas locker, not the number plate."
         }
     }
 
     private func plateScanControlsMessage(for kind: VehicleKind) -> String {
         switch kind {
         case .caravan:
-            return "Photograph the manufacturer plate to suggest manufacturer, model, MTPLM/MAM, MIRO/MRO, hitch or axle limits, VIN, tyre size, pressure and wheel nut torque. Review before applying. The photo stays here so you can check which plate was scanned."
+            return "Photograph the manufacturer plate (usually in the gas locker), not the yellow number plate. Review before applying."
         case .motorhome:
-            return "Photograph the manufacturer plate to suggest manufacturer, model, MAM, GTW, MRO, axle limits, VIN, body/cell number, tyre size and pressure. Review before applying. The photo stays here so you can check which plate was scanned."
+            return "Photograph the manufacturer plate (engine bay or gas locker), not the yellow number plate. Review before applying."
         }
     }
 
     @ViewBuilder
     private func vehicleLookupControls(for profile: VehicleProfile) -> some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-            Text("Look up MOT, tax and vehicle details for this registration. Review before copying make or model into Settings.")
+            Text("Looks up MOT, tax, make and model for this registration.")
                 .font(.caption)
                 .foregroundStyle(AppColors.textSupporting)
                 .fixedSize(horizontal: false, vertical: true)
 
-            AppSecondaryButton("Look up vehicle") {
+            AppSecondaryButton("Look up registration") {
                 lookupVehicle(for: profile)
             }
             .disabled(isLookingUpVehicle || isAnalyzingPlate || isAnalyzingVINChip)
@@ -1290,15 +1366,15 @@ struct SettingsView: View {
                 }
             }
 
-            AppSecondaryButton(attachedPlateImage == nil ? "Scan plate photo" : "Replace plate photo") {
+            AppSecondaryButton(attachedPlateImage == nil ? "Scan manufacturer plate" : "Replace manufacturer plate photo") {
                 plateAnalysisError = nil
                 showPlateSourcePicker = true
             }
             .disabled(isAnalyzingPlate || isAnalyzingVINChip)
             .accessibilityLabel(
                 attachedPlateImage == nil
-                    ? "Scan plate for \(profile.kind.displayName)"
-                    : "Replace plate photo for \(profile.kind.displayName)"
+                    ? "Scan manufacturer plate for \(profile.kind.displayName)"
+                    : "Replace manufacturer plate photo for \(profile.kind.displayName)"
             )
 
             if isAnalyzingPlate {

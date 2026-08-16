@@ -7,13 +7,78 @@ enum AccidentStore {
         for vehicleID: UUID,
         jurisdiction: AccidentJurisdiction = .unitedKingdom,
         occurredAt: Date = Date(),
+        profile: VehicleProfile? = nil,
         in context: ModelContext
     ) -> AccidentRecord {
         let record = AccidentRecord(vehicleID: vehicleID, occurredAt: occurredAt)
         record.jurisdiction = jurisdiction
+        if let profile {
+            prefillOwnVehicle(on: record, from: profile)
+            record.wasTowing = profile.kind == .caravan
+        }
         context.insert(record)
         try? context.save()
         return record
+    }
+
+    /// Copies profile registration and insurance onto a new incident. Does not overwrite fields already set.
+    static func prefillOwnVehicle(on record: AccidentRecord, from profile: VehicleProfile) {
+        if record.ownRegistration.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            record.ownRegistration = profile.registrationMark
+        }
+        if record.ownInsurerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            record.ownInsurerName = profile.insuranceProviderName
+        }
+        if record.ownInsurancePolicyNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            record.ownInsurancePolicyNumber = profile.insurancePolicyNumber
+        }
+        if record.ownInsuranceClaimsPhone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            record.ownInsuranceClaimsPhone = profile.insuranceClaimsPhone
+        }
+    }
+
+    /// Legacy incidents created before own-vehicle snapshot fields existed. Skipped once any own-vehicle detail is present.
+    static func backfillLegacyOwnVehicleIfNeeded(on record: AccidentRecord, from profile: VehicleProfile) {
+        let noOwnVehicleDetails =
+            record.ownRegistration.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && record.ownInsurerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && record.ownInsurancePolicyNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && record.ownInsuranceClaimsPhone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !record.hasOwnLookupSnapshot
+        guard noOwnVehicleDetails else { return }
+        prefillOwnVehicle(on: record, from: profile)
+    }
+
+    /// Profile values used only when this incident never snapshotted own-vehicle details (legacy records).
+    static func resolvedOwnRegistration(on record: AccidentRecord, profile: VehicleProfile) -> String {
+        let own = record.ownRegistration.trimmingCharacters(in: .whitespacesAndNewlines)
+        return own.isEmpty ? profile.registrationMark : record.ownRegistration
+    }
+
+    static func resolvedOwnInsurerName(on record: AccidentRecord, profile: VehicleProfile) -> String {
+        let own = record.ownInsurerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return own.isEmpty ? profile.insuranceProviderName : record.ownInsurerName
+    }
+
+    static func resolvedOwnInsurancePolicyNumber(on record: AccidentRecord, profile: VehicleProfile) -> String {
+        let own = record.ownInsurancePolicyNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        return own.isEmpty ? profile.insurancePolicyNumber : record.ownInsurancePolicyNumber
+    }
+
+    static func resolvedOwnInsuranceClaimsPhone(on record: AccidentRecord, profile: VehicleProfile) -> String {
+        let own = record.ownInsuranceClaimsPhone.trimmingCharacters(in: .whitespacesAndNewlines)
+        return own.isEmpty ? profile.insuranceClaimsPhone : record.ownInsuranceClaimsPhone
+    }
+
+    static func filingIdentityLine(for profile: VehicleProfile) -> String {
+        let name = profile.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = name.isEmpty ? profile.kind.displayName : name
+        if profile.kind == .caravan {
+            let vin = profile.vinChassisNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+            if vin.isEmpty { return "\(title) (caravan)" }
+            return "\(title) (caravan) · CRiS / VIN \(vin)"
+        }
+        return "\(title) (\(profile.kind.displayName.lowercased()))"
     }
 
     static func save(_ record: AccidentRecord, in context: ModelContext) {
@@ -36,6 +101,7 @@ enum AccidentStore {
 
     @discardableResult
     static func addOtherVehicle(to record: AccidentRecord, in context: ModelContext) -> AccidentOtherVehicle {
+        record.noOtherVehicle = false
         let vehicle = AccidentOtherVehicle(record: record)
         context.insert(vehicle)
         record.updatedAt = Date()
@@ -88,6 +154,48 @@ enum AccidentStore {
         vehicle.isForeignRegistration = false
         refreshRedFlags(for: vehicle, now: now)
         vehicle.updatedAt = now
+    }
+
+    static func applyOwnLookup(
+        _ result: VehicleLookupResult,
+        to record: AccidentRecord,
+        now: Date = Date()
+    ) {
+        record.ownRegistration = result.displayRegistration
+        record.ownLookupMake = result.make ?? ""
+        record.ownLookupModel = result.model ?? ""
+        record.ownLookupColour = result.colour ?? ""
+        record.ownLookupTaxStatus = result.taxStatus ?? ""
+        record.ownLookupMotStatus = result.motStatus ?? ""
+        record.ownLookupMotExpiryDate = result.motExpiryDate
+        record.ownLookupMarkedForExport = result.markedForExport ?? false
+        record.ownLookupCheckedAt = result.checkedAt
+        record.ownLookupPending = false
+        record.ownLookupErrorMessage = ""
+        record.ownLookupRegistration = UKRegistration.normalizeForLookup(result.displayRegistration)
+        record.updatedAt = now
+    }
+
+    static func clearOwnLookupSnapshot(for record: AccidentRecord, now: Date = Date()) {
+        record.ownLookupMake = ""
+        record.ownLookupModel = ""
+        record.ownLookupColour = ""
+        record.ownLookupTaxStatus = ""
+        record.ownLookupMotStatus = ""
+        record.ownLookupMotExpiryDate = nil
+        record.ownLookupMarkedForExport = false
+        record.ownLookupCheckedAt = nil
+        record.ownLookupRegistration = ""
+        record.ownLookupPending = false
+        record.updatedAt = now
+    }
+
+    @discardableResult
+    static func clearOwnLookupSnapshotIfStale(for record: AccidentRecord, now: Date = Date()) -> Bool {
+        guard record.ownLookupSnapshotIsStale else { return false }
+        clearOwnLookupSnapshot(for: record, now: now)
+        record.ownLookupErrorMessage = ""
+        return true
     }
 
     /// Drops MOT, tax, make and colour taken from a previous plate so they cannot be read as belonging to the new one.
@@ -161,7 +269,7 @@ enum AccidentStore {
     ) -> AccidentGuidanceInput {
         let flags = combinedRedFlags(on: record)
         let foreign = record.otherVehiclesList.contains(where: \.isForeignRegistration) || flags.contains(.foreignPlate)
-        let hasTow = profile?.kind == .caravan || profile?.usesManualTowBarLoad == true || (profile?.maxTowBarKg ?? 0) > 0
+        let hasTow = record.wasTowing
         return AccidentGuidanceInput(
             jurisdiction: record.jurisdiction,
             anyoneInjured: record.anyoneInjured,
@@ -174,7 +282,9 @@ enum AccidentStore {
             vehicleKind: profile?.kind ?? .caravan,
             hasTowOrTrailer: hasTow,
             redFlags: flags,
-            otherVehicleIsForeign: foreign
+            otherVehicleIsForeign: foreign,
+            noOtherVehicle: record.noOtherVehicle,
+            hasOtherVehicles: !record.otherVehiclesList.isEmpty
         )
     }
 
@@ -223,11 +333,44 @@ enum AccidentStore {
         }
     }
 
+    @discardableResult
+    static func lookupOwnUKPlate(
+        _ raw: String,
+        on record: AccidentRecord,
+        using lookup: any VehicleLookupProviding,
+        in context: ModelContext
+    ) async -> Result<VehicleLookupResult, VehicleLookupError> {
+        let requested = UKRegistration.normalizeForLookup(raw)
+        do {
+            let result = try await lookup.lookup(registration: raw, forceRefresh: true)
+            applyOwnLookup(result, to: record)
+            save(record, in: context)
+            return .success(result)
+        } catch let error as VehicleLookupError {
+            discardOwnSnapshotFromOtherPlate(on: record, requested: requested)
+            record.ownLookupPending = error == .noNetwork
+            record.ownLookupErrorMessage = error.errorDescription ?? "Lookup failed."
+            record.updatedAt = Date()
+            save(record, in: context)
+            return .failure(error)
+        } catch {
+            discardOwnSnapshotFromOtherPlate(on: record, requested: requested)
+            record.ownLookupPending = false
+            record.ownLookupErrorMessage = "Lookup failed."
+            record.updatedAt = Date()
+            save(record, in: context)
+            return .failure(.unexpectedResponse)
+        }
+    }
+
     static func retryPendingLookups(
         on record: AccidentRecord,
         using lookup: any VehicleLookupProviding,
         in context: ModelContext
     ) async {
+        if record.ownLookupPending, !record.ownRegistration.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            _ = await lookupOwnUKPlate(record.ownRegistration, on: record, using: lookup, in: context)
+        }
         let pending = record.otherVehiclesList.filter { $0.lookupPending && !$0.isForeignRegistration && !$0.registration.isEmpty }
         for vehicle in pending {
             _ = await lookupUKPlate(vehicle.registration, on: vehicle, using: lookup, in: context)
@@ -238,6 +381,11 @@ enum AccidentStore {
     private static func discardSnapshotFromOtherPlate(on vehicle: AccidentOtherVehicle, requested: String) {
         guard vehicle.hasLookupSnapshot, vehicle.lookupRegistration != requested else { return }
         clearLookupSnapshot(for: vehicle)
+    }
+
+    private static func discardOwnSnapshotFromOtherPlate(on record: AccidentRecord, requested: String) {
+        guard record.hasOwnLookupSnapshot, record.ownLookupRegistration != requested else { return }
+        clearOwnLookupSnapshot(for: record)
     }
 
     private static func nonEmpty(_ value: String) -> String? {
