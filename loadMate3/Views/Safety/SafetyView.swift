@@ -32,6 +32,7 @@ struct SafetyView: View {
     @State private var showStorageChecklist = false
     @State private var showAccidentRecorder = false
     @State private var showIncidentsSheet = false
+    @State private var isDimensionsExpanded = false
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
@@ -175,20 +176,7 @@ struct SafetyView: View {
             readinessBanner
 
             if activeProfile != nil {
-                AccidentEntryCard(
-                    title: "I’ve had an accident",
-                    subtitle: "What to do now, photos, other plates and red flags."
-                ) {
-                    showAccidentRecorder = true
-                }
-                Button("Past incidents") {
-                    if let onNavigateToIncidents {
-                        onNavigateToIncidents()
-                    } else {
-                        showIncidentsSheet = true
-                    }
-                }
-                .font(.subheadline.weight(.semibold))
+                accidentControls
             }
 
             VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
@@ -225,20 +213,6 @@ struct SafetyView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                Text("Quick Checklists")
-                    .font(.headline.weight(.semibold))
-                quickChecklistRow(title: "Departure checklist", systemImage: "list.clipboard.fill") {
-                    showDepartureChecklist = true
-                }
-                quickChecklistRow(title: "Arrival / pitching checklist", systemImage: "tent.fill") {
-                    showArrivalChecklist = true
-                }
-                quickChecklistRow(title: "Storage checklist", systemImage: "archivebox.fill") {
-                    showStorageChecklist = true
-                }
-            }
-
             if let profile = activeProfile {
                 vehicleDimensionsSection(profile: profile)
             }
@@ -272,21 +246,32 @@ struct SafetyView: View {
         todayChecklist.first { $0.id == "tyre-pressure" }
     }
 
-    private func safetyCheckAction(for item: SafetyCheckItem) -> (() -> Void)? {
-        guard item.status == .due else { return nil }
-        switch item.id {
-        case "tyre-pressure":
-            guard onNavigateToMaintenance != nil else { return nil }
-            return { onNavigateToMaintenance?() }
-        default:
-            return nil
+    private var accidentControls: some View {
+        HStack(spacing: AppScreenMetrics.controlSpacing) {
+            Button {
+                showAccidentRecorder = true
+            } label: {
+                Label("I’ve had an accident", systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .buttonStyle(.bordered)
+            .tint(LyneqoTheme.Status.danger)
+
+            Button("Past incidents") {
+                if let onNavigateToIncidents {
+                    onNavigateToIncidents()
+                } else {
+                    showIncidentsSheet = true
+                }
+            }
+            .font(.subheadline.weight(.semibold))
+
+            Spacer(minLength: 0)
         }
     }
 
-    @ViewBuilder
     private func safetyCheckRow(_ item: SafetyCheckItem) -> some View {
-        let action = safetyCheckAction(for: item)
-        let content = HStack(spacing: AppScreenMetrics.controlSpacing) {
+        HStack(spacing: AppScreenMetrics.controlSpacing) {
             Image(systemName: item.status == .complete ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                 .foregroundStyle(item.status == .complete ? AppColors.green : AppColors.orange)
             Text(item.title)
@@ -296,22 +281,8 @@ struct SafetyView: View {
             Text(item.status == .complete ? "Complete" : "Due")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(item.status == .complete ? AppColors.green : AppColors.orange)
-            if action != nil {
-                Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(AppColors.orange)
-            }
         }
         .padding(.vertical, 6)
-
-        if let action {
-            Button(action: action) {
-                content
-            }
-            .buttonStyle(.plain)
-        } else {
-            content
-        }
     }
 
     private func quickChecklistRow(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
@@ -336,9 +307,10 @@ struct SafetyView: View {
 
     private func vehicleDimensionsSection(profile: VehicleProfile) -> some View {
         let vehicleName = SafetySupport.vehicleKindName(for: profile.kind)
-        return AppSettingsSection(
+        return AppCollapsibleSettingsSection(
             "Vehicle dimensions",
-            caption: "External sizes from your \(vehicleName) handbook — useful for low bridges, ferries, and site access."
+            caption: "External sizes from your \(vehicleName) handbook — useful for low bridges, ferries, and site access.",
+            isExpanded: $isDimensionsExpanded
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 AppLabeledNumberField(

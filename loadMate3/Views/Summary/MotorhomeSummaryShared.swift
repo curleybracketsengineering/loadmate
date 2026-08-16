@@ -33,7 +33,7 @@ enum MotorhomeSummaryPrimaryIssue {
         if summary.isOverFrontAxle { return "Front axle load exceeds the limit" }
         if summary.isOverRearAxle { return "Rear axle load exceeds the limit" }
         if summary.isOverGarageLimit { return "Garage load over limit" }
-        if summary.isTowBarMeasurementMissing { return "Enter tow bar load on Load tab" }
+        if summary.isTowBarMeasurementMissing { return "Enter measured tow bar load" }
         if summary.isOverTowBarLimit { return "Tow bar limit exceeded" }
         return "Review weight details"
     }

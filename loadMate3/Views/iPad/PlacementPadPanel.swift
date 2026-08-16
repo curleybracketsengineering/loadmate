@@ -20,8 +20,6 @@ struct PlacementPadPanel: View {
 
     @StateObject private var viewModel = LocationViewModel()
     @State private var zonePickerItem: LoadedItem?
-    @State private var showLocationsHelp = false
-    @State private var tripPendingNotes: Trip?
 
     private var activeProfile: VehicleProfile? {
         VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
@@ -83,16 +81,6 @@ struct PlacementPadPanel: View {
                 }
             )
         }
-        .sheet(item: $tripPendingNotes) { trip in
-            if let profile = activeProfile {
-                TripLoadingNotesSheet(profile: profile, trip: trip)
-            }
-        }
-        .alert("About locations", isPresented: $showLocationsHelp) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(locationsHelpMessage)
-        }
     }
 
     @ViewBuilder
@@ -108,8 +96,6 @@ struct PlacementPadPanel: View {
     private func stackedPlacementContent(profile: VehicleProfile) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                placementHeader
-
                 VehicleCutawayPadView(
                     profile: profile,
                     zoneWeightsKg: zoneWeightsKg,
@@ -133,8 +119,6 @@ struct PlacementPadPanel: View {
         HStack(alignment: .top, spacing: AppScreenMetrics.sectionSpacing) {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                    placementHeader
-
                     if profile.kind == .caravan, let summary = caravanSummary {
                         noseEffectBanner(kg: summary.estimatedNoseWeightKg)
                     } else if profile.kind == .motorhome, let summary = motorhomeSummary {
@@ -178,30 +162,6 @@ struct PlacementPadPanel: View {
     private var caravanSummary: WeightSummary? {
         guard let profile = activeProfile, profile.kind == .caravan else { return nil }
         return WeightCalculator.summary(profile: profile, loadedItems: loadedItems)
-    }
-
-    private var placementHeader: some View {
-        HStack {
-            Text("Assign locations")
-                .font(.title3.weight(.semibold))
-            Button {
-                showLocationsHelp = true
-            } label: {
-                Image(systemName: "questionmark.circle")
-                    .foregroundStyle(Color.secondary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("About locations")
-            .pointerHelp("Help")
-
-            Spacer(minLength: 0)
-
-            if let profile = activeProfile, let trip = activeTrip {
-                TripNotesToolbarButton(profile: profile, trip: trip) {
-                    tripPendingNotes = trip
-                }
-            }
-        }
     }
 
     private func noseEffectBanner(kg: Double, label: String = "Total Nose Effect") -> some View {
@@ -271,13 +231,6 @@ struct PlacementPadPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var locationsHelpMessage: String {
-        if activeProfile?.kind == .motorhome {
-            return "Cab is ahead of the front axle; Middle between the axles; Rear above the rear; Boot and bike rack behind the rear. Stay within plated axle and garage limits."
-        }
-        return "Where you place each item shifts estimated tow ball (nose) weight. Front zones tend to increase it; rear zones tend to decrease it."
     }
 
     private func title(for loaded: LoadedItem) -> String {

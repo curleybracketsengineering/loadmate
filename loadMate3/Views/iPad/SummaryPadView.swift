@@ -3,6 +3,8 @@ import SwiftData
 
 /// iPad landscape weight summary — horizontal layout using the same calculations as iPhone.
 struct SummaryPadView: View {
+    var onNavigateToLoad: () -> Void = {}
+
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [VehicleProfile]
     @Query private var appStates: [AppState]
@@ -105,6 +107,7 @@ struct SummaryPadView: View {
                             trip: activeTrip,
                             summary: summary,
                             loadedItems: profileLoadedItems,
+                            onNavigateToLoad: onNavigateToLoad,
                             onRenameTrip: {
                                 guard let trip = activeTrip else { return }
                                 tripPendingRename = trip

@@ -1012,7 +1012,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("I have a tow bar")
                             .font(.subheadline.weight(.medium))
-                        Text("Show a Tow bar field on the Load tab. Enter the measured downforce per trip — the app adds it to rear axle and gross weight; it does not estimate it.")
+                        Text("Include tow bar load in rear axle and gross weight estimates. Enter the measured downforce per trip when you record it — the app does not estimate it.")
                             .font(.caption)
                             .foregroundStyle(AppColors.textSupporting)
                             .fixedSize(horizontal: false, vertical: true)

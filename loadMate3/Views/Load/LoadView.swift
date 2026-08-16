@@ -332,15 +332,6 @@ struct LoadTabContent: View {
                 onOpenTripNotes: { tripPendingNotes = $0 }
             )
         }
-
-        if let profile = activeProfile,
-           profile.kind == .motorhome,
-           profile.usesManualTowBarLoad,
-           let trip = activeTrip {
-            towBarEntryCard(for: trip)
-                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                .padding(.bottom, AppScreenMetrics.controlSpacing)
-        }
     }
 
     private var itemsSectionHeader: some View {
@@ -473,43 +464,6 @@ struct LoadTabContent: View {
         loadedItems
             .filter { $0.item?.id == item.id }
             .reduce(0) { $0 + max($1.quantity, 0) }
-    }
-
-    @ViewBuilder
-    private func towBarEntryCard(for trip: Trip) -> some View {
-        AppGroupedCard {
-            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Tow bar")
-                        .font(.headline)
-                        .foregroundStyle(Color.primary)
-                    Spacer(minLength: AppScreenMetrics.smallSpacing)
-                    Text("Trip value")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppColors.textSupporting)
-                }
-
-                AppBoundedNumberField(
-                    value: Binding(
-                        get: { trip.manualTowBarLoadKg },
-                        set: { newValue in
-                            trip.manualTowBarLoadKg = max(0, newValue)
-                            saveTowBarValue()
-                        }
-                    ),
-                    fractionDigitsUpperBound: 0
-                )
-
-                Text("Enter the measured tow bar downforce for this trip. The app adds this to rear axle and gross weight estimates, and checks your tow bar limit.")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.textSupporting)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private func saveTowBarValue() {
-        _ = SyncDebugSaveHelper.save(modelContext, source: "LoadView.saveTowBarValue")
     }
 }
 

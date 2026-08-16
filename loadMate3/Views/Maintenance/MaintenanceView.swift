@@ -976,52 +976,72 @@ struct FaultRecordEditorView: View {
         )
     }
 
+    private var canSave: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                    AppHeroSection(
-                        systemImage: "exclamationmark.triangle",
-                        title: record == nil ? "New fault" : "Fault details",
-                        subtitle: "Track issues until they are repaired, invoiced and closed."
-                    )
+                    AppSettingsSection(
+                        "Details",
+                        caption: "Track issues until they are repaired, invoiced and closed."
+                    ) {
+                        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                            AppLabeledTextField("Title", placeholder: "e.g. Fridge ignition fault", text: $title)
+                            AppLabeledControlRow("Date discovered") {
+                                DatePicker("Date discovered", selection: $discoveredDate, displayedComponents: .date)
+                            }
+                            AppLabeledControlRow("Severity") {
+                                Picker("Severity", selection: $severity) {
+                                    ForEach(FaultSeverity.allCases) { option in
+                                        Text(option.displayName).tag(option)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                            }
+                            AppLabeledControlRow("Status") {
+                                Picker("Status", selection: $status) {
+                                    ForEach(FaultStatus.allCases) { option in
+                                        Text(option.displayName).tag(option)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                            }
+                            if status.isResolved || hasResolvedDate {
+                                Toggle("Add resolved date", isOn: $hasResolvedDate)
+                                if hasResolvedDate {
+                                    AppLabeledControlRow("Date resolved") {
+                                        DatePicker("Date resolved", selection: $resolvedDate, displayedComponents: .date)
+                                    }
+                                }
+                            }
+                            AppLabeledTextField(
+                                "Repair cost",
+                                caption: "Leave blank if the cost is not known yet.",
+                                placeholder: Formatters.currency(0),
+                                text: $repairCost,
+                                keyboard: .decimalPad
+                            )
+                            AppLabeledControlRow("Linked maintenance record") {
+                                Picker("Linked maintenance record", selection: $linkedMaintenanceID) {
+                                    Text("None").tag(nil as UUID?)
+                                    ForEach(maintenanceRecords) { maintenance in
+                                        Text(maintenance.title.isEmpty ? maintenance.category.displayName : maintenance.title)
+                                            .tag(Optional.some(maintenance.id))
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                            }
+                        }
+                    }
 
                     AppSettingsSection(
                         "Warranty",
                         caption: "Turn this on if the issue is covered by or claimed under warranty. It appears on the Warranty screen — open or completed."
                     ) {
                         Toggle("Warranty item", isOn: $isWarrantyRelated)
-                    }
-
-                    AppSettingsSection("Details") {
-                        VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                            AppLabeledTextField("Title", placeholder: "e.g. Fridge ignition fault", text: $title)
-                            Picker("Severity", selection: $severity) {
-                                ForEach(FaultSeverity.allCases) { option in
-                                    Text(option.displayName).tag(option)
-                                }
-                            }
-                            Picker("Status", selection: $status) {
-                                ForEach(FaultStatus.allCases) { option in
-                                    Text(option.displayName).tag(option)
-                                }
-                            }
-                            DatePicker("Date discovered", selection: $discoveredDate, displayedComponents: .date)
-                            if status.isResolved || hasResolvedDate {
-                                Toggle("Add resolved date", isOn: $hasResolvedDate)
-                                if hasResolvedDate {
-                                    DatePicker("Date resolved", selection: $resolvedDate, displayedComponents: .date)
-                                }
-                            }
-                            AppLabeledTextField("Repair cost", placeholder: "Optional", text: $repairCost, keyboard: .decimalPad)
-                            Picker("Linked maintenance record", selection: $linkedMaintenanceID) {
-                                Text("None").tag(nil as UUID?)
-                                ForEach(maintenanceRecords) { maintenance in
-                                    Text(maintenance.title.isEmpty ? maintenance.category.displayName : maintenance.title)
-                                        .tag(Optional.some(maintenance.id))
-                                }
-                            }
-                        }
                     }
 
                     AppSettingsSection("Description") {
@@ -1039,6 +1059,7 @@ struct FaultRecordEditorView: View {
                     AppPrimaryButton(record == nil ? "Save fault" : "Save changes", systemImage: "checkmark.circle.fill") {
                         save()
                     }
+                    .disabled(!canSave)
                 }
                 .padding(.horizontal, AppScreenMetrics.horizontalPadding)
                 .padding(.top, AppScreenMetrics.verticalScreenPadding)
@@ -1051,16 +1072,21 @@ struct FaultRecordEditorView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
                 }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                        .disabled(!canSave)
+                }
             }
         }
     }
 
     private func save() {
+        guard canSave else { return }
         let target = record ?? FaultStore.createRecord(for: profile.id, in: modelContext)
         let linkedRecord = maintenanceRecords.first(where: { $0.id == linkedMaintenanceID })
         FaultStore.save(
             fault: target,
-            title: title.isEmpty ? "Fault" : title,
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             details: details,
             severity: severity,
             status: status,

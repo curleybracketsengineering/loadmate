@@ -87,7 +87,7 @@ struct MainTabView: View {
     private var padTabContent: some View {
         switch selectedPadTab {
         case .summary:
-            SummaryPadView()
+            SummaryPadView(onNavigateToLoad: { selectedPadTab = .load })
         case .load:
             LoadPlacementPadView()
         case .safety:

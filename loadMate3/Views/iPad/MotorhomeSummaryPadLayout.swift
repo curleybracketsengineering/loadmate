@@ -6,12 +6,15 @@ struct MotorhomeSummaryPadLayout: View {
     let trip: Trip?
     let summary: MotorhomeWeightSummary
     let loadedItems: [LoadedItem]
+    let onNavigateToLoad: () -> Void
     let onRenameTrip: () -> Void
 
     private var payloadLimitKg: Double { max(0, profile.mtplmKg - profile.calculationBaseWeightKg) }
     private var balance: MotorhomeBalanceEstimate { MotorhomeBalanceEstimate(summary: summary, loadedItems: loadedItems) }
     private var checks: [MotorhomeSummaryCheck] {
-        MotorhomeSummaryCheck.build(summary: summary, profile: profile)
+        MotorhomeSummaryCheck.build(summary: summary, profile: profile).filter {
+            !($0.id == "towbar" && summary.isTowBarMeasurementMissing)
+        }
     }
 
     private var showsGarageMetrics: Bool { profile.monitorsGarageLimit }
@@ -97,18 +100,19 @@ struct MotorhomeSummaryPadLayout: View {
                     .foregroundStyle(Color.primary)
 
                 if let trip {
-                    Button(action: onRenameTrip) {
-                        HStack(spacing: 6) {
-                            Text(trip.name)
-                                .font(.subheadline)
-                                .foregroundStyle(Color.secondary)
-                            Image(systemName: "pencil")
+                    HStack(spacing: AppScreenMetrics.smallSpacing) {
+                        Text(trip.name)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.secondary)
+
+                        Button(action: onRenameTrip) {
+                            Label("Rename trip", systemImage: "pencil")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.secondary)
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .accessibilityLabel("Rename trip \(trip.name)")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Rename trip \(trip.name)")
                 }
             }
 
@@ -120,26 +124,40 @@ struct MotorhomeSummaryPadLayout: View {
 
     private var statusBadge: some View {
         let isSafe = summary.isOverallSafe
-        return HStack(spacing: AppScreenMetrics.controlSpacing) {
-            Image(systemName: isSafe ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                .font(.title2)
-                .foregroundStyle(Color.white)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(isSafe ? "Safe" : "Check limits")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(Color.white)
-                Text(isSafe ? "All within limits" : primaryIssueSubtitle)
-                    .font(.caption)
-                    .foregroundStyle(Color.white.opacity(0.92))
-                    .fixedSize(horizontal: false, vertical: true)
+        return Button {
+            if !isSafe {
+                onNavigateToLoad()
             }
+        } label: {
+            HStack(spacing: AppScreenMetrics.controlSpacing) {
+                Image(systemName: isSafe ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color.white)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(isSafe ? "Safe" : "Check limits")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.white)
+                    Text(isSafe ? "All within limits" : primaryIssueSubtitle)
+                        .font(.caption)
+                        .foregroundStyle(Color.white.opacity(0.92))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !isSafe {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.white.opacity(0.9))
+                }
+            }
+            .padding(.horizontal, AppScreenMetrics.fieldSpacing)
+            .padding(.vertical, AppScreenMetrics.controlSpacing)
+            .background(isSafe ? AppColors.green : AppColors.orange)
+            .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
         }
-        .padding(.horizontal, AppScreenMetrics.fieldSpacing)
-        .padding(.vertical, AppScreenMetrics.controlSpacing)
-        .background(isSafe ? AppColors.green : AppColors.orange)
-        .clipShape(RoundedRectangle(cornerRadius: AppScreenMetrics.cornerRadius, style: .continuous))
+        .buttonStyle(.plain)
+        .disabled(isSafe)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(isSafe ? "Status safe. All within limits." : "Status check limits. \(primaryIssueSubtitle)")
+        .accessibilityHint(isSafe ? "" : "Opens Load and placement")
     }
 
     private var primaryIssueSubtitle: String {
@@ -147,7 +165,7 @@ struct MotorhomeSummaryPadLayout: View {
         if summary.isOverFrontAxle { return "Front axle limit exceeded" }
         if summary.isOverRearAxle { return "Rear axle limit exceeded" }
         if summary.isOverGarageLimit { return "Garage load over limit" }
-        if summary.isTowBarMeasurementMissing { return "Enter tow bar load on Load tab" }
+        if summary.isTowBarMeasurementMissing { return "Enter measured tow bar load" }
         if summary.isOverTowBarLimit { return "Tow bar limit exceeded" }
         return "Review weight details"
     }
@@ -216,7 +234,7 @@ struct MotorhomeSummaryPadLayout: View {
     }
 
     private var totalWeightMetricCard: some View {
-        let spare = max(0, summary.availableGrossKg)
+        let percent = Self.percent(summary.totalWeightKg, of: profile.mtplmKg)
         return metricCard(
             icon: "scalemass.fill",
             iconColor: AppColors.blue,
@@ -227,7 +245,8 @@ struct MotorhomeSummaryPadLayout: View {
             fill: CGFloat(summary.mamFillFraction(profile: profile)),
             isOverLimit: summary.isOverMAM,
             barColor: AppColors.blue,
-            footer: profile.mtplmKg > 0 ? "\(MotorhomeSummaryMetrics.displayKg(spare)) spare" : "Set MAM in Settings"
+            progressLabel: profile.mtplmKg > 0 ? "\(percent)% of MAM used" : nil,
+            footer: profile.mtplmKg > 0 ? nil : "Set MAM in Settings"
         )
     }
 
@@ -243,6 +262,9 @@ struct MotorhomeSummaryPadLayout: View {
             fill: CGFloat(summary.frontAxleFillFraction(profile: profile)),
             isOverLimit: summary.isOverFrontAxle,
             barColor: AppColors.blue,
+            progressLabel: profile.maxFrontAxleKg > 0
+                ? "\(Self.percent(summary.estimatedFrontAxleKg, of: profile.maxFrontAxleKg))% of limit"
+                : nil,
             footer: profile.maxFrontAxleKg > 0 ? "\(MotorhomeSummaryMetrics.displayKg(spare)) spare" : "Set axle limits"
         )
     }
@@ -259,6 +281,9 @@ struct MotorhomeSummaryPadLayout: View {
             fill: CGFloat(summary.rearAxleFillFraction(profile: profile)),
             isOverLimit: summary.isOverRearAxle,
             barColor: AppColors.blue,
+            progressLabel: profile.maxRearAxleKg > 0
+                ? "\(Self.percent(summary.estimatedRearAxleKg, of: profile.maxRearAxleKg))% of limit"
+                : nil,
             footer: profile.maxRearAxleKg > 0 ? "\(MotorhomeSummaryMetrics.displayKg(spare)) spare" : "Set axle limits"
         )
     }
@@ -275,6 +300,9 @@ struct MotorhomeSummaryPadLayout: View {
             fill: profile.maxGarageKg > 0 ? CGFloat(min(max(garageValueKg / profile.maxGarageKg, 0), 1)) : 0,
             isOverLimit: garageIsOverLimit,
             barColor: AppColors.purple,
+            progressLabel: profile.maxGarageKg > 0
+                ? "\(Self.percent(garageValueKg, of: profile.maxGarageKg))% of limit"
+                : nil,
             footer: profile.maxGarageKg > 0 ? "\(MotorhomeSummaryMetrics.displayKg(spare)) spare" : "Set garage limit"
         )
     }
@@ -290,6 +318,7 @@ struct MotorhomeSummaryPadLayout: View {
             fill: bikeValueKg > 0 ? 0.35 : 0,
             isOverLimit: false,
             barColor: AppColors.purple,
+            progressLabel: nil,
             footer: bikeValueKg > 0 ? "On bike rack" : "No items assigned"
         )
     }
@@ -298,29 +327,38 @@ struct MotorhomeSummaryPadLayout: View {
         let value = summary.isTowBarMeasurementMissing ? 0 : summary.towBarLoadKg
         let spare = profile.maxTowBarKg > 0 ? max(0, profile.maxTowBarKg - value) : 0
         let isOver = summary.isOverTowBarLimit || summary.isTowBarMeasurementMissing
-        return metricCard(
-            icon: "link",
-            iconColor: AppColors.green,
-            title: "Tow Bar",
-            value: value,
-            valueColor: isOver ? AppColors.red : AppColors.green,
-            limitLabel: profile.maxTowBarKg > 0
-                ? "Max: \(MotorhomeSummaryMetrics.displayKg(profile.maxTowBarKg))"
-                : "Set tow bar limit",
-            fill: summary.isTowBarMeasurementMissing ? 0 : CGFloat(summary.towBarFillFraction(profile: profile)),
-            isOverLimit: isOver,
-            barColor: AppColors.green,
-            footer: summary.isTowBarMeasurementMissing
-                ? "Enter on Load tab"
-                : (profile.maxTowBarKg > 0 ? "\(MotorhomeSummaryMetrics.displayKg(spare)) spare" : "Set tow bar limit")
-        )
+        return Button(action: onNavigateToLoad) {
+            metricCard(
+                icon: "link",
+                iconColor: AppColors.green,
+                title: "Tow Bar",
+                value: value,
+                valueColor: isOver ? AppColors.red : AppColors.green,
+                limitLabel: summary.isTowBarMeasurementMissing
+                    ? "Enter tow bar load"
+                    : (profile.maxTowBarKg > 0
+                        ? "Max: \(MotorhomeSummaryMetrics.displayKg(profile.maxTowBarKg))"
+                        : "Set tow bar limit"),
+                fill: summary.isTowBarMeasurementMissing ? 0 : CGFloat(summary.towBarFillFraction(profile: profile)),
+                isOverLimit: isOver,
+                barColor: AppColors.green,
+                progressLabel: !summary.isTowBarMeasurementMissing && profile.maxTowBarKg > 0
+                    ? "\(Self.percent(value, of: profile.maxTowBarKg))% of limit"
+                    : nil,
+                footer: summary.isTowBarMeasurementMissing
+                    ? "Measurement needed"
+                    : (profile.maxTowBarKg > 0 ? "\(MotorhomeSummaryMetrics.displayKg(spare)) spare" : "Set tow bar limit")
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(summary.isTowBarMeasurementMissing ? "Tow bar measurement is missing" : "Opens Load and placement")
     }
 
     private var payloadMetricCard: some View {
         let remaining = max(0, summary.availableGrossKg)
         let fill = payloadLimitKg > 0 ? min(max(remaining / payloadLimitKg, 0), 1) : 0
         let isOver = summary.isOverMAM
-        let percent = payloadLimitKg > 0 ? Int((remaining / payloadLimitKg) * 100) : 0
+        let percent = Self.percent(remaining, of: payloadLimitKg)
         return metricCard(
             icon: "truck.box.fill",
             iconColor: AppColors.green,
@@ -331,7 +369,8 @@ struct MotorhomeSummaryPadLayout: View {
             fill: CGFloat(fill),
             isOverLimit: isOver,
             barColor: AppColors.green,
-            footer: payloadLimitKg > 0 ? "\(percent)% remaining" : "Set vehicle limits"
+            progressLabel: payloadLimitKg > 0 ? "\(percent)% payload remaining" : nil,
+            footer: payloadLimitKg > 0 ? nil : "Set vehicle limits"
         )
     }
 
@@ -345,7 +384,8 @@ struct MotorhomeSummaryPadLayout: View {
         fill: CGFloat,
         isOverLimit: Bool,
         barColor: Color,
-        footer: String
+        progressLabel: String?,
+        footer: String?
     ) -> some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
             metricIcon(systemName: icon, color: iconColor)
@@ -376,13 +416,27 @@ struct MotorhomeSummaryPadLayout: View {
 
             Spacer(minLength: 0)
 
-            MotorhomeSummaryMetrics.progressBar(fill: fill, color: isOverLimit ? AppColors.red : barColor)
-
-            Text(footer)
+            if progressLabel != nil || footer != nil {
+                HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.smallSpacing) {
+                    if let progressLabel {
+                        Text(progressLabel)
+                            .foregroundStyle(isOverLimit ? AppColors.red : Color.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    if let footer {
+                        Text(footer)
+                            .foregroundStyle(isOverLimit ? AppColors.red : iconColor)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(isOverLimit ? AppColors.red : iconColor)
                 .fixedSize(horizontal: false, vertical: true)
                 .lineLimit(2)
+            }
+
+            if progressLabel != nil {
+                MotorhomeSummaryMetrics.progressBar(fill: fill, color: isOverLimit ? AppColors.red : barColor)
+            }
         }
         .padding(AppScreenMetrics.cardInteriorPadding)
         .frame(maxWidth: .infinity, minHeight: Self.metricCardHeight, alignment: .topLeading)
@@ -411,11 +465,7 @@ struct MotorhomeSummaryPadLayout: View {
             Text("Checks & Recommendations")
                 .font(.headline.weight(.bold))
 
-            LazyVGrid(
-                columns: [GridItem(.flexible()), GridItem(.flexible())],
-                alignment: .leading,
-                spacing: AppScreenMetrics.controlSpacing
-            ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                 ForEach(checks) { check in
                     SummaryCheckRow(check: check) {
                         selectedCheck = check
@@ -441,6 +491,11 @@ struct MotorhomeSummaryPadLayout: View {
             let weight = loaded.item?.weightKg ?? 0
             return sum + weight * Double(max(loaded.quantity, 0))
         }
+    }
+
+    private static func percent(_ value: Double, of limit: Double) -> Int {
+        guard limit > 0 else { return 0 }
+        return Int((max(0, value) / limit * 100).rounded())
     }
 
     private static func metricColumnWidth(availableWidth: CGFloat, columnCount: Int) -> CGFloat {

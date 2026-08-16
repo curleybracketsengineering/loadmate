@@ -21,18 +21,20 @@ struct SummaryCheckRow<Check: SummaryCheckGuidance>: View {
 
             Spacer(minLength: 0)
 
-            Button(action: onShowDetails) {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.secondary)
-                    .padding(.top, 2)
+            if !check.isPositive {
+                Button(action: onShowDetails) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.secondary)
+                        .padding(.top, 2)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Show guidance for \(check.title)")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Show guidance for \(check.title)")
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(check.title). \(check.message)")
-        .accessibilityHint("Opens safety guidance")
+        .accessibilityHint(check.isPositive ? "" : "Opens safety guidance")
     }
 }
 

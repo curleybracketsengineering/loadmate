@@ -347,6 +347,32 @@ struct AppLabeledTextField: View {
     }
 }
 
+/// Pairs an `AppLabeledTextField`-weight label with a trailing control (picker, date picker)
+/// so mixed form rows read as one consistent style.
+struct AppLabeledControlRow<Control: View>: View {
+    let title: String
+    @ViewBuilder let control: Control
+
+    init(_ title: String, @ViewBuilder control: () -> Control) {
+        self.title = title
+        self.control = control()
+    }
+
+    var body: some View {
+        HStack(spacing: AppScreenMetrics.controlSpacing) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(Color.primary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: AppScreenMetrics.smallSpacing)
+
+            control
+                .labelsHidden()
+        }
+    }
+}
+
 /// Bordered numeric input (shared by labeled fields and accent-style factor rows).
 ///
 /// Uses a string draft while editing so the field can be fully cleared; `TextField(value:format:)`
