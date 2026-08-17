@@ -108,18 +108,6 @@ struct SafetyView: View {
             .appScreenBackground()
             .navigationTitle("Safety")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showChecklist = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
-                            .symbolRenderingMode(.hierarchical)
-                    }
-                    .accessibilityLabel("Add safety check")
-                }
-            }
             .task(id: profileLoadedItems.map(\.id)) {
                 summaryVM.refresh(profile: activeProfile, trip: activeTrip, loadedItems: profileLoadedItems)
             }
@@ -247,23 +235,16 @@ struct SafetyView: View {
     }
 
     private var accidentControls: some View {
-        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-            AccidentEntryCard(
-                title: "I’ve had an accident",
-                subtitle: "A helper for what to do, photos, other vehicles and an insurer pack."
-            ) {
-                showAccidentRecorder = true
-            }
-
-            Button("Past incidents") {
+        AccidentCompactControls(
+            onRecord: { showAccidentRecorder = true },
+            onPastIncidents: {
                 if let onNavigateToIncidents {
                     onNavigateToIncidents()
                 } else {
                     showIncidentsSheet = true
                 }
             }
-            .font(.subheadline.weight(.semibold))
-        }
+        )
     }
 
     private func safetyCheckRow(_ item: SafetyCheckItem) -> some View {

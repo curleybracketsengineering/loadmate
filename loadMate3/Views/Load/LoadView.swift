@@ -4,16 +4,21 @@ import SwiftData
 struct LoadView: View {
     @Environment(\.usePadLayout) private var usePadLayout
     @Binding var workflowStep: LoadWorkflowStep
+    var onNavigateToSettings: (() -> Void)? = nil
 
-    init(workflowStep: Binding<LoadWorkflowStep> = .constant(.items)) {
+    init(
+        workflowStep: Binding<LoadWorkflowStep> = .constant(.items),
+        onNavigateToSettings: (() -> Void)? = nil
+    ) {
         _workflowStep = workflowStep
+        self.onNavigateToSettings = onNavigateToSettings
     }
 
     var body: some View {
         if usePadLayout {
             LoadPlannerPadView()
         } else {
-            LoadWorkflowPhoneView(step: $workflowStep)
+            LoadWorkflowPhoneView(step: $workflowStep, onNavigateToSettings: onNavigateToSettings)
         }
     }
 }
@@ -22,15 +27,18 @@ struct LoadTabContent: View {
     @Binding var showAddItem: Bool
     var showsTripPicker: Bool = true
     var usesScrollablePanel: Bool = false
+    var onNavigateToSettings: (() -> Void)? = nil
 
     init(
         showAddItem: Binding<Bool> = .constant(false),
         showsTripPicker: Bool = true,
-        usesScrollablePanel: Bool = false
+        usesScrollablePanel: Bool = false,
+        onNavigateToSettings: (() -> Void)? = nil
     ) {
         _showAddItem = showAddItem
         self.showsTripPicker = showsTripPicker
         self.usesScrollablePanel = usesScrollablePanel
+        self.onNavigateToSettings = onNavigateToSettings
     }
 
     @Environment(\.modelContext) private var modelContext
@@ -318,7 +326,7 @@ struct LoadTabContent: View {
     @ViewBuilder
     private var loadTabHeaderContent: some View {
         if showSetupBanner {
-            AppWarningBanner(message: setupBannerMessage)
+            AppWarningBanner(message: setupBannerMessage, action: onNavigateToSettings)
         }
 
         if showsTripPicker, let profile = activeProfile, !profileTrips.isEmpty {
@@ -341,13 +349,11 @@ struct LoadTabContent: View {
 
             if showsStarterKit {
                 Button(action: requestStarterKit) {
-                    Image(systemName: "shippingbox")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
+                    Text("Starter kit")
+                        .font(.subheadline.weight(.semibold))
                 }
                 .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
                 .accessibilityLabel("Add starter kit")
                 .pointerHelp("Starter kit")
             }

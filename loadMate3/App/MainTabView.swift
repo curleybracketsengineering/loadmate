@@ -125,7 +125,10 @@ struct MainTabView: View {
             .tag(AppTab.home)
             .tabItem { Label("Home", systemImage: "house") }
 
-            LoadView(workflowStep: $loadWorkflowStep)
+            LoadView(
+                workflowStep: $loadWorkflowStep,
+                onNavigateToSettings: { selectedTab = .more }
+            )
                 .tag(AppTab.load)
                 .tabItem { Label("Load", systemImage: "shippingbox") }
 

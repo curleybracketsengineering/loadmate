@@ -69,12 +69,6 @@ struct SettingsView: View {
                 if let profile = editingProfile {
                     ScrollView {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                            AppHeroSection(
-                                systemImage: "gearshape",
-                                title: "Settings",
-                                subtitle: profileSubtitle(profile)
-                            )
-
                             vehicleProfilesSection(editing: profile)
 
                             if profile.kind == .caravan {
@@ -427,7 +421,17 @@ struct SettingsView: View {
     private func profileSubtitle(_ profile: VehicleProfile) -> String {
         let manufacturer = profile.manufacturer.trimmingCharacters(in: .whitespacesAndNewlines)
         let modelName = profile.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return [manufacturer, modelName].filter { !$0.isEmpty }.joined(separator: " ")
+        let makeModel = [manufacturer, modelName].filter { !$0.isEmpty }.joined(separator: " ")
+        let name = profile.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if makeModel.isEmpty { return name }
+        if name.isEmpty || name.caseInsensitiveCompare(makeModel) == .orderedSame { return makeModel }
+        return "\(name) · \(makeModel)"
+    }
+
+    private func vehicleSectionCaption(for profile: VehicleProfile, fallback: String) -> String {
+        let identity = profileSubtitle(profile)
+        if identity.isEmpty { return fallback }
+        return "\(identity). \(fallback)"
     }
 
     private static let developerEmail = "smatheson6@icloude.com"
@@ -795,10 +799,13 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func caravanSettings(_ profile: VehicleProfile) -> some View {
-        AppSettingsSection("Caravan", caption: "Weights from your caravan plate or handbook.") {
+        AppSettingsSection("Caravan", caption: vehicleSectionCaption(for: profile, fallback: "Weights from your caravan plate or handbook.")) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
-                plateScanControls(for: profile)
+                if !profile.isConfiguredForWeightCalculations {
+                    AppWarningBanner(message: profile.weightCalculationSetupSummaryMessage)
+                }
                 caravanPlateFields(profile)
+                plateScanControls(for: profile)
                 AppLabeledTextField(
                     "Manufacturer",
                     caption: "Brand from the manufacturer plate when shown",
@@ -955,8 +962,12 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func motorhomeSettings(_ profile: VehicleProfile) -> some View {
-        AppSettingsSection("Motorhome", caption: "Limits from your vehicle plate (MAM, GTW and axle weights).") {
+        AppSettingsSection("Motorhome", caption: vehicleSectionCaption(for: profile, fallback: "Limits from your vehicle plate (MAM, GTW and axle weights).")) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                if !profile.isConfiguredForWeightCalculations {
+                    AppWarningBanner(message: profile.weightCalculationSetupSummaryMessage)
+                }
+                motorhomePlateFields(profile)
                 plateScanControls(for: profile)
                 AppLabeledTextField(
                     "Registration",
@@ -966,7 +977,6 @@ struct SettingsView: View {
                     keyboard: .asciiCapable
                 )
                 vehicleLookupControls(for: profile)
-                motorhomePlateFields(profile)
                 AppLabeledTextField(
                     "Manufacturer",
                     caption: "Brand from the manufacturer plate when shown",

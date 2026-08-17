@@ -81,43 +81,33 @@ struct LocationView: View {
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    ZStack(alignment: .bottomTrailing) {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-                                if showsTripPicker, let profile = activeProfile, !profileTrips.isEmpty {
-                                    TripPickerBar(
-                                        profile: profile,
-                                        trips: profileTrips,
-                                        activeTrip: activeTrip,
-                                        showAddTrip: $showAddTrip,
-                                        tripPendingRename: $tripPendingRename,
-                                        tripRenameField: $tripRenameField
-                                    )
-                                    .padding(.horizontal, 0)
-                                }
-
-                                assignLocationsHeader
-
-                                if let profile = activeProfile {
-                                    mapAndWeightSection(profile: profile)
-                                }
-
-                                if !loadedItems.isEmpty {
-                                    assignItemsSection
-                                }
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                            if showsTripPicker, let profile = activeProfile, !profileTrips.isEmpty {
+                                TripPickerBar(
+                                    profile: profile,
+                                    trips: profileTrips,
+                                    activeTrip: activeTrip,
+                                    showAddTrip: $showAddTrip,
+                                    tripPendingRename: $tripPendingRename,
+                                    tripRenameField: $tripRenameField
+                                )
+                                .padding(.horizontal, 0)
                             }
-                            .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                            .padding(.top, AppScreenMetrics.verticalScreenPadding)
-                            .padding(.bottom, 88)
-                        }
-                        .scrollDismissesKeyboard(.interactively)
 
-                        AppFloatingAddButton(accessibilityLabel: "Add items on Load tab") {
-                            onNavigateToLoad?()
+                            if let profile = activeProfile {
+                                mapAndWeightSection(profile: profile)
+                            }
+
+                            if !loadedItems.isEmpty {
+                                assignItemsSection
+                            }
                         }
-                        .padding(.trailing, AppScreenMetrics.horizontalPadding)
-                        .padding(.bottom, AppScreenMetrics.smallSpacing)
+                        .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                        .padding(.top, AppScreenMetrics.verticalScreenPadding)
+                        .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
                     }
+                    .scrollDismissesKeyboard(.interactively)
                 }
             }
             .background(LyneqoTheme.background)
@@ -175,10 +165,6 @@ struct LocationView: View {
     }
 
     // MARK: - Sections
-
-    private var assignLocationsHeader: some View {
-        AppSectionHeading("Assign locations")
-    }
 
     @ViewBuilder
     private func mapAndWeightSection(profile: VehicleProfile) -> some View {

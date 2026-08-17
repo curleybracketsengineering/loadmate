@@ -189,9 +189,13 @@ struct CareView: View {
     }
 
     private var maintenanceSubtitle: String {
-        let dueSoon = reminderItems.filter { $0.kind == .maintenance }.prefix(2).count
-        if dueSoon > 0, let next = reminderItems.first(where: { $0.kind == .maintenance }) {
-            return "\(dueSoon) items due soon. Next: \(next.title)."
+        if let next = reminderItems.first(where: { $0.kind == .maintenance }) {
+            let due = MaintenanceSupport.relativeDueText(for: next.dueDate)
+            return "Next: \(next.title) · \(due)"
+        }
+        let title = maintenanceSummary.upcomingTitle
+        if title != "No upcoming items" {
+            return "\(title) · \(maintenanceSummary.upcomingSubtitle)"
         }
         return maintenanceSummary.upcomingSubtitle
     }

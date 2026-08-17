@@ -195,6 +195,30 @@ struct AccidentShareSheet: View {
     }
 }
 
+struct AccidentCompactControls: View {
+    var onRecord: () -> Void
+    var onPastIncidents: () -> Void
+
+    var body: some View {
+        HStack(spacing: AppScreenMetrics.controlSpacing) {
+            Button(action: onRecord) {
+                Label("I’ve had an accident", systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .buttonStyle(.bordered)
+            .tint(LyneqoTheme.Status.danger)
+
+            Button("Past incidents", action: onPastIncidents)
+                .font(.subheadline.weight(.semibold))
+
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
 struct AccidentEntryCard: View {
     let title: String
     let subtitle: String

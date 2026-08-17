@@ -125,8 +125,21 @@ struct AppSectionDivider: View {
 
 struct AppWarningBanner: View {
     let message: String
+    var action: (() -> Void)? = nil
 
     var body: some View {
+        if let action {
+            Button(action: action) {
+                bannerContent(showsChevron: true)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens Settings")
+        } else {
+            bannerContent(showsChevron: false)
+        }
+    }
+
+    private func bannerContent(showsChevron: Bool) -> some View {
         HStack(alignment: .top, spacing: AppScreenMetrics.controlSpacing) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.body)
@@ -135,13 +148,22 @@ struct AppWarningBanner: View {
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(AppColors.warningBannerText)
+                .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.warningBannerText.opacity(0.7))
+                    .padding(.top, 2)
+                    .accessibilityHidden(true)
+            }
         }
         .padding(.horizontal, AppScreenMetrics.horizontalPadding)
         .padding(.vertical, AppScreenMetrics.fieldSpacing)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppColors.warningBannerBackground)
+        .contentShape(Rectangle())
     }
 }
 

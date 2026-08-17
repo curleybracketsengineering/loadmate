@@ -23,6 +23,7 @@ enum SafetySupport {
         var items: [SafetyCheckItem] = []
 
         let loadOK: Bool = {
+            guard let profile, profile.isConfiguredForWeightCalculations else { return false }
             switch kind {
             case .caravan:
                 guard let summary = caravanSummary else { return false }
@@ -36,6 +37,7 @@ enum SafetySupport {
         switch kind {
         case .caravan:
             let noseOK: Bool = {
+                guard let profile, profile.isConfiguredForWeightCalculations else { return false }
                 guard let summary = caravanSummary else { return false }
                 return !summary.isNoseBelowRecommended
                     && !summary.isNoseAboveRecommended
@@ -50,6 +52,7 @@ enum SafetySupport {
         case .motorhome:
             if profile?.usesManualTowBarLoad == true {
                 let towBarOK: Bool = {
+                    guard let profile, profile.isConfiguredForWeightCalculations else { return false }
                     guard let summary = motorhomeSummary else { return false }
                     return !summary.isOverTowBarLimit && !summary.isTowBarMeasurementMissing
                 }()

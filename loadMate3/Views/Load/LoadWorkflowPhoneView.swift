@@ -3,6 +3,7 @@ import SwiftData
 
 struct LoadWorkflowPhoneView: View {
     @Binding var step: LoadWorkflowStep
+    var onNavigateToSettings: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [VehicleProfile]
@@ -46,9 +47,6 @@ struct LoadWorkflowPhoneView: View {
             .appScreenBackground()
             .navigationTitle("Load")
             .navigationBarTitleDisplayMode(.large)
-            .safeAreaInset(edge: .bottom) {
-                workflowFooter
-            }
             .task(id: profileLoadedItems.map(\.id)) {
                 summaryVM.refresh(profile: activeProfile, trip: activeTrip, loadedItems: profileLoadedItems)
             }
@@ -94,7 +92,7 @@ struct LoadWorkflowPhoneView: View {
                 )
             }
 
-            if let profile = activeProfile {
+            if let profile = activeProfile, profile.isConfiguredForWeightCalculations {
                 LoadWorkflowMetricsStrip(
                     profile: profile,
                     caravanSummary: summaryVM.caravanSummary,
@@ -108,7 +106,11 @@ struct LoadWorkflowPhoneView: View {
     private var stepContent: some View {
         switch step {
         case .items:
-            LoadTabContent(showAddItem: $showAddItem, showsTripPicker: false)
+            LoadTabContent(
+                showAddItem: $showAddItem,
+                showsTripPicker: false,
+                onNavigateToSettings: onNavigateToSettings
+            )
         case .locations:
             LocationView(
                 onNavigateToLoad: { step = .items },
@@ -129,21 +131,6 @@ struct LoadWorkflowPhoneView: View {
                     .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
                 }
             }
-        }
-    }
-
-    @ViewBuilder
-    private var workflowFooter: some View {
-        switch step {
-        case .items:
-            EmptyView()
-        case .locations:
-            AppPrimaryButton("View Summary →") { step = .summary }
-                .padding(.horizontal, AppScreenMetrics.horizontalPadding)
-                .padding(.vertical, AppScreenMetrics.controlSpacing)
-                .background(.bar)
-        case .summary:
-            EmptyView()
         }
     }
 }
