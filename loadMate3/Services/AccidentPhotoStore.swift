@@ -54,19 +54,41 @@ enum AccidentPhotoStore {
             localFileName: fileName
         )
         photo.caption = caption
+        photo.imageData = data
         context.insert(photo)
         record.updatedAt = Date()
         try context.save()
         return photo
     }
 
-    static func loadImage(for photo: AccidentPhoto, vehicleID: UUID) -> UIImage? {
-        guard let url = try? fileURL(vehicleID: vehicleID, fileName: photo.localFileName),
-              FileManager.default.fileExists(atPath: url.path),
-              let data = try? Data(contentsOf: url) else {
-            return nil
+    static func loadData(for photo: AccidentPhoto, vehicleID: UUID) -> Data? {
+        if let data = PhotoSyncSupport.nonEmpty(photo.imageData) {
+            return data
         }
+        return loadLocalFileData(for: photo, vehicleID: vehicleID)
+    }
+
+    static func loadImage(for photo: AccidentPhoto, vehicleID: UUID) -> UIImage? {
+        guard let data = loadData(for: photo, vehicleID: vehicleID) else { return nil }
         return UIImage(data: data)
+    }
+
+    static func loadLocalFileData(for photo: AccidentPhoto, vehicleID: UUID) -> Data? {
+        PhotoSyncSupport.fileData(
+            vehicleID: vehicleID,
+            fileName: photo.localFileName,
+            fileURL: fileURL
+        )
+    }
+
+    @discardableResult
+    static func migrateLocalFileIfNeeded(for photo: AccidentPhoto, vehicleID: UUID) -> Bool {
+        guard PhotoSyncSupport.nonEmpty(photo.imageData) == nil,
+              let data = loadLocalFileData(for: photo, vehicleID: vehicleID) else {
+            return false
+        }
+        photo.imageData = data
+        return true
     }
 
     static func delete(

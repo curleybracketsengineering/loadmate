@@ -145,12 +145,14 @@ enum MaintenanceAttachmentStore {
         try draft.data.write(to: destinationURL, options: .atomic)
 
         var thumbnailFileName: String?
+        var thumbnailBytes: Data?
         if let thumbnailImage = draft.thumbnailImage,
            let thumbnailData = thumbnailImage.jpegData(compressionQuality: 0.75) {
             let thumbName = "\(thumbnailPrefix)\(UUID().uuidString).jpg"
             let thumbURL = try fileURL(vehicleID: vehicleID, fileName: thumbName)
             try thumbnailData.write(to: thumbURL, options: .atomic)
             thumbnailFileName = thumbName
+            thumbnailBytes = thumbnailData
         }
 
         let attachment = MaintenanceAttachment(
@@ -163,6 +165,8 @@ enum MaintenanceAttachmentStore {
             pageCount: draft.pageCount,
             byteCount: draft.data.count
         )
+        attachment.fileData = draft.data
+        attachment.thumbnailData = thumbnailBytes
 
         switch owner {
         case .maintenance(let record):
@@ -187,12 +191,43 @@ enum MaintenanceAttachmentStore {
     }
 
     static func loadData(for attachment: MaintenanceAttachment) -> Data? {
-        guard let url = try? fileURL(vehicleID: attachment.vehicleID, fileName: attachment.localFileName),
-              FileManager.default.fileExists(atPath: url.path),
-              let data = try? Data(contentsOf: url) else {
-            return nil
+        if let data = PhotoSyncSupport.nonEmpty(attachment.fileData) {
+            return data
         }
-        return data
+        return loadLocalFileData(for: attachment)
+    }
+
+    static func loadLocalFileData(for attachment: MaintenanceAttachment) -> Data? {
+        PhotoSyncSupport.fileData(
+            vehicleID: attachment.vehicleID,
+            fileName: attachment.localFileName,
+            fileURL: fileURL
+        )
+    }
+
+    static func loadLocalThumbnailData(for attachment: MaintenanceAttachment) -> Data? {
+        guard let thumbnailFileName = attachment.thumbnailFileName else { return nil }
+        return PhotoSyncSupport.fileData(
+            vehicleID: attachment.vehicleID,
+            fileName: thumbnailFileName,
+            fileURL: fileURL
+        )
+    }
+
+    @discardableResult
+    static func migrateLocalFileIfNeeded(for attachment: MaintenanceAttachment) -> Bool {
+        var didChange = false
+        if PhotoSyncSupport.nonEmpty(attachment.fileData) == nil,
+           let data = loadLocalFileData(for: attachment) {
+            attachment.fileData = data
+            didChange = true
+        }
+        if PhotoSyncSupport.nonEmpty(attachment.thumbnailData) == nil,
+           let data = loadLocalThumbnailData(for: attachment) {
+            attachment.thumbnailData = data
+            didChange = true
+        }
+        return didChange
     }
 
     static func loadImage(for attachment: MaintenanceAttachment) -> UIImage? {
@@ -204,9 +239,11 @@ enum MaintenanceAttachmentStore {
     }
 
     static func loadThumbnail(for attachment: MaintenanceAttachment) -> UIImage? {
-        if let thumbnailFileName = attachment.thumbnailFileName,
-           let url = try? fileURL(vehicleID: attachment.vehicleID, fileName: thumbnailFileName),
-           let data = try? Data(contentsOf: url),
+        if let data = PhotoSyncSupport.nonEmpty(attachment.thumbnailData),
+           let image = UIImage(data: data) {
+            return image
+        }
+        if let data = loadLocalThumbnailData(for: attachment),
            let image = UIImage(data: data) {
             return image
         }

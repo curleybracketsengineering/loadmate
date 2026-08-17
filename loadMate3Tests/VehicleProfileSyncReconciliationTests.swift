@@ -118,7 +118,6 @@ final class VehicleProfileSyncReconciliationTests: XCTestCase {
 
         let profiles = try context.fetch(FetchDescriptor<VehicleProfile>())
         XCTAssertEqual(profiles.count, 1)
-        XCTAssertFalse(profiles.first?.manufacturerPlatePhotoFileName.isEmpty ?? true)
         XCTAssertNotNil(profiles.first.flatMap { VehiclePlatePhotoStore.loadImage(for: $0) })
     }
 

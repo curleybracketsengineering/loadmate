@@ -115,6 +115,9 @@ final class VehicleProfile {
 
     /// Local filename for the last scanned manufacturer plate photo (empty when none).
     var manufacturerPlatePhotoFileName: String = ""
+    /// JPEG bytes so CloudKit can sync the plate photo to other devices.
+    @Attribute(.externalStorage)
+    var manufacturerPlatePhotoData: Data? = nil
 
     /// Wheel nut torque for steel wheels from the caravan manufacturer plate (Nm). 0 = not set.
     var wheelNutTorqueSteelNm: Double = 0
@@ -235,6 +238,7 @@ final class VehicleProfile {
         self.manufacturer = ""
         self.modelName = ""
         self.manufacturerPlatePhotoFileName = ""
+        self.manufacturerPlatePhotoData = nil
         self.firstRegistrationYear = nil
         self.lastMotDate = nil
         self.motExpiryDate = nil

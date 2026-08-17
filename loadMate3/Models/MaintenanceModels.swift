@@ -271,6 +271,12 @@ final class MaintenanceAttachment {
     var vehicleID: UUID = UUID()
     var localFileName: String = ""
     var thumbnailFileName: String?
+    /// File bytes so CloudKit can sync attachments to other devices.
+    @Attribute(.externalStorage)
+    var fileData: Data? = nil
+    /// JPEG thumbnail bytes so CloudKit can sync previews without the full file.
+    @Attribute(.externalStorage)
+    var thumbnailData: Data? = nil
     var fileTypeRaw: String = MaintenanceAttachmentKind.file.rawValue
     var displayName: String = ""
     var utiIdentifier: String = ""
@@ -298,6 +304,8 @@ final class MaintenanceAttachment {
         self.vehicleID = vehicleID
         self.localFileName = localFileName
         self.thumbnailFileName = thumbnailFileName
+        self.fileData = nil
+        self.thumbnailData = nil
         self.fileTypeRaw = fileType.rawValue
         self.displayName = displayName
         self.utiIdentifier = utiIdentifier

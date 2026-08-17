@@ -27,6 +27,8 @@ final class VehiclePlatePhotoStoreTests: XCTestCase {
 
         XCTAssertFalse(fileName.isEmpty)
         XCTAssertEqual(profile.manufacturerPlatePhotoFileName, fileName)
+        XCTAssertNotNil(profile.manufacturerPlatePhotoData)
+        XCTAssertFalse(profile.manufacturerPlatePhotoData?.isEmpty ?? true)
         XCTAssertNotNil(VehiclePlatePhotoStore.loadImage(for: profile))
     }
 
@@ -55,6 +57,7 @@ final class VehiclePlatePhotoStoreTests: XCTestCase {
         VehiclePlatePhotoStore.delete(for: profile)
 
         XCTAssertTrue(profile.manufacturerPlatePhotoFileName.isEmpty)
+        XCTAssertNil(profile.manufacturerPlatePhotoData)
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
         XCTAssertNil(VehiclePlatePhotoStore.loadImage(for: profile))
     }
@@ -85,6 +88,34 @@ final class VehiclePlatePhotoStoreTests: XCTestCase {
         VehiclePlatePhotoStore.transferIfNeeded(from: source, to: target)
 
         XCTAssertEqual(target.manufacturerPlatePhotoFileName, targetName)
+    }
+
+    func testLoadUsesCloudKitDataWhenLocalFileIsMissing() throws {
+        let profile = TestFixtures.caravanProfile()
+        context.insert(profile)
+
+        let fileName = try VehiclePlatePhotoStore.save(image: makeImage(color: .red), to: profile)
+        let url = try VehiclePlatePhotoStore.fileURL(vehicleID: profile.id, fileName: fileName)
+        try FileManager.default.removeItem(at: url)
+
+        XCTAssertNotNil(VehiclePlatePhotoStore.loadImage(for: profile))
+    }
+
+    func testTransferCopiesWhenTargetHasFilenameButMissingFile() throws {
+        let source = TestFixtures.caravanProfile(name: "Source")
+        let target = TestFixtures.caravanProfile(name: "Target")
+        context.insert(source)
+        context.insert(target)
+
+        try VehiclePlatePhotoStore.save(image: makeImage(color: .purple), to: source)
+        target.manufacturerPlatePhotoFileName = "missing-from-icloud.jpg"
+        target.manufacturerPlatePhotoData = nil
+
+        VehiclePlatePhotoStore.transferIfNeeded(from: source, to: target)
+
+        XCTAssertNotNil(VehiclePlatePhotoStore.loadImage(for: target))
+        XCTAssertNotNil(target.manufacturerPlatePhotoData)
+        XCTAssertNotEqual(target.manufacturerPlatePhotoFileName, "missing-from-icloud.jpg")
     }
 
     func testResizeReducesLargeImages() {

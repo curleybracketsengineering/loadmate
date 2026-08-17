@@ -42,6 +42,38 @@ final class MaintenanceAttachmentStoreTests: XCTestCase {
 
         XCTAssertEqual(attachment.fileType, .photo)
         XCTAssertEqual(attachment.displayName, "Service photo")
+        XCTAssertNotNil(attachment.fileData)
+        XCTAssertNotNil(attachment.thumbnailData)
+        XCTAssertNotNil(MaintenanceAttachmentStore.loadImage(for: attachment))
+        XCTAssertNotNil(MaintenanceAttachmentStore.loadThumbnail(for: attachment))
+    }
+
+    func testLoadUsesCloudKitDataWhenLocalFileIsMissing() throws {
+        let vehicleID = UUID()
+        let record = MaintenanceRecord(vehicleID: vehicleID)
+        context.insert(record)
+
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 240, height: 160)).image { ctx in
+            UIColor.red.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 240, height: 160))
+        }
+        let draft = try MaintenanceAttachmentStore.draft(
+            image: image,
+            fileType: .photo,
+            displayName: "Invoice photo"
+        )
+        let attachment = try MaintenanceAttachmentStore.save(
+            draft: draft,
+            to: .maintenance(record),
+            in: context
+        )
+        let url = try MaintenanceAttachmentStore.fileURL(vehicleID: vehicleID, fileName: attachment.localFileName)
+        try FileManager.default.removeItem(at: url)
+        if let thumbnailFileName = attachment.thumbnailFileName {
+            let thumbURL = try MaintenanceAttachmentStore.fileURL(vehicleID: vehicleID, fileName: thumbnailFileName)
+            try? FileManager.default.removeItem(at: thumbURL)
+        }
+
         XCTAssertNotNil(MaintenanceAttachmentStore.loadImage(for: attachment))
         XCTAssertNotNil(MaintenanceAttachmentStore.loadThumbnail(for: attachment))
     }

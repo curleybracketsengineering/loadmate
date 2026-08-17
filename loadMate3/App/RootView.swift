@@ -30,6 +30,7 @@ struct RootView: View {
         }
         .task(id: "\(appStates.count)-\(profileListToken)") {
             let state = AppStateStore.resolve(in: modelContext, existing: appStates)
+            PhotoSyncMigration.migrateLocalFilesIfNeeded(in: modelContext)
             _ = VehicleProfileSyncReconciliation.reconcile(in: modelContext, appState: state)
             resolvedState = disclaimerVM.ensureAppState(in: modelContext, existing: state)
         }

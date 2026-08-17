@@ -27,7 +27,7 @@ enum CloudSyncAccountStatus: Equatable {
   var settingsDetail: String {
     switch self {
     case .available:
-      return "Your vehicles, trips, load lists, and checklists stay up to date across your iPhone and iPad signed into the same Apple ID."
+      return "Your vehicles, trips, load lists, checklists, and photos stay up to date across your iPhone and iPad signed into the same Apple ID."
     case .noAccount:
       return "Open Settings → Apple Account and sign in to iCloud to sync Lyneqo Caravan & Motorhome between your devices."
     case .restricted:

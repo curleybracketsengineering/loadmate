@@ -448,6 +448,9 @@ final class AccidentPhoto {
     var kindRaw: String = AccidentPhotoKind.other.rawValue
     var capturedAt: Date = Date()
     var localFileName: String = ""
+    /// JPEG bytes so CloudKit can sync the photo to other devices.
+    @Attribute(.externalStorage)
+    var imageData: Data? = nil
     var caption: String = ""
     var createdAt: Date = Date()
 
@@ -465,6 +468,7 @@ final class AccidentPhoto {
         self.record = record
         self.kindRaw = kind.rawValue
         self.localFileName = localFileName
+        self.imageData = nil
         self.capturedAt = Date()
         self.createdAt = Date()
     }

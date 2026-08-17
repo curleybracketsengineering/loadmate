@@ -1343,9 +1343,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func plateScanControls(for profile: VehicleProfile) -> some View {
-        let attachedPlateImage = profile.manufacturerPlatePhotoFileName.isEmpty
-            ? nil
-            : VehiclePlatePhotoStore.loadImage(for: profile)
+        let attachedPlateImage = VehiclePlatePhotoStore.loadImage(for: profile)
 
         VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
             Text(plateScanControlsMessage(for: profile.kind))

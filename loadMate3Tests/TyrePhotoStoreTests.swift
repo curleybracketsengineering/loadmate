@@ -41,9 +41,34 @@ final class TyrePhotoStoreTests: XCTestCase {
         XCTAssertFalse(photo.localFileName.isEmpty)
         XCTAssertEqual(photo.kind, .sidewall)
         XCTAssertNil(photo.inspection)
+        XCTAssertNotNil(photo.imageData)
 
         let loaded = TyrePhotoStore.loadImage(for: photo, vehicleID: profile.id)
         XCTAssertNotNil(loaded)
+    }
+
+    func testLoadUsesCloudKitDataWhenLocalFileIsMissing() throws {
+        let profile = TestFixtures.caravanProfile()
+        context.insert(profile)
+        let record = TyreRecord(vehicleID: profile.id, position: .caravanLeft)
+        context.insert(record)
+
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 200)).image { ctx in
+            UIColor.orange.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 200, height: 200))
+        }
+        let photo = try TyrePhotoStore.save(
+            image: image,
+            vehicleID: profile.id,
+            record: record,
+            inspection: nil,
+            kind: .tread,
+            in: context
+        )
+        let url = try TyrePhotoStore.fileURL(vehicleID: profile.id, fileName: photo.localFileName)
+        try FileManager.default.removeItem(at: url)
+
+        XCTAssertNotNil(TyrePhotoStore.loadImage(for: photo, vehicleID: profile.id))
     }
 
     func testResizeReducesLargeImages() {
