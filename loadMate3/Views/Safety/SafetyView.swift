@@ -247,15 +247,13 @@ struct SafetyView: View {
     }
 
     private var accidentControls: some View {
-        HStack(spacing: AppScreenMetrics.controlSpacing) {
-            Button {
+        VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+            AccidentEntryCard(
+                title: "I’ve had an accident",
+                subtitle: "A helper for what to do, photos, other vehicles and an insurer pack."
+            ) {
                 showAccidentRecorder = true
-            } label: {
-                Label("I’ve had an accident", systemImage: "exclamationmark.triangle.fill")
-                    .font(.subheadline.weight(.semibold))
             }
-            .buttonStyle(.bordered)
-            .tint(LyneqoTheme.Status.danger)
 
             Button("Past incidents") {
                 if let onNavigateToIncidents {
@@ -265,8 +263,6 @@ struct SafetyView: View {
                 }
             }
             .font(.subheadline.weight(.semibold))
-
-            Spacer(minLength: 0)
         }
     }
 
