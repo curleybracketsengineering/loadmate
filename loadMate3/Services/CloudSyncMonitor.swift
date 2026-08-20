@@ -208,7 +208,12 @@ final class CloudSyncMonitor: ObservableObject {
       cloudKitSchemaDetail = "Cannot probe schema — sign in to iCloud on this device."
       SyncDebugLogger.shared.record(category: "schema", message: cloudKitSchemaDetail)
     } catch {
-      cloudKitSchemaDetail = "Schema probe failed: \(error.localizedDescription)"
+      if CloudSyncErrorFormatting.isMissingQueryableIndex(error) {
+        cloudKitSchemaDetail =
+          "Indexes missing — in CloudKit Console mark recordName as Queryable on each CD_* type (Development), then Deploy Schema to Production."
+      } else {
+        cloudKitSchemaDetail = "Schema probe failed: \(CloudSyncErrorFormatting.description(for: error))"
+      }
       lastErrorDescription = cloudKitSchemaDetail
       SyncDebugLogger.shared.record(category: "schema", message: cloudKitSchemaDetail)
     }
@@ -315,17 +320,91 @@ final class CloudSyncMonitor: ObservableObject {
 
   private func detailedErrorDescription(_ error: Error?) -> String? {
     guard let error else { return nil }
+    return CloudSyncErrorFormatting.description(for: error)
+  }
+}
+
+enum CloudSyncErrorFormatting {
+  static func description(for error: Error) -> String {
+    flatten(error).joined(separator: " | ")
+  }
+
+  static func isMissingQueryableIndex(_ error: Error) -> Bool {
+    flatten(error).contains { $0.localizedCaseInsensitiveContains("not marked queryable") }
+  }
+
+  static func flatten(_ error: Error, depth: Int = 0) -> [String] {
+    guard depth < 6 else { return [] }
     let nsError = error as NSError
-    var parts = [nsError.localizedDescription]
+    var parts = [headline(nsError)]
+    var seen = Set<String>()
+
+    for inner in nestedErrors(in: nsError) {
+      let innerNS = inner as NSError
+      let key = "\(innerNS.domain):\(innerNS.code):\(innerNS.localizedDescription)"
+      guard seen.insert(key).inserted else { continue }
+      parts.append(contentsOf: flatten(inner, depth: depth + 1))
+    }
+    return parts
+  }
+
+  private static func headline(_ nsError: NSError) -> String {
+    if nsError.domain == CKErrorDomain {
+      let code = CKError.Code(rawValue: nsError.code)
+      return "CKError \(nsError.code) (\(ckCodeName(code))): \(nsError.localizedDescription)"
+    }
     if nsError.domain == NSCocoaErrorDomain {
-      parts.append("CocoaError \(nsError.code)")
+      return "\(nsError.localizedDescription) [CocoaError \(nsError.code)]"
     }
-    if let ckError = error as? CKError {
-      parts.append("CKError \(ckError.code.rawValue)")
+    return "\(nsError.localizedDescription) [\(nsError.domain) \(nsError.code)]"
+  }
+
+  private static func nestedErrors(in nsError: NSError) -> [Error] {
+    var nested: [Error] = []
+    if let ckError = nsError as? CKError, let partial = ckError.partialErrorsByItemID {
+      nested.append(contentsOf: partial.values)
     }
-    if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
-      parts.append("underlying: \(underlying.localizedDescription)")
+    if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+      nested.append(underlying)
     }
-    return parts.joined(separator: " | ")
+    if let detailed = nsError.userInfo[NSDetailedErrorsKey] as? [Error] {
+      nested.append(contentsOf: detailed)
+    }
+    for value in nsError.userInfo.values {
+      if let map = value as? [AnyHashable: NSError] {
+        nested.append(contentsOf: Array(map.values))
+      }
+    }
+    return nested
+  }
+
+  private static func ckCodeName(_ code: CKError.Code?) -> String {
+    switch code {
+    case .internalError: return "internalError"
+    case .partialFailure: return "partialFailure"
+    case .networkUnavailable: return "networkUnavailable"
+    case .networkFailure: return "networkFailure"
+    case .badContainer: return "badContainer"
+    case .serviceUnavailable: return "serviceUnavailable"
+    case .requestRateLimited: return "requestRateLimited"
+    case .missingEntitlement: return "missingEntitlement"
+    case .notAuthenticated: return "notAuthenticated"
+    case .permissionFailure: return "permissionFailure"
+    case .unknownItem: return "unknownItem"
+    case .invalidArguments: return "invalidArguments"
+    case .serverRecordChanged: return "serverRecordChanged"
+    case .serverRejectedRequest: return "serverRejectedRequest"
+    case .assetFileNotFound: return "assetFileNotFound"
+    case .quotaExceeded: return "quotaExceeded"
+    case .zoneNotFound: return "zoneNotFound"
+    case .changeTokenExpired: return "changeTokenExpired"
+    case .limitExceeded: return "limitExceeded"
+    case .userDeletedZone: return "userDeletedZone"
+    case .serverResponseLost: return "serverResponseLost"
+    case .assetNotAvailable: return "assetNotAvailable"
+    case .accountTemporarilyUnavailable: return "accountTemporarilyUnavailable"
+    case .none: return "unknown"
+    @unknown default: return "other"
+    }
   }
 }
