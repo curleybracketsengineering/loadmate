@@ -25,6 +25,7 @@ struct SyncDebugSnapshot {
     let lastCheckedAt: Date?
     let lastErrorDescription: String?
     let lastSyncEventSummary: String
+    let recentSyncEventLines: [String]
     let lastSuccessfulImportAt: Date?
     let lastSuccessfulExportAt: Date?
     let isRegisteredForRemoteNotifications: Bool
@@ -81,6 +82,7 @@ final class SyncDebugLogger: ObservableObject {
     func clear() {
         entries = []
         UserDefaults.standard.removeObject(forKey: defaultsKey)
+        CloudSyncMonitor.shared.clearEventHistory()
     }
 
     func copyReport(_ report: String) -> Bool {
@@ -106,6 +108,12 @@ final class SyncDebugLogger: ObservableObject {
             "Last iCloud check: \(SyncDebugFormatting.string(for: snapshot.lastCheckedAt))",
             "Last iCloud error: \(snapshot.lastErrorDescription ?? "None")",
             "Last CloudKit event: \(snapshot.lastSyncEventSummary)",
+            "CloudKit event history:",
+        ]
+        let historyLines = snapshot.recentSyncEventLines.isEmpty
+            ? ["  None yet"]
+            : snapshot.recentSyncEventLines.map { "  \($0)" }
+        let afterHistory = [
             "Last successful import: \(SyncDebugFormatting.string(for: snapshot.lastSuccessfulImportAt))",
             "Last successful export: \(SyncDebugFormatting.string(for: snapshot.lastSuccessfulExportAt))",
             "Push registered: \(snapshot.isRegisteredForRemoteNotifications ? "Yes" : "No")",
@@ -125,7 +133,7 @@ final class SyncDebugLogger: ObservableObject {
             "[\(formatter.string(from: $0.timestamp))] [\($0.category)] \($0.message)"
         }
 
-        return (rows + logLines).joined(separator: "\n")
+        return (rows + historyLines + afterHistory + logLines).joined(separator: "\n")
     }
 
     private func persist() {
@@ -137,21 +145,103 @@ final class SyncDebugLogger: ObservableObject {
 enum SyncDebugSaveHelper {
     @discardableResult
     static func save(_ context: ModelContext, source: String) -> Bool {
+        let changeSummary = SyncDebugChangeSummary.describe(context, source: source)
         do {
             try context.save()
             Task { @MainActor in
-                SyncDebugLogger.shared.record(category: "save", message: "\(source): save succeeded.")
+                SyncDebugLogger.shared.record(
+                    category: "save",
+                    message: "\(source): \(changeSummary)"
+                )
             }
             return true
         } catch {
             Task { @MainActor in
                 SyncDebugLogger.shared.record(
                     category: "save",
-                    message: "\(source): save failed - \(error.localizedDescription)"
+                    message: "\(source): save failed - \(changeSummary) - \(error.localizedDescription)"
                 )
             }
             assertionFailure("SwiftData save failed: \(error.localizedDescription)")
             return false
+        }
+    }
+}
+
+enum SyncDebugChangeSummary {
+    static func describe(_ context: ModelContext, source: String) -> String {
+        if #available(iOS 18.0, *) {
+            let inserted = typeNames(context.insertedModelsArray)
+            let deleted = typeNames(context.deletedModelsArray)
+            let insertedIDs = Set(context.insertedModelsArray.map { ObjectIdentifier($0) })
+            let deletedIDs = Set(context.deletedModelsArray.map { ObjectIdentifier($0) })
+            let updated = typeNames(
+                context.changedModelsArray.filter {
+                    !insertedIDs.contains(ObjectIdentifier($0))
+                        && !deletedIDs.contains(ObjectIdentifier($0))
+                }
+            )
+            let summary = describe(inserted: inserted, updated: updated, deleted: deleted)
+            if summary != "no model changes" {
+                return summary
+            }
+        }
+        return fallbackSummary(source: source)
+    }
+
+    static func describe(inserted: [String], updated: [String], deleted: [String]) -> String {
+        var order: [String] = []
+        var counts: [String: (inserted: Int, updated: Int, deleted: Int)] = [:]
+
+        func add(_ names: [String], as kind: String) {
+            for name in names {
+                if counts[name] == nil {
+                    order.append(name)
+                    counts[name] = (0, 0, 0)
+                }
+                switch kind {
+                case "inserted": counts[name]!.inserted += 1
+                case "updated": counts[name]!.updated += 1
+                default: counts[name]!.deleted += 1
+                }
+            }
+        }
+
+        add(inserted, as: "inserted")
+        add(updated, as: "updated")
+        add(deleted, as: "deleted")
+
+        guard !order.isEmpty else { return "no model changes" }
+
+        return order.map { name in
+            let count = counts[name]!
+            var parts: [String] = []
+            if count.inserted > 0 { parts.append("\(count.inserted) inserted") }
+            if count.updated > 0 { parts.append("\(count.updated) updated") }
+            if count.deleted > 0 { parts.append("\(count.deleted) deleted") }
+            return "\(name): \(parts.joined(separator: ", "))"
+        }.joined(separator: "; ")
+    }
+
+    static func fallbackSummary(source: String) -> String {
+        if source.localizedCaseInsensitiveContains("VehicleProfile") { return "VehicleProfile saved" }
+        if source.localizedCaseInsensitiveContains("Trip") { return "Trip saved" }
+        if source.localizedCaseInsensitiveContains("Checklist") { return "Checklist saved" }
+        if source.localizedCaseInsensitiveContains("Tyre") { return "TyreRecord saved" }
+        if source.localizedCaseInsensitiveContains("Accident") { return "AccidentRecord saved" }
+        if source.localizedCaseInsensitiveContains("Warranty") { return "WarrantyPlan saved" }
+        if source.localizedCaseInsensitiveContains("Maintenance") { return "MaintenanceRecord saved" }
+        if source.localizedCaseInsensitiveContains("Document") { return "DocumentRecord saved" }
+        if source.localizedCaseInsensitiveContains("Fault") { return "FaultRecord saved" }
+        if source.localizedCaseInsensitiveContains("AppState") { return "AppState saved" }
+        if source.localizedCaseInsensitiveContains("Load") { return "LoadedItem saved" }
+        return "save succeeded"
+    }
+
+    private static func typeNames(_ models: [any PersistentModel]) -> [String] {
+        models.map { model in
+            let raw = String(describing: Swift.type(of: model))
+            return raw.split(separator: ".").last.map(String.init) ?? raw
         }
     }
 }

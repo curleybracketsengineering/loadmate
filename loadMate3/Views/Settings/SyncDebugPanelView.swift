@@ -25,6 +25,7 @@ struct SyncDebugPanelView: View {
                     )
 
                     statusSection()
+                    syncHistorySection()
                     probeSection()
                     countsSection()
                     actionsSection()
@@ -71,6 +72,29 @@ struct SyncDebugPanelView: View {
                 statusRow("Version", value: "\(SyncDebugFormatting.appVersion) (\(SyncDebugFormatting.buildNumber))")
                 statusRow("CloudKit", value: LoadMateModelContainer.cloudKitContainerID)
                 statusRow("Active profile", value: activeProfileName ?? "None")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func syncHistorySection() -> some View {
+        AppSettingsSection(
+            "CloudKit Event History",
+            caption: "The last \(CloudSyncEventHistory.maxEntries) import, export, and setup events. Model and operation names only — no personal data."
+        ) {
+            if cloudSync.recentSyncEvents.isEmpty {
+                Text("No CloudKit events recorded yet.")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+            } else {
+                VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                    ForEach(cloudSync.recentSyncEvents) { event in
+                        statusRow(
+                            SyncDebugFormatting.string(for: event.timestamp),
+                            value: event.context
+                        )
+                    }
+                }
             }
         }
     }
@@ -140,7 +164,7 @@ struct SyncDebugPanelView: View {
 
                 AppSecondaryButton("Clear Local Log") {
                     logger.clear()
-                    copyConfirmation = "Cleared local sync log."
+                    copyConfirmation = "Cleared local sync log and CloudKit event history."
                 }
 
                 if !copyConfirmation.isEmpty {
@@ -226,6 +250,7 @@ struct SyncDebugPanelView: View {
             lastCheckedAt: cloudSync.lastCheckedAt,
             lastErrorDescription: cloudSync.lastErrorDescription,
             lastSyncEventSummary: lastSyncEventText,
+            recentSyncEventLines: cloudSync.recentSyncEvents.map(\.displayLine),
             lastSuccessfulImportAt: cloudSync.lastSuccessfulImportAt,
             lastSuccessfulExportAt: cloudSync.lastSuccessfulExportAt,
             isRegisteredForRemoteNotifications: cloudSync.isRegisteredForRemoteNotifications,

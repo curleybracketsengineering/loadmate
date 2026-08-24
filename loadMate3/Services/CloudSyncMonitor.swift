@@ -50,7 +50,7 @@ enum CloudSyncAccountStatus: Equatable {
   }
 }
 
-enum CloudSyncEventKind: String, Equatable {
+enum CloudSyncEventKind: String, Codable, Equatable {
   case setup
   case importFromCloud = "import"
   case exportToCloud = "export"
@@ -73,6 +73,98 @@ struct CloudSyncEventSummary: Equatable {
   var errorDescription: String?
 }
 
+enum CloudSyncEventPhase: String, Codable, Equatable {
+  case started
+  case succeeded
+  case failed
+  case partialFailure
+
+  var displayName: String {
+    switch self {
+    case .started: return "started"
+    case .succeeded: return "succeeded"
+    case .failed: return "failed"
+    case .partialFailure: return "partial failure"
+    }
+  }
+}
+
+struct CloudSyncHistoryEntry: Identifiable, Equatable, Codable {
+  let id: UUID
+  let timestamp: Date
+  let kind: CloudSyncEventKind
+  let phase: CloudSyncEventPhase
+  let context: String
+
+  init(
+    id: UUID = UUID(),
+    timestamp: Date = Date(),
+    kind: CloudSyncEventKind,
+    phase: CloudSyncEventPhase,
+    context: String
+  ) {
+    self.id = id
+    self.timestamp = timestamp
+    self.kind = kind
+    self.phase = phase
+    self.context = context
+  }
+
+  var displayLine: String {
+    "\(SyncDebugFormatting.logDateFormatter.string(from: timestamp))  \(context)"
+  }
+
+  static func make(
+    kind: CloudSyncEventKind,
+    started: Bool,
+    succeeded: Bool,
+    error: Error?,
+    timestamp: Date = Date()
+  ) -> CloudSyncHistoryEntry {
+    let phase: CloudSyncEventPhase
+    if started {
+      phase = .started
+    } else if succeeded {
+      phase = .succeeded
+    } else if let error, CloudSyncErrorFormatting.isPartialFailure(error) {
+      phase = .partialFailure
+    } else {
+      phase = .failed
+    }
+
+    let models = error.map { CloudSyncErrorFormatting.involvedModels(in: $0) } ?? []
+    return CloudSyncHistoryEntry(
+      timestamp: timestamp,
+      kind: kind,
+      phase: phase,
+      context: contextLabel(kind: kind, phase: phase, models: models)
+    )
+  }
+
+  static func contextLabel(
+    kind: CloudSyncEventKind,
+    phase: CloudSyncEventPhase,
+    models: [String] = []
+  ) -> String {
+    var line = "\(kind.displayName.uppercased()) \(phase.displayName)"
+    if !models.isEmpty {
+      line += " — \(models.joined(separator: ", "))"
+    }
+    return line
+  }
+}
+
+enum CloudSyncEventHistory {
+  static let maxEntries = 20
+
+  static func prepending(
+    _ entry: CloudSyncHistoryEntry,
+    onto events: [CloudSyncHistoryEntry]
+  ) -> [CloudSyncHistoryEntry] {
+    Array(([entry] + events).prefix(maxEntries))
+  }
+}
+
 @MainActor
 final class CloudSyncMonitor: ObservableObject {
   static let shared = CloudSyncMonitor()
@@ -81,6 +173,7 @@ final class CloudSyncMonitor: ObservableObject {
   @Published private(set) var lastCheckedAt: Date?
   @Published private(set) var lastErrorDescription: String?
   @Published private(set) var lastSyncEvent: CloudSyncEventSummary?
+  @Published private(set) var recentSyncEvents: [CloudSyncHistoryEntry] = []
   @Published private(set) var lastSuccessfulImportAt: Date?
   @Published private(set) var lastSuccessfulExportAt: Date?
   @Published private(set) var isObservingSyncEvents = false
@@ -91,6 +184,9 @@ final class CloudSyncMonitor: ObservableObject {
   private var accountObserver: NSObjectProtocol?
   private var syncEventObserver: NSObjectProtocol?
   private var didStart = false
+  private let historyDefaultsKey = "cloudSyncEventHistory"
+  private let historyEncoder = JSONEncoder()
+  private let historyDecoder = JSONDecoder()
 
   private init() {
     start()
@@ -108,10 +204,18 @@ final class CloudSyncMonitor: ObservableObject {
   func start() {
     guard !didStart else { return }
     didStart = true
+    historyDecoder.dateDecodingStrategy = .iso8601
+    historyEncoder.dateEncodingStrategy = .iso8601
+    loadEventHistory()
     observeAccountChanges()
     observeSyncEvents()
     refreshPushRegistrationStatus()
     Task { await refresh() }
+  }
+
+  func clearEventHistory() {
+    recentSyncEvents = []
+    UserDefaults.standard.removeObject(forKey: historyDefaultsKey)
   }
 
   func refresh() async {
@@ -128,11 +232,11 @@ final class CloudSyncMonitor: ObservableObject {
       )
     } catch {
       accountStatus = .couldNotDetermine
-      lastErrorDescription = error.localizedDescription
+      lastErrorDescription = CloudSyncErrorFormatting.description(for: error)
       lastCheckedAt = Date()
       SyncDebugLogger.shared.record(
         category: "icloud",
-        message: "Account status refresh failed: \(error.localizedDescription)"
+        message: "Account status refresh failed:\n\(CloudSyncErrorFormatting.dump(for: error))"
       )
     }
   }
@@ -216,6 +320,10 @@ final class CloudSyncMonitor: ObservableObject {
       }
       lastErrorDescription = cloudKitSchemaDetail
       SyncDebugLogger.shared.record(category: "schema", message: cloudKitSchemaDetail)
+      SyncDebugLogger.shared.record(
+        category: "schema",
+        message: CloudSyncErrorFormatting.dump(for: error)
+      )
     }
   }
 
@@ -259,10 +367,15 @@ final class CloudSyncMonitor: ObservableObject {
     let started = event.endDate == nil
 
     if started {
-      SyncDebugLogger.shared.record(
-        category: "sync",
-        message: "\(kind.displayName) started."
+      let entry = CloudSyncHistoryEntry.make(
+        kind: kind,
+        started: true,
+        succeeded: false,
+        error: nil,
+        timestamp: event.startDate
       )
+      recordHistory(entry)
+      SyncDebugLogger.shared.record(category: "sync", message: entry.context)
       return
     }
 
@@ -276,6 +389,15 @@ final class CloudSyncMonitor: ObservableObject {
     )
     lastSyncEvent = summary
 
+    let entry = CloudSyncHistoryEntry.make(
+      kind: kind,
+      started: false,
+      succeeded: event.succeeded,
+      error: event.error,
+      timestamp: finishedAt
+    )
+    recordHistory(entry)
+
     if event.succeeded {
       switch kind {
       case .importFromCloud:
@@ -285,17 +407,38 @@ final class CloudSyncMonitor: ObservableObject {
       case .setup, .unknown:
         break
       }
-      SyncDebugLogger.shared.record(
-        category: "sync",
-        message: "\(kind.displayName) succeeded."
-      )
+      SyncDebugLogger.shared.record(category: "sync", message: entry.context)
     } else {
-      lastErrorDescription = errorText ?? "\(kind.displayName) failed without an error description."
+      lastErrorDescription = errorText ?? "\(entry.context) without an error description."
+      let dump: String
+      if let error = event.error {
+        dump = CloudSyncErrorFormatting.dump(for: error)
+      } else {
+        dump = lastErrorDescription ?? "Unknown error"
+      }
       SyncDebugLogger.shared.record(
         category: "sync",
-        message: "\(kind.displayName) failed: \(lastErrorDescription ?? "Unknown error")"
+        message: "\(entry.context):\n\(dump)"
       )
+      print("[CloudSync] \(entry.context):\n\(dump)")
     }
+  }
+
+  private func recordHistory(_ entry: CloudSyncHistoryEntry) {
+    recentSyncEvents = CloudSyncEventHistory.prepending(entry, onto: recentSyncEvents)
+    persistEventHistory()
+  }
+
+  private func loadEventHistory() {
+    guard let data = UserDefaults.standard.data(forKey: historyDefaultsKey),
+          let decoded = try? historyDecoder.decode([CloudSyncHistoryEntry].self, from: data)
+    else { return }
+    recentSyncEvents = Array(decoded.prefix(CloudSyncEventHistory.maxEntries))
+  }
+
+  private func persistEventHistory() {
+    guard let data = try? historyEncoder.encode(recentSyncEvents) else { return }
+    UserDefaults.standard.set(data, forKey: historyDefaultsKey)
   }
 
   private func map(_ status: CKAccountStatus) -> CloudSyncAccountStatus {
@@ -325,57 +468,316 @@ final class CloudSyncMonitor: ObservableObject {
 }
 
 enum CloudSyncErrorFormatting {
+  private static let maxPartialItems = 25
+  private static let maxUserInfoValueLength = 500
+  private static let partialErrorsUserInfoKey = "CKPartialErrorsByItemIDKey"
+
   static func description(for error: Error) -> String {
     flatten(error).joined(separator: " | ")
+  }
+
+  /// Multi-line dump for the sync debug log and Xcode console.
+  static func dump(for error: Error) -> String {
+    flatten(error).joined(separator: "\n")
   }
 
   static func isMissingQueryableIndex(_ error: Error) -> Bool {
     flatten(error).contains { $0.localizedCaseInsensitiveContains("not marked queryable") }
   }
 
-  static func flatten(_ error: Error, depth: Int = 0) -> [String] {
-    guard depth < 6 else { return [] }
-    let nsError = error as NSError
-    var parts = [headline(nsError)]
-    var seen = Set<String>()
+  static func isPartialFailure(_ error: Error) -> Bool {
+    flatten(error).contains { $0.contains("PARTIAL FAILURE") }
+  }
 
-    for inner in nestedErrors(in: nsError) {
+  /// SwiftData model names involved in the error, with no record IDs or user content.
+  static func involvedModels(in error: Error) -> [String] {
+    var seenErrors = Set<String>()
+    var seenModels = Set<String>()
+    var models: [String] = []
+    collectInvolvedModels(
+      from: error,
+      depth: 0,
+      seenErrors: &seenErrors,
+      seenModels: &seenModels,
+      models: &models
+    )
+    return models
+  }
+
+  static func flatten(_ error: Error, depth: Int = 0) -> [String] {
+    var seen = Set<String>()
+    return flatten(error, depth: depth, seen: &seen)
+  }
+
+  private static func flatten(_ error: Error, depth: Int, seen: inout Set<String>) -> [String] {
+    guard depth < 6 else { return ["…nested error truncated"] }
+    let nsError = error as NSError
+    var parts = [headline(nsError, depth: depth)]
+
+    if let retryAfter = retryAfterSeconds(from: nsError) {
+      parts.append("Retry after: \(retryAfter)s")
+    }
+    if let userInfo = summarizedUserInfo(nsError) {
+      let label = depth > 0 ? "Nested userInfo" : "UserInfo"
+      parts.append("\(label): \(userInfo)")
+    }
+
+    if let partial = partialErrorMap(from: nsError) {
+      let items = partial.sorted { describeItemID($0.key) < describeItemID($1.key) }
+      parts.append("⚠️ CloudKit PARTIAL FAILURE - \(items.count) item\(items.count == 1 ? "" : "s")")
+      for (itemID, itemError) in items.prefix(maxPartialItems) {
+        parts.append("Failed item: \(describeItemID(itemID))")
+        if let context = recordContext(itemID: itemID, error: itemError as NSError) {
+          parts.append("Record type / model: \(context)")
+        }
+        parts.append("Error: \(itemError)")
+        parts.append(contentsOf: flatten(itemError, depth: depth + 1, seen: &seen))
+      }
+      if items.count > maxPartialItems {
+        parts.append("… \(items.count - maxPartialItems) more failed items omitted")
+      }
+    }
+
+    for inner in nestedErrorsExcludingPartialMap(in: nsError) {
       let innerNS = inner as NSError
       let key = "\(innerNS.domain):\(innerNS.code):\(innerNS.localizedDescription)"
       guard seen.insert(key).inserted else { continue }
-      parts.append(contentsOf: flatten(inner, depth: depth + 1))
+      if let underlyingHint = underlyingErrorLabel(for: nsError, inner: innerNS) {
+        parts.append(underlyingHint)
+      }
+      parts.append(contentsOf: flatten(inner, depth: depth + 1, seen: &seen))
     }
     return parts
   }
 
-  private static func headline(_ nsError: NSError) -> String {
+  private static func headline(_ nsError: NSError, depth: Int) -> String {
+    let line: String
     if nsError.domain == CKErrorDomain {
       let code = CKError.Code(rawValue: nsError.code)
-      return "CKError \(nsError.code) (\(ckCodeName(code))): \(nsError.localizedDescription)"
+      let name = ckCodeName(code)
+      if depth == 0 {
+        line = "☁️ CloudKit error: \(nsError.code) (\(name)): \(nsError.localizedDescription)"
+      } else {
+        line = "Nested CKError: \(nsError.code) (\(name)): \(nsError.localizedDescription)"
+      }
+    } else if nsError.domain == NSCocoaErrorDomain {
+      line = "\(nsError.localizedDescription) [CocoaError \(nsError.code)]"
+    } else {
+      line = "\(nsError.localizedDescription) [\(nsError.domain) \(nsError.code)]"
     }
-    if nsError.domain == NSCocoaErrorDomain {
-      return "\(nsError.localizedDescription) [CocoaError \(nsError.code)]"
+    if let reason = nsError.localizedFailureReason,
+       reason != nsError.localizedDescription,
+       !line.contains(reason) {
+      return "\(line) — \(reason)"
     }
-    return "\(nsError.localizedDescription) [\(nsError.domain) \(nsError.code)]"
+    return line
   }
 
-  private static func nestedErrors(in nsError: NSError) -> [Error] {
-    var nested: [Error] = []
-    if let ckError = nsError as? CKError, let partial = ckError.partialErrorsByItemID {
-      nested.append(contentsOf: partial.values)
+  private static func partialErrorMap(from nsError: NSError) -> [AnyHashable: Error]? {
+    if let ckError = nsError as? CKError, let partial = ckError.partialErrorsByItemID, !partial.isEmpty {
+      return partial
     }
+    let userInfo = nsError.userInfo
+    if let map = userInfo[partialErrorsUserInfoKey] as? [AnyHashable: Error], !map.isEmpty {
+      return map
+    }
+    if let map = userInfo[partialErrorsUserInfoKey] as? [AnyHashable: NSError], !map.isEmpty {
+      return map.mapValues { $0 as Error }
+    }
+    return nil
+  }
+
+  private static func nestedErrorsExcludingPartialMap(in nsError: NSError) -> [Error] {
+    var nested: [Error] = []
     if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
       nested.append(underlying)
     }
     if let detailed = nsError.userInfo[NSDetailedErrorsKey] as? [Error] {
       nested.append(contentsOf: detailed)
-    }
-    for value in nsError.userInfo.values {
-      if let map = value as? [AnyHashable: NSError] {
-        nested.append(contentsOf: Array(map.values))
-      }
+    } else if let detailed = nsError.userInfo[NSDetailedErrorsKey] as? [NSError] {
+      nested.append(contentsOf: detailed.map { $0 as Error })
     }
     return nested
+  }
+
+  private static func underlyingErrorLabel(for nsError: NSError, inner: NSError) -> String? {
+    if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError,
+       underlying.domain == inner.domain, underlying.code == inner.code {
+      return "Underlying error:"
+    }
+    return nil
+  }
+
+  private static func retryAfterSeconds(from nsError: NSError) -> Double? {
+    if let ckError = nsError as? CKError, let seconds = ckError.retryAfterSeconds {
+      return seconds
+    }
+    if let number = nsError.userInfo["CKErrorRetryAfterKey"] as? NSNumber {
+      return number.doubleValue
+    }
+    return nil
+  }
+
+  private static func summarizedUserInfo(_ nsError: NSError) -> String? {
+    let omitted: Set<String> = [
+      NSLocalizedDescriptionKey,
+      NSUnderlyingErrorKey,
+      NSDetailedErrorsKey,
+      partialErrorsUserInfoKey
+    ]
+    var pairs: [String] = []
+    let keys = nsError.userInfo.keys.sorted { String(describing: $0) < String(describing: $1) }
+    for key in keys {
+      let keyString = String(describing: key)
+      if omitted.contains(keyString) { continue }
+      guard let value = nsError.userInfo[key] else { continue }
+      pairs.append("\(keyString)=\(describeUserInfoValue(value))")
+    }
+    guard !pairs.isEmpty else { return nil }
+    return "{\(pairs.joined(separator: ", "))}"
+  }
+
+  private static func describeUserInfoValue(_ value: Any) -> String {
+    if let record = value as? CKRecord {
+      return "CKRecord(type=\(record.recordType), id=\(record.recordID.recordName))"
+    }
+    if let recordID = value as? CKRecord.ID {
+      return describeItemID(recordID)
+    }
+    if let data = value as? Data {
+      return "<\(data.count) bytes>"
+    }
+    if let error = value as? NSError, value is Error {
+      return "\(error.domain) \(error.code): \(error.localizedDescription)"
+    }
+    if let map = value as? [AnyHashable: NSError] {
+      return "<\(map.count) item error\(map.count == 1 ? "" : "s")>"
+    }
+    let raw = String(describing: value)
+    if raw.count <= maxUserInfoValueLength { return raw }
+    return String(raw.prefix(maxUserInfoValueLength)) + "…"
+  }
+
+  private static func ckRecordID(from itemID: AnyHashable) -> CKRecord.ID? {
+    itemID as? CKRecord.ID ?? itemID.base as? CKRecord.ID
+  }
+
+  private static func ckZoneID(from itemID: AnyHashable) -> CKRecordZone.ID? {
+    itemID as? CKRecordZone.ID ?? itemID.base as? CKRecordZone.ID
+  }
+
+  private static func describeItemID(_ itemID: AnyHashable) -> String {
+    if let recordID = ckRecordID(from: itemID) {
+      return "CKRecord.ID recordName=\(recordID.recordName) zone=\(recordID.zoneID.zoneName) owner=\(recordID.zoneID.ownerName)"
+    }
+    if let zoneID = ckZoneID(from: itemID) {
+      return "CKRecordZone.ID zone=\(zoneID.zoneName) owner=\(zoneID.ownerName)"
+    }
+    return String(describing: itemID)
+  }
+
+  private static func recordContext(itemID: AnyHashable, error nsError: NSError) -> String? {
+    var seen = Set<String>()
+    var types: [String] = []
+
+    func add(_ raw: String) {
+      guard seen.insert(raw).inserted else { return }
+      types.append(raw)
+    }
+
+    if let recordID = ckRecordID(from: itemID) {
+      extractRecordTypes(from: recordID.recordName).forEach(add)
+    }
+
+    for value in nsError.userInfo.values {
+      if let record = value as? CKRecord {
+        add(record.recordType)
+      }
+      if let text = value as? String {
+        extractRecordTypes(from: text).forEach(add)
+      }
+    }
+    extractRecordTypes(from: nsError.localizedDescription).forEach(add)
+    if let reason = nsError.localizedFailureReason {
+      extractRecordTypes(from: reason).forEach(add)
+    }
+    if let debug = nsError.userInfo[NSDebugDescriptionErrorKey] as? String {
+      extractRecordTypes(from: debug).forEach(add)
+    }
+
+    guard !types.isEmpty else { return nil }
+    return types.map { type in
+      if type.hasPrefix("CD_") {
+        let model = String(type.dropFirst(3))
+        return "\(type) (SwiftData: \(model))"
+      }
+      return type
+    }.joined(separator: ", ")
+  }
+
+  private static func extractRecordTypes(from text: String) -> [String] {
+    text.matches(of: /CD_[A-Za-z][A-Za-z0-9]*/).map { String($0.output) }
+  }
+
+  private static func collectInvolvedModels(
+    from error: Error,
+    depth: Int,
+    seenErrors: inout Set<String>,
+    seenModels: inout Set<String>,
+    models: inout [String]
+  ) {
+    guard depth < 6 else { return }
+    let nsError = error as NSError
+    let errorKey = "\(nsError.domain):\(nsError.code):\(nsError.localizedDescription)"
+    guard seenErrors.insert(errorKey).inserted else { return }
+
+    func addRecordType(_ raw: String) {
+      guard raw.hasPrefix("CD_") else { return }
+      let model = String(raw.dropFirst(3))
+      guard seenModels.insert(model).inserted else { return }
+      models.append(model)
+    }
+
+    extractRecordTypes(from: nsError.localizedDescription).forEach(addRecordType)
+    if let reason = nsError.localizedFailureReason {
+      extractRecordTypes(from: reason).forEach(addRecordType)
+    }
+    if let debug = nsError.userInfo[NSDebugDescriptionErrorKey] as? String {
+      extractRecordTypes(from: debug).forEach(addRecordType)
+    }
+    for value in nsError.userInfo.values {
+      if let record = value as? CKRecord {
+        addRecordType(record.recordType)
+      }
+      if let text = value as? String {
+        extractRecordTypes(from: text).forEach(addRecordType)
+      }
+    }
+
+    if let partial = partialErrorMap(from: nsError) {
+      for (itemID, itemError) in partial {
+        if let recordID = ckRecordID(from: itemID) {
+          extractRecordTypes(from: recordID.recordName).forEach(addRecordType)
+        }
+        collectInvolvedModels(
+          from: itemError,
+          depth: depth + 1,
+          seenErrors: &seenErrors,
+          seenModels: &seenModels,
+          models: &models
+        )
+      }
+    }
+
+    for inner in nestedErrorsExcludingPartialMap(in: nsError) {
+      collectInvolvedModels(
+        from: inner,
+        depth: depth + 1,
+        seenErrors: &seenErrors,
+        seenModels: &seenModels,
+        models: &models
+      )
+    }
   }
 
   private static func ckCodeName(_ code: CKError.Code?) -> String {
@@ -392,14 +794,28 @@ enum CloudSyncErrorFormatting {
     case .permissionFailure: return "permissionFailure"
     case .unknownItem: return "unknownItem"
     case .invalidArguments: return "invalidArguments"
+    case .resultsTruncated: return "resultsTruncated"
     case .serverRecordChanged: return "serverRecordChanged"
     case .serverRejectedRequest: return "serverRejectedRequest"
     case .assetFileNotFound: return "assetFileNotFound"
+    case .assetFileModified: return "assetFileModified"
+    case .incompatibleVersion: return "incompatibleVersion"
+    case .constraintViolation: return "constraintViolation"
+    case .operationCancelled: return "operationCancelled"
+    case .changeTokenExpired: return "changeTokenExpired"
+    case .batchRequestFailed: return "batchRequestFailed"
+    case .zoneBusy: return "zoneBusy"
+    case .badDatabase: return "badDatabase"
     case .quotaExceeded: return "quotaExceeded"
     case .zoneNotFound: return "zoneNotFound"
-    case .changeTokenExpired: return "changeTokenExpired"
     case .limitExceeded: return "limitExceeded"
     case .userDeletedZone: return "userDeletedZone"
+    case .tooManyParticipants: return "tooManyParticipants"
+    case .alreadyShared: return "alreadyShared"
+    case .referenceViolation: return "referenceViolation"
+    case .managedAccountRestricted: return "managedAccountRestricted"
+    case .participantMayNeedVerification: return "participantMayNeedVerification"
+    case .participantAlreadyInvited: return "participantAlreadyInvited"
     case .serverResponseLost: return "serverResponseLost"
     case .assetNotAvailable: return "assetNotAvailable"
     case .accountTemporarilyUnavailable: return "accountTemporarilyUnavailable"
