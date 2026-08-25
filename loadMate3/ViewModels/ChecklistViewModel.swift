@@ -45,12 +45,25 @@ final class ChecklistViewModel: ObservableObject {
         existingSections: [ChecklistSection],
         appState: AppState
     ) {
-        guard !appState.didSeedDefaultChecklist else { return }
+        if SyncDebugSeedIsolation.isAutomaticSeedingSuppressed {
+            SyncDebugSeedLog.record("[seed] Automatic checklist seed suppressed (developer diagnostic)")
+            return
+        }
+        guard !appState.didSeedDefaultChecklist else {
+            SyncDebugSeedLog.record("[seed] Checklist seed skipped — already flagged as seeded")
+            return
+        }
         // Insert built-in sections only when the store has none (no UserDefaults gate — it could block
         // forever after a manual section was added before the first seed, or after deleting all sections).
-        guard existingSections.isEmpty else { return }
+        guard existingSections.isEmpty else {
+            SyncDebugSeedLog.record("[seed] Checklist seed skipped — \(existingSections.count) section(s) already exist")
+            return
+        }
         let descriptor = FetchDescriptor<ChecklistSection>()
-        guard let stored = try? context.fetch(descriptor), stored.isEmpty else { return }
+        guard let stored = try? context.fetch(descriptor), stored.isEmpty else {
+            SyncDebugSeedLog.record("[seed] Checklist seed skipped — stored sections already exist")
+            return
+        }
 
         typealias SeedGroup = (title: String, items: [String])
         let templates: [(section: String, order: Int, groups: [SeedGroup])] = [
@@ -234,20 +247,26 @@ final class ChecklistViewModel: ObservableObject {
             ),
         ]
 
+        SyncDebugSeedLog.record("[seed] Creating checklist template")
+        var createdSections = 0
+        var createdItems = 0
         for template in templates {
             let section = ChecklistSection(title: template.section, sortOrder: template.order)
             context.insert(section)
+            createdSections += 1
             for (gIdx, groupSeed) in template.groups.enumerated() {
                 let group = ChecklistGroup(title: groupSeed.title, sortOrder: gIdx, section: section)
                 context.insert(group)
                 for (iIdx, itemTitle) in groupSeed.items.enumerated() {
                     let item = ChecklistItem(title: itemTitle, isChecked: false, sortOrder: iIdx, group: group)
                     context.insert(item)
+                    createdItems += 1
                 }
             }
         }
 
         appState.didSeedDefaultChecklist = true
+        SyncDebugSeedLog.record("[seed] Created \(createdSections) checklist sections / \(createdItems) checklist items")
         save(context)
     }
 

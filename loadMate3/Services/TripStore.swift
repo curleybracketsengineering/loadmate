@@ -132,6 +132,7 @@ enum TripStore {
             sortOrder: 0,
             profile: profile
         )
+        SyncDebugSeedLog.record("[seed] Creating default trip")
         context.insert(trip)
         setActive(trip, on: profile, in: context)
         return trip

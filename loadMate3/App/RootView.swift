@@ -29,6 +29,7 @@ struct RootView: View {
             }
         }
         .task(id: "\(appStates.count)-\(profileListToken)") {
+            CloudSyncMonitor.shared.attachModelContext(modelContext)
             let state = AppStateStore.resolve(in: modelContext, existing: appStates)
             PhotoSyncMigration.migrateLocalFilesIfNeeded(in: modelContext)
             _ = VehicleProfileSyncReconciliation.reconcile(in: modelContext, appState: state)

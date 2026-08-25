@@ -15,20 +15,24 @@ enum AppStateStore {
       : existing
 
     if let canonical = allStates.first(where: { $0.id == LoadMateSyncIDs.appState }) {
+      SyncDebugSeedLog.record("[seed] AppState already exists; skipped create")
       mergeDuplicates(into: canonical, from: allStates, in: context)
       return canonical
     }
 
     if allStates.count == 1, let lone = allStates.first {
+      SyncDebugSeedLog.record("[seed] AppState already exists (legacy id); skipped create")
       lone.id = LoadMateSyncIDs.appState
       save(context)
       return lone
     }
 
     if allStates.count > 1 {
+      SyncDebugSeedLog.record("[seed] AppState already exists (\(allStates.count) rows); merging instead of creating")
       return mergeAll(allStates, in: context)
     }
 
+    SyncDebugSeedLog.record("[seed] Creating AppState")
     let state = AppState()
     context.insert(state)
     save(context)

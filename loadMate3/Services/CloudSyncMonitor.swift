@@ -2,6 +2,7 @@ import CloudKit
 import Combine
 import CoreData
 import Foundation
+import SwiftData
 
 #if canImport(UIKit)
 import UIKit
@@ -180,13 +181,19 @@ final class CloudSyncMonitor: ObservableObject {
   @Published private(set) var isRegisteredForRemoteNotifications = false
   @Published private(set) var pushRegistrationDetail = "Waiting for APNs registration…"
   @Published private(set) var cloudKitSchemaDetail = "Not checked yet"
+  @Published private(set) var lastDetailedCloudKitFailure: String?
+  @Published private(set) var pendingMinimalSyncTestID: String?
+  @Published private(set) var lastMinimalSyncTestResult = "Not run"
 
   private var accountObserver: NSObjectProtocol?
   private var syncEventObserver: NSObjectProtocol?
   private var didStart = false
   private let historyDefaultsKey = "cloudSyncEventHistory"
+  private let lastDetailedFailureDefaultsKey = "cloudSyncLastDetailedFailure"
   private let historyEncoder = JSONEncoder()
   private let historyDecoder = JSONDecoder()
+  private weak var modelContext: ModelContext?
+  private var inFlightStarts: [CloudSyncEventKind: (date: Date, counts: String)] = [:]
 
   private init() {
     start()
@@ -207,15 +214,38 @@ final class CloudSyncMonitor: ObservableObject {
     historyDecoder.dateDecodingStrategy = .iso8601
     historyEncoder.dateEncodingStrategy = .iso8601
     loadEventHistory()
+    loadLastDetailedFailure()
     observeAccountChanges()
     observeSyncEvents()
     refreshPushRegistrationStatus()
     Task { await refresh() }
   }
 
+  func attachModelContext(_ context: ModelContext) {
+    modelContext = context
+  }
+
+  func currentEntityCountsLine() -> String? {
+    guard let modelContext else { return nil }
+    return SyncDebugEntityCounts.fetch(from: modelContext).logLine
+  }
+
+  func markMinimalSyncTestStarted(identifier: String) {
+    pendingMinimalSyncTestID = identifier
+    lastMinimalSyncTestResult = "Waiting for CloudKit export event (id \(identifier))"
+  }
+
   func clearEventHistory() {
     recentSyncEvents = []
     UserDefaults.standard.removeObject(forKey: historyDefaultsKey)
+  }
+
+  func clearDiagnostics() {
+    clearEventHistory()
+    lastDetailedCloudKitFailure = nil
+    pendingMinimalSyncTestID = nil
+    lastMinimalSyncTestResult = "Not run"
+    UserDefaults.standard.removeObject(forKey: lastDetailedFailureDefaultsKey)
   }
 
   func refresh() async {
@@ -300,8 +330,23 @@ final class CloudSyncMonitor: ObservableObject {
       let recordCount = matchResults.reduce(into: 0) { count, pair in
         if case .success = pair.1 { count += 1 }
       }
-      cloudKitSchemaDetail =
-        "Schema OK — CD_AppState reachable in this environment (\(recordCount) record\(recordCount == 1 ? "" : "s"))."
+      var probeLines = [
+        "CloudKit connectivity/schema probe:",
+        "CD_AppState reachable (\(recordCount) record\(recordCount == 1 ? "" : "s"))",
+      ]
+      let extraTypes = [
+        "CD_VehicleProfile",
+        "CD_Trip",
+        "CD_ChecklistSection",
+        "CD_ChecklistGroup",
+        "CD_ChecklistItem",
+        "CD_LoadedItem",
+        "CD_LibraryItem",
+      ]
+      for recordType in extraTypes {
+        probeLines.append(await probeRecordType(recordType, database: database, zoneID: zoneID))
+      }
+      cloudKitSchemaDetail = probeLines.joined(separator: "\n")
       SyncDebugLogger.shared.record(category: "schema", message: cloudKitSchemaDetail)
     } catch let error as CKError where error.code == .unknownItem {
       cloudKitSchemaDetail =
@@ -327,6 +372,28 @@ final class CloudSyncMonitor: ObservableObject {
     }
   }
 
+  private func probeRecordType(
+    _ recordType: String,
+    database: CKDatabase,
+    zoneID: CKRecordZone.ID
+  ) async -> String {
+    let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
+    do {
+      let (matchResults, _) = try await database.records(matching: query, inZoneWith: zoneID)
+      let recordCount = matchResults.reduce(into: 0) { count, pair in
+        if case .success = pair.1 { count += 1 }
+      }
+      return "\(recordType) reachable (\(recordCount) record\(recordCount == 1 ? "" : "s"))"
+    } catch let error as CKError where error.code == .unknownItem {
+      return "\(recordType) unknown in this environment"
+    } catch {
+      if CloudSyncErrorFormatting.isMissingQueryableIndex(error) {
+        return "\(recordType) present but recordName is not queryable"
+      }
+      return "\(recordType) probe failed: \(CloudSyncErrorFormatting.description(for: error))"
+    }
+  }
+
   private func observeAccountChanges() {
     accountObserver = NotificationCenter.default.addObserver(
       forName: .CKAccountChanged,
@@ -349,10 +416,41 @@ final class CloudSyncMonitor: ObservableObject {
       guard
         let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
           as? NSPersistentCloudKitContainer.Event
-      else { return }
+      else {
+        let keys = (notification.userInfo?.keys.map { String(describing: $0) } ?? []).sorted()
+        Task { @MainActor [weak self] in
+          SyncDebugLogger.shared.record(
+            category: "sync",
+            message: "CloudKit event notification received without Event payload. userInfo keys: \(keys.joined(separator: ", "))"
+          )
+          self?.recordDeepFailure(
+            CloudKitDeepErrorInspector.inspect(
+              error: nil,
+              context: CloudKitDeepErrorInspector.EventContext(
+                kind: "UNKNOWN",
+                succeeded: false,
+                startDate: nil,
+                endDate: nil,
+                identifier: nil,
+                storeIdentifier: nil,
+                notificationKeys: keys,
+                extraNotificationErrors: Self.errors(in: notification.userInfo),
+                countsAtStart: nil,
+                countsAtFailure: self?.currentEntityCountsLine(),
+                duration: nil,
+                uptimeSeconds: ProcessInfo.processInfo.systemUptime,
+                pendingMinimalSyncTestID: self?.pendingMinimalSyncTestID
+              )
+            )
+          )
+        }
+        return
+      }
 
+      let keys = (notification.userInfo?.keys.map { String(describing: $0) } ?? []).sorted()
+      let extraErrors = Self.errors(in: notification.userInfo)
       Task { @MainActor [weak self] in
-        self?.handleSyncEvent(event)
+        self?.handleSyncEvent(event, notificationKeys: keys, extraNotificationErrors: extraErrors)
       }
     }
     isObservingSyncEvents = true
@@ -362,11 +460,20 @@ final class CloudSyncMonitor: ObservableObject {
     )
   }
 
-  private func handleSyncEvent(_ event: NSPersistentCloudKitContainer.Event) {
+  private func handleSyncEvent(
+    _ event: NSPersistentCloudKitContainer.Event,
+    notificationKeys: [String],
+    extraNotificationErrors: [Error]
+  ) {
     let kind = mapEventKind(event.type)
     let started = event.endDate == nil
+    let timestamp = started ? event.startDate : (event.endDate ?? Date())
+    let timestampText = SyncDebugFormatting.logDateFormatter.string(from: timestamp)
+    let uptime = String(format: "%.3f", ProcessInfo.processInfo.systemUptime)
 
     if started {
+      let counts = currentEntityCountsLine() ?? "unavailable (no model context registered)"
+      inFlightStarts[kind] = (date: event.startDate, counts: counts)
       let entry = CloudSyncHistoryEntry.make(
         kind: kind,
         started: true,
@@ -375,11 +482,18 @@ final class CloudSyncMonitor: ObservableObject {
         timestamp: event.startDate
       )
       recordHistory(entry)
-      SyncDebugLogger.shared.record(category: "sync", message: entry.context)
+      SyncDebugLogger.shared.record(
+        category: "sync",
+        message: "\(entry.context) at \(timestampText) (uptime \(uptime)s)\nCounts: \(counts)"
+      )
       return
     }
 
     let finishedAt = event.endDate ?? Date()
+    let startInfo = inFlightStarts.removeValue(forKey: kind)
+    let startDate = startInfo?.date ?? event.startDate
+    let duration = String(format: "%.1fms", finishedAt.timeIntervalSince(startDate) * 1000)
+    let countsNow = currentEntityCountsLine() ?? "unavailable (no model context registered)"
     let errorText = detailedErrorDescription(event.error)
     let summary = CloudSyncEventSummary(
       kind: kind,
@@ -404,23 +518,72 @@ final class CloudSyncMonitor: ObservableObject {
         lastSuccessfulImportAt = finishedAt
       case .exportToCloud:
         lastSuccessfulExportAt = finishedAt
+        if let pendingMinimalSyncTestID {
+          lastMinimalSyncTestResult = "Minimal sync test: EXPORT succeeded for \(pendingMinimalSyncTestID)"
+          self.pendingMinimalSyncTestID = nil
+        }
       case .setup, .unknown:
         break
       }
-      SyncDebugLogger.shared.record(category: "sync", message: entry.context)
-    } else {
-      lastErrorDescription = errorText ?? "\(entry.context) without an error description."
-      let dump: String
-      if let error = event.error {
-        dump = CloudSyncErrorFormatting.dump(for: error)
-      } else {
-        dump = lastErrorDescription ?? "Unknown error"
-      }
       SyncDebugLogger.shared.record(
         category: "sync",
-        message: "\(entry.context):\n\(dump)"
+        message: "\(entry.context) at \(timestampText) (uptime \(uptime)s, duration \(duration))\nCounts: \(countsNow)"
       )
-      print("[CloudSync] \(entry.context):\n\(dump)")
+      return
+    }
+
+    lastErrorDescription = errorText ?? "\(entry.context) without an error description."
+    SyncDebugLogger.shared.record(
+      category: "sync",
+      message: CloudKitDeepErrorInspector.startMarker
+    )
+
+    let dump = CloudKitDeepErrorInspector.inspect(
+      error: event.error,
+      context: CloudKitDeepErrorInspector.EventContext(
+        kind: kind.displayName.uppercased(),
+        succeeded: event.succeeded,
+        startDate: startDate,
+        endDate: finishedAt,
+        identifier: event.identifier.uuidString,
+        storeIdentifier: event.storeIdentifier,
+        notificationKeys: notificationKeys,
+        extraNotificationErrors: extraNotificationErrors,
+        countsAtStart: startInfo?.counts,
+        countsAtFailure: countsNow,
+        duration: duration,
+        uptimeSeconds: ProcessInfo.processInfo.systemUptime,
+        pendingMinimalSyncTestID: pendingMinimalSyncTestID
+      )
+    )
+    recordDeepFailure(dump)
+    if kind == .exportToCloud, pendingMinimalSyncTestID != nil {
+      lastMinimalSyncTestResult = "Minimal sync test: EXPORT failed for \(pendingMinimalSyncTestID ?? "unknown")"
+      pendingMinimalSyncTestID = nil
+    }
+    SyncDebugLogger.shared.record(
+      category: "sync",
+      message: "\(entry.context) at \(timestampText) (uptime \(uptime)s, duration \(duration))\n\(dump)"
+    )
+    print("[CloudSync] \(entry.context):\n\(dump)")
+  }
+
+  private func recordDeepFailure(_ dump: String) {
+    lastDetailedCloudKitFailure = dump
+    UserDefaults.standard.set(dump, forKey: lastDetailedFailureDefaultsKey)
+  }
+
+  private func loadLastDetailedFailure() {
+    lastDetailedCloudKitFailure = UserDefaults.standard.string(forKey: lastDetailedFailureDefaultsKey)
+  }
+
+  private static func errors(in userInfo: [AnyHashable: Any]?) -> [Error] {
+    guard let userInfo else { return [] }
+    return userInfo.compactMap { key, value in
+      if String(describing: key) == String(describing: NSPersistentCloudKitContainer.eventNotificationUserInfoKey) {
+        return nil
+      }
+      return value as? Error
     }
   }
 
@@ -780,7 +943,7 @@ enum CloudSyncErrorFormatting {
     }
   }
 
-  private static func ckCodeName(_ code: CKError.Code?) -> String {
+  static func ckCodeName(_ code: CKError.Code?) -> String {
     switch code {
     case .internalError: return "internalError"
     case .partialFailure: return "partialFailure"

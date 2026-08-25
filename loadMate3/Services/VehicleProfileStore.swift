@@ -46,7 +46,10 @@ enum VehicleProfileStore {
             state = AppStateStore.resolve(in: context)
         }
 
-        if profiles.isEmpty, !state.didSeedDefaultProfiles {
+        if SyncDebugSeedIsolation.isAutomaticSeedingSuppressed {
+            SyncDebugSeedLog.record("[seed] Automatic default profile/trip seeding suppressed (developer diagnostic)")
+        } else if profiles.isEmpty, !state.didSeedDefaultProfiles {
+            SyncDebugSeedLog.record("[seed] Creating default profile")
             let caravan = VehicleProfile(
                 id: LoadMateSyncIDs.defaultCaravanProfile,
                 name: "My Caravan",
@@ -54,12 +57,14 @@ enum VehicleProfileStore {
                 sortOrder: 0
             )
             context.insert(caravan)
+            SyncDebugSeedLog.record("[seed] Creating default trip")
             _ = TripStore.ensureDefaultTrip(
                 for: caravan,
                 preferredID: LoadMateSyncIDs.defaultCaravanTrip,
                 in: context
             )
 
+            SyncDebugSeedLog.record("[seed] Creating default profile")
             let motorhome = VehicleProfile(
                 id: LoadMateSyncIDs.defaultMotorhomeProfile,
                 name: "My Motorhome",
@@ -67,6 +72,7 @@ enum VehicleProfileStore {
                 sortOrder: 1
             )
             context.insert(motorhome)
+            SyncDebugSeedLog.record("[seed] Creating default trip")
             _ = TripStore.ensureDefaultTrip(
                 for: motorhome,
                 preferredID: LoadMateSyncIDs.defaultMotorhomeTrip,
@@ -76,6 +82,10 @@ enum VehicleProfileStore {
             state.didSeedDefaultProfiles = true
             setActive(caravan, appState: state, in: context)
             return ([caravan, motorhome], state)
+        } else if profiles.isEmpty {
+            SyncDebugSeedLog.record("[seed] Default profile seed skipped — already flagged as seeded")
+        } else {
+            SyncDebugSeedLog.record("[seed] Default profile seed skipped — \(profiles.count) profile(s) already exist")
         }
 
         if state.activeProfileID == nil, let first = sortedProfiles(profiles).first {

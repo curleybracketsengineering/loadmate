@@ -13,6 +13,9 @@ struct SyncDebugPanelView: View {
     @ObservedObject private var logger = SyncDebugLogger.shared
     @State private var counts = Counts()
     @State private var copyConfirmation = ""
+    #if DEBUG
+    @State private var suppressAutomaticSeeding = SyncDebugSeedIsolation.isAutomaticSeedingSuppressed
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -25,6 +28,7 @@ struct SyncDebugPanelView: View {
                     )
 
                     statusSection()
+                    lastDetailedFailureSection()
                     syncHistorySection()
                     probeSection()
                     countsSection()
@@ -67,11 +71,32 @@ struct SyncDebugPanelView: View {
                 statusRow("Push registered", value: cloudSync.isRegisteredForRemoteNotifications ? "Yes" : "No")
                 statusRow("Push detail", value: cloudSync.pushRegistrationDetail)
                 statusRow("CloudKit schema", value: cloudSync.cloudKitSchemaDetail)
+                statusRow("Minimal sync test", value: cloudSync.lastMinimalSyncTestResult)
                 statusRow("Device", value: SyncDebugFormatting.deviceName)
                 statusRow("Bundle", value: SyncDebugFormatting.bundleID)
                 statusRow("Version", value: "\(SyncDebugFormatting.appVersion) (\(SyncDebugFormatting.buildNumber))")
                 statusRow("CloudKit", value: LoadMateModelContainer.cloudKitContainerID)
                 statusRow("Active profile", value: activeProfileName ?? "None")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func lastDetailedFailureSection() -> some View {
+        AppSettingsSection(
+            "Last Detailed CloudKit Failure",
+            caption: "Kept until another CloudKit failure replaces it, or you clear diagnostics. Closing this panel does not erase it."
+        ) {
+            if let dump = cloudSync.lastDetailedCloudKitFailure, !dump.isEmpty {
+                Text(dump)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(Color.primary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("None yet")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
             }
         }
     }
@@ -114,6 +139,15 @@ struct SyncDebugPanelView: View {
                 AppSecondaryButton("Write Sync Probe") {
                     writeSyncProbe()
                 }
+
+                AppSecondaryButton("Run Minimal Sync Test") {
+                    runMinimalSyncTest()
+                }
+
+                Text(cloudSync.lastMinimalSyncTestResult)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -162,9 +196,25 @@ struct SyncDebugPanelView: View {
                     copyConfirmation = logger.copyReport(report) ? "Report copied to clipboard." : "Clipboard not available on this platform."
                 }
 
+                AppSecondaryButton("Log Model Audit") {
+                    logger.record(category: "schema", message: CloudKitModelAudit.report())
+                    copyConfirmation = "Model audit written to the local log and included in Copy Debug Report."
+                }
+
+                #if DEBUG
+                Toggle("Suppress automatic seeding", isOn: $suppressAutomaticSeeding)
+                    .onChange(of: suppressAutomaticSeeding) { _, newValue in
+                        SyncDebugSeedIsolation.setAutomaticSeedingSuppressed(newValue)
+                    }
+                Text("Leave this OFF for this diagnostic run. It only skips default profile/checklist seeding in DEBUG builds and does not delete data.")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
+                #endif
+
                 AppSecondaryButton("Clear Local Log") {
                     logger.clear()
-                    copyConfirmation = "Cleared local sync log and CloudKit event history."
+                    copyConfirmation = "Cleared local sync log, CloudKit event history, and last detailed CloudKit failure."
                 }
 
                 if !copyConfirmation.isEmpty {
@@ -228,6 +278,31 @@ struct SyncDebugPanelView: View {
         }
     }
 
+    private func runMinimalSyncTest() {
+        let state: AppState
+        if let appState {
+            state = appState
+        } else {
+            state = AppStateStore.resolve(in: modelContext)
+        }
+
+        let identifier = "min-sync-\(UUID().uuidString)"
+        cloudSync.markMinimalSyncTestStarted(identifier: identifier)
+        state.syncProbeSequence += 1
+        state.syncProbeValue = identifier
+        state.syncProbeUpdatedAt = Date()
+        state.syncProbeUpdatedBy = SyncDebugFormatting.deviceName
+
+        logger.record(category: "probe", message: "Minimal sync test record created (\(identifier))")
+        let saved = SyncDebugSaveHelper.save(modelContext, source: "SyncDebugPanel.runMinimalSyncTest")
+        logger.record(
+            category: "probe",
+            message: saved ? "Local save succeeded" : "Local save failed"
+        )
+        logger.record(category: "probe", message: "Waiting for CloudKit export event")
+        refreshCounts()
+    }
+
     private func refreshCounts() {
         counts = Counts(
             vehicleProfiles: fetchCount(FetchDescriptor<VehicleProfile>()),
@@ -253,6 +328,8 @@ struct SyncDebugPanelView: View {
             recentSyncEventLines: cloudSync.recentSyncEvents.map(\.displayLine),
             lastSuccessfulImportAt: cloudSync.lastSuccessfulImportAt,
             lastSuccessfulExportAt: cloudSync.lastSuccessfulExportAt,
+            lastDetailedCloudKitFailure: cloudSync.lastDetailedCloudKitFailure,
+            lastMinimalSyncTestResult: cloudSync.lastMinimalSyncTestResult,
             isRegisteredForRemoteNotifications: cloudSync.isRegisteredForRemoteNotifications,
             pushRegistrationDetail: cloudSync.pushRegistrationDetail,
             cloudKitSchemaDetail: cloudSync.cloudKitSchemaDetail,

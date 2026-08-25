@@ -28,6 +28,8 @@ struct SyncDebugSnapshot {
     let recentSyncEventLines: [String]
     let lastSuccessfulImportAt: Date?
     let lastSuccessfulExportAt: Date?
+    let lastDetailedCloudKitFailure: String?
+    let lastMinimalSyncTestResult: String
     let isRegisteredForRemoteNotifications: Bool
     let pushRegistrationDetail: String
     let cloudKitSchemaDetail: String
@@ -82,7 +84,7 @@ final class SyncDebugLogger: ObservableObject {
     func clear() {
         entries = []
         UserDefaults.standard.removeObject(forKey: defaultsKey)
-        CloudSyncMonitor.shared.clearEventHistory()
+        CloudSyncMonitor.shared.clearDiagnostics()
     }
 
     func copyReport(_ report: String) -> Bool {
@@ -113,9 +115,16 @@ final class SyncDebugLogger: ObservableObject {
         let historyLines = snapshot.recentSyncEventLines.isEmpty
             ? ["  None yet"]
             : snapshot.recentSyncEventLines.map { "  \($0)" }
+        let detailedFailure = snapshot.lastDetailedCloudKitFailure?.isEmpty == false
+            ? snapshot.lastDetailedCloudKitFailure!
+            : "None"
         let afterHistory = [
+            "Last Detailed CloudKit Failure",
+            detailedFailure,
+            "",
             "Last successful import: \(SyncDebugFormatting.string(for: snapshot.lastSuccessfulImportAt))",
             "Last successful export: \(SyncDebugFormatting.string(for: snapshot.lastSuccessfulExportAt))",
+            "Minimal sync test: \(snapshot.lastMinimalSyncTestResult)",
             "Push registered: \(snapshot.isRegisteredForRemoteNotifications ? "Yes" : "No")",
             "Push detail: \(snapshot.pushRegistrationDetail)",
             "CloudKit schema: \(snapshot.cloudKitSchemaDetail)",
@@ -125,6 +134,8 @@ final class SyncDebugLogger: ObservableObject {
             "Sync probe updated: \(SyncDebugFormatting.string(for: snapshot.syncProbeUpdatedAt))",
             "Sync probe device: \(snapshot.syncProbeUpdatedBy.isEmpty ? "None" : snapshot.syncProbeUpdatedBy)",
             "Sync probe value: \(snapshot.syncProbeValue.isEmpty ? "None" : snapshot.syncProbeValue)",
+            "",
+            CloudKitModelAudit.report(),
             "",
             "Recent log"
         ]
