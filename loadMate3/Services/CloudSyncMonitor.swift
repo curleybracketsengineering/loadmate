@@ -8,6 +8,17 @@ import SwiftData
 import UIKit
 #endif
 
+enum MinimalSyncTestStatus: String, Equatable {
+  case notRun = "Not run"
+  case running = "Running"
+  case localSaveSucceeded = "Local save succeeded"
+  case localSaveFailed = "Local save failed"
+  case waitingForCloudKit = "Waiting for CloudKit"
+  case exportSucceeded = "CloudKit export succeeded"
+  case exportFailed = "CloudKit export failed"
+  case timedOut = "Timed out"
+}
+
 enum CloudSyncAccountStatus: Equatable {
   case available
   case noAccount
@@ -183,17 +194,24 @@ final class CloudSyncMonitor: ObservableObject {
   @Published private(set) var cloudKitSchemaDetail = "Not checked yet"
   @Published private(set) var lastDetailedCloudKitFailure: String?
   @Published private(set) var pendingMinimalSyncTestID: String?
-  @Published private(set) var lastMinimalSyncTestResult = "Not run"
+  @Published private(set) var lastMinimalSyncTestID: String?
+  @Published private(set) var minimalSyncTestStatus: MinimalSyncTestStatus = .notRun
+  @Published private(set) var lastMinimalSyncTestResult = MinimalSyncTestStatus.notRun.rawValue
+  private(set) var seenCloudKitStoreIdentifiers: Set<String> = []
 
   private var accountObserver: NSObjectProtocol?
   private var syncEventObserver: NSObjectProtocol?
   private var didStart = false
   private let historyDefaultsKey = "cloudSyncEventHistory"
   private let lastDetailedFailureDefaultsKey = "cloudSyncLastDetailedFailure"
+  private let minimalSyncStatusDefaultsKey = "cloudSyncMinimalSyncTestStatus"
+  private let minimalSyncIDDefaultsKey = "cloudSyncMinimalSyncTestID"
   private let historyEncoder = JSONEncoder()
   private let historyDecoder = JSONDecoder()
   private weak var modelContext: ModelContext?
   private var inFlightStarts: [CloudSyncEventKind: (date: Date, counts: String)] = [:]
+  private var isolationProductionStoreIDs: Set<String>?
+  private var minimalSyncTimeoutTask: Task<Void, Never>?
 
   private init() {
     start()
@@ -215,6 +233,7 @@ final class CloudSyncMonitor: ObservableObject {
     historyEncoder.dateEncodingStrategy = .iso8601
     loadEventHistory()
     loadLastDetailedFailure()
+    loadMinimalSyncTestStatus()
     observeAccountChanges()
     observeSyncEvents()
     refreshPushRegistrationStatus()
@@ -230,9 +249,36 @@ final class CloudSyncMonitor: ObservableObject {
     return SyncDebugEntityCounts.fetch(from: modelContext).logLine
   }
 
-  func markMinimalSyncTestStarted(identifier: String) {
+  func beginMinimalSyncTest(identifier: String) {
+    minimalSyncTimeoutTask?.cancel()
     pendingMinimalSyncTestID = identifier
-    lastMinimalSyncTestResult = "Waiting for CloudKit export event (id \(identifier))"
+    lastMinimalSyncTestID = identifier
+    setMinimalSyncTestStatus(.running)
+  }
+
+  func noteMinimalSyncLocalSave(succeeded: Bool) {
+    if succeeded {
+      setMinimalSyncTestStatus(.localSaveSucceeded)
+      setMinimalSyncTestStatus(.waitingForCloudKit)
+      startMinimalSyncTimeout()
+    } else {
+      setMinimalSyncTestStatus(.localSaveFailed)
+      pendingMinimalSyncTestID = nil
+      minimalSyncTimeoutTask?.cancel()
+      minimalSyncTimeoutTask = nil
+    }
+  }
+
+  func beginIgnoringNonProductionCloudKitStores(productionStoreIDs: Set<String>) {
+    isolationProductionStoreIDs = productionStoreIDs
+  }
+
+  func endIgnoringNonProductionCloudKitStores() {
+    isolationProductionStoreIDs = nil
+  }
+
+  func markMinimalSyncTestStarted(identifier: String) {
+    beginMinimalSyncTest(identifier: identifier)
   }
 
   func clearEventHistory() {
@@ -243,8 +289,6 @@ final class CloudSyncMonitor: ObservableObject {
   func clearDiagnostics() {
     clearEventHistory()
     lastDetailedCloudKitFailure = nil
-    pendingMinimalSyncTestID = nil
-    lastMinimalSyncTestResult = "Not run"
     UserDefaults.standard.removeObject(forKey: lastDetailedFailureDefaultsKey)
   }
 
@@ -465,6 +509,13 @@ final class CloudSyncMonitor: ObservableObject {
     notificationKeys: [String],
     extraNotificationErrors: [Error]
   ) {
+    seenCloudKitStoreIdentifiers.insert(event.storeIdentifier)
+    if let productionIDs = isolationProductionStoreIDs,
+       !productionIDs.isEmpty,
+       !productionIDs.contains(event.storeIdentifier) {
+      return
+    }
+
     let kind = mapEventKind(event.type)
     let started = event.endDate == nil
     let timestamp = started ? event.startDate : (event.endDate ?? Date())
@@ -518,9 +569,8 @@ final class CloudSyncMonitor: ObservableObject {
         lastSuccessfulImportAt = finishedAt
       case .exportToCloud:
         lastSuccessfulExportAt = finishedAt
-        if let pendingMinimalSyncTestID {
-          lastMinimalSyncTestResult = "Minimal sync test: EXPORT succeeded for \(pendingMinimalSyncTestID)"
-          self.pendingMinimalSyncTestID = nil
+        if pendingMinimalSyncTestID != nil {
+          completeMinimalSyncTest(status: .exportSucceeded)
         }
       case .setup, .unknown:
         break
@@ -558,8 +608,7 @@ final class CloudSyncMonitor: ObservableObject {
     )
     recordDeepFailure(dump)
     if kind == .exportToCloud, pendingMinimalSyncTestID != nil {
-      lastMinimalSyncTestResult = "Minimal sync test: EXPORT failed for \(pendingMinimalSyncTestID ?? "unknown")"
-      pendingMinimalSyncTestID = nil
+      completeMinimalSyncTest(status: .exportFailed)
     }
     SyncDebugLogger.shared.record(
       category: "sync",
@@ -575,6 +624,63 @@ final class CloudSyncMonitor: ObservableObject {
 
   private func loadLastDetailedFailure() {
     lastDetailedCloudKitFailure = UserDefaults.standard.string(forKey: lastDetailedFailureDefaultsKey)
+  }
+
+  private func loadMinimalSyncTestStatus() {
+    lastMinimalSyncTestID = UserDefaults.standard.string(forKey: minimalSyncIDDefaultsKey)
+    if let raw = UserDefaults.standard.string(forKey: minimalSyncStatusDefaultsKey),
+       let status = MinimalSyncTestStatus(rawValue: raw) {
+      minimalSyncTestStatus = status
+      lastMinimalSyncTestResult = displayMinimalSyncStatus(status)
+      if status == .waitingForCloudKit || status == .running || status == .localSaveSucceeded {
+        pendingMinimalSyncTestID = lastMinimalSyncTestID
+        startMinimalSyncTimeout()
+      } else {
+        pendingMinimalSyncTestID = nil
+      }
+    }
+  }
+
+  private func setMinimalSyncTestStatus(_ status: MinimalSyncTestStatus) {
+    minimalSyncTestStatus = status
+    lastMinimalSyncTestResult = displayMinimalSyncStatus(status)
+    UserDefaults.standard.set(status.rawValue, forKey: minimalSyncStatusDefaultsKey)
+    if let identifier = lastMinimalSyncTestID {
+      UserDefaults.standard.set(identifier, forKey: minimalSyncIDDefaultsKey)
+    }
+    SyncDebugLogger.shared.record(
+      category: "probe",
+      message: "Minimal sync test status: \(lastMinimalSyncTestResult)"
+    )
+  }
+
+  private func displayMinimalSyncStatus(_ status: MinimalSyncTestStatus) -> String {
+    if let id = lastMinimalSyncTestID, status != .notRun {
+      return "\(status.rawValue) (\(id))"
+    }
+    return status.rawValue
+  }
+
+  private func startMinimalSyncTimeout() {
+    minimalSyncTimeoutTask?.cancel()
+    minimalSyncTimeoutTask = Task { @MainActor in
+      let nanoseconds = UInt64(CloudKitModelIsolationTester.timeoutSeconds * 1_000_000_000)
+      try? await Task.sleep(nanoseconds: nanoseconds)
+      guard !Task.isCancelled else { return }
+      guard pendingMinimalSyncTestID != nil,
+            minimalSyncTestStatus == .waitingForCloudKit
+              || minimalSyncTestStatus == .running
+              || minimalSyncTestStatus == .localSaveSucceeded
+      else { return }
+      completeMinimalSyncTest(status: .timedOut)
+    }
+  }
+
+  private func completeMinimalSyncTest(status: MinimalSyncTestStatus) {
+    minimalSyncTimeoutTask?.cancel()
+    minimalSyncTimeoutTask = nil
+    setMinimalSyncTestStatus(status)
+    pendingMinimalSyncTestID = nil
   }
 
   private static func errors(in userInfo: [AnyHashable: Any]?) -> [Error] {

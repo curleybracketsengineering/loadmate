@@ -91,8 +91,11 @@ enum CloudKitModelAudit {
                     if attribute.isUnique { extras.append("unique") }
                     if attribute.isTransient { extras.append("transient") }
                     if attribute.isTransformable { extras.append("transformable") }
-                    if attribute.originalName != attribute.name {
-                        extras.append("originalName=\(attribute.originalName)")
+                    if let original = CloudKitModelAudit.genuineOriginalName(
+                        attribute.originalName,
+                        currentName: attribute.name
+                    ) {
+                        extras.append("originalName=\(original)")
                     }
                     lines.append(
                         "    \(attribute.name): \(typeName(attribute.valueType)) [\(extras.joined(separator: ", "))]"
@@ -113,8 +116,11 @@ enum CloudKitModelAudit {
                     if looksLikeEnumOrCustomType(attribute.valueType) {
                         flags.append("\(entity.name).\(attribute.name): enum or custom type \(typeName(attribute.valueType))")
                     }
-                    if attribute.originalName != attribute.name {
-                        flags.append("\(entity.name).\(attribute.name): renamed from \(attribute.originalName)")
+                    if let original = CloudKitModelAudit.genuineOriginalName(
+                        attribute.originalName,
+                        currentName: attribute.name
+                    ) {
+                        flags.append("\(entity.name).\(attribute.name): renamed from \(original)")
                     }
                 }
             }
@@ -167,6 +173,16 @@ enum CloudKitModelAudit {
             }
         }
         return lines.joined(separator: "\n")
+    }
+
+    static func genuineOriginalName(_ originalName: String, currentName: String) -> String? {
+        let trimmed = originalName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != currentName else { return nil }
+        return trimmed
+    }
+
+    static func isGenuineRename(originalName: String, currentName: String) -> Bool {
+        genuineOriginalName(originalName, currentName: currentName) != nil
     }
 
     private static func typeName(_ type: Any.Type) -> String {

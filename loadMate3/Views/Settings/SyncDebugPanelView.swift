@@ -6,6 +6,7 @@ struct SyncDebugPanelView: View {
     @Environment(\.modelContext) private var modelContext
 
     @ObservedObject var cloudSync: CloudSyncMonitor
+    @ObservedObject private var isolationTester = CloudKitModelIsolationTester.shared
 
     let appState: AppState?
     let activeProfileName: String?
@@ -29,6 +30,7 @@ struct SyncDebugPanelView: View {
 
                     statusSection()
                     lastDetailedFailureSection()
+                    isolationTestSection()
                     syncHistorySection()
                     probeSection()
                     countsSection()
@@ -97,6 +99,44 @@ struct SyncDebugPanelView: View {
                 Text("None yet")
                     .font(.caption)
                     .foregroundStyle(AppColors.textSupporting)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func isolationTestSection() -> some View {
+        AppSettingsSection(
+            "CloudKit Model Isolation Test",
+            caption: "Uses a separate local store containing only AppState. Does not migrate or delete the normal app store."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                statusRow("Status", value: isolationTester.report.status.rawValue)
+                statusRow(
+                    "Started",
+                    value: isolationTester.report.startedAt.map { SyncDebugFormatting.logDateFormatter.string(from: $0) } ?? "—"
+                )
+                statusRow(
+                    "Finished",
+                    value: isolationTester.report.finishedAt.map { SyncDebugFormatting.logDateFormatter.string(from: $0) } ?? "—"
+                )
+                statusRow("Duration", value: isolationTester.report.duration ?? "—")
+                statusRow("Local save", value: isolationTester.report.localSave)
+                statusRow("CloudKit setup", value: isolationTester.report.setup)
+                statusRow("CloudKit export", value: isolationTester.report.export)
+                statusRow("Error", value: isolationTester.report.errorSummary ?? "None")
+
+                Text(isolationTester.lastFormattedReport)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(Color.primary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                AppSecondaryButton("Run AppState-Only CloudKit Test") {
+                    Task {
+                        await isolationTester.runAppStateOnlyTest()
+                    }
+                }
+                .disabled(isolationTester.isRunning)
             }
         }
     }
@@ -287,7 +327,7 @@ struct SyncDebugPanelView: View {
         }
 
         let identifier = "min-sync-\(UUID().uuidString)"
-        cloudSync.markMinimalSyncTestStarted(identifier: identifier)
+        cloudSync.beginMinimalSyncTest(identifier: identifier)
         state.syncProbeSequence += 1
         state.syncProbeValue = identifier
         state.syncProbeUpdatedAt = Date()
@@ -299,7 +339,10 @@ struct SyncDebugPanelView: View {
             category: "probe",
             message: saved ? "Local save succeeded" : "Local save failed"
         )
-        logger.record(category: "probe", message: "Waiting for CloudKit export event")
+        cloudSync.noteMinimalSyncLocalSave(succeeded: saved)
+        if saved {
+            logger.record(category: "probe", message: "Waiting for CloudKit export event")
+        }
         refreshCounts()
     }
 
@@ -330,6 +373,7 @@ struct SyncDebugPanelView: View {
             lastSuccessfulExportAt: cloudSync.lastSuccessfulExportAt,
             lastDetailedCloudKitFailure: cloudSync.lastDetailedCloudKitFailure,
             lastMinimalSyncTestResult: cloudSync.lastMinimalSyncTestResult,
+            cloudKitIsolationTestReport: isolationTester.lastFormattedReport,
             isRegisteredForRemoteNotifications: cloudSync.isRegisteredForRemoteNotifications,
             pushRegistrationDetail: cloudSync.pushRegistrationDetail,
             cloudKitSchemaDetail: cloudSync.cloudKitSchemaDetail,

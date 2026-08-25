@@ -107,6 +107,7 @@ final class CloudKitDeepErrorInspectorTests: XCTestCase {
             === DEEP CLOUDKIT ERROR INSPECTION END ===
             """,
             lastMinimalSyncTestResult: "Not run",
+            cloudKitIsolationTestReport: "CloudKit Model Isolation Test\nStatus: Not run",
             isRegisteredForRemoteNotifications: true,
             pushRegistrationDetail: "Registered",
             cloudKitSchemaDetail: "CloudKit connectivity/schema probe:\nCD_AppState reachable",
@@ -136,6 +137,58 @@ final class CloudKitDeepErrorInspectorTests: XCTestCase {
         XCTAssertTrue(report.contains("CloudKit connectivity/schema probe:"))
         XCTAssertFalse(report.contains("Schema OK — CD_AppState reachable in this environment"))
         XCTAssertTrue(report.contains("SwiftData CloudKit model audit"))
+        XCTAssertTrue(report.contains("CloudKit Model Isolation Test"))
+    }
+
+    func testModelAuditDoesNotFlagBlankOriginalNameAsRename() {
+        XCTAssertFalse(CloudKitModelAudit.isGenuineRename(originalName: "", currentName: "name"))
+        XCTAssertFalse(CloudKitModelAudit.isGenuineRename(originalName: "   ", currentName: "name"))
+        XCTAssertFalse(CloudKitModelAudit.isGenuineRename(originalName: "name", currentName: "name"))
+        XCTAssertTrue(CloudKitModelAudit.isGenuineRename(originalName: "old_name", currentName: "name"))
+
+        let report = CloudKitModelAudit.report()
+        XCTAssertFalse(report.contains("renamed from  "))
+        XCTAssertFalse(report.contains("renamed from ]"))
+        XCTAssertFalse(report.contains("originalName=]"))
+    }
+
+    func testIsolationStoreIsSeparateFromProductionAndAppStateOnly() {
+        let isolationURL = LoadMateModelContainer.appStateOnlyIsolationStoreURL
+        XCTAssertTrue(isolationURL.path.contains("LoadMateCloudKitIsolation"))
+        XCTAssertTrue(isolationURL.lastPathComponent.contains("AppStateOnly"))
+        XCTAssertEqual(LoadMateModelContainer.appStateOnlyIsolationSchema.entities.count, 1)
+        XCTAssertEqual(LoadMateModelContainer.appStateOnlyIsolationSchema.entities.first?.name, "AppState")
+        XCTAssertGreaterThan(LoadMateModelContainer.schema.entities.count, 1)
+    }
+
+    func testIsolationReportDescribesAppStateOnlyOutcome() {
+        var report = CloudKitIsolationTestReport()
+        report.status = .passed
+        report.localStoreCreated = true
+        report.localSave = "succeeded"
+        report.insertedAppStateCount = 1
+        report.setup = "succeeded"
+        report.export = "succeeded"
+        report.probeValue = "appstate-isolation-test"
+        report.conclusion = "APPSTATE-ONLY TEST PASSED"
+
+        let text = report.formatted
+        XCTAssertTrue(text.contains("CloudKit Model Isolation Test"))
+        XCTAssertTrue(text.contains("Test: AppState only"))
+        XCTAssertTrue(text.contains("Status: PASSED"))
+        XCTAssertTrue(text.contains("AppState = 1"))
+        XCTAssertTrue(text.contains("Local save:"))
+        XCTAssertTrue(text.contains("succeeded"))
+        XCTAssertTrue(text.contains("SETUP succeeded"))
+        XCTAssertTrue(text.contains("EXPORT succeeded"))
+        XCTAssertTrue(text.contains("APPSTATE-ONLY TEST PASSED"))
+    }
+
+    func testMinimalSyncStatusDoesNotTreatLocalProbeAsSuccess() {
+        XCTAssertEqual(MinimalSyncTestStatus.notRun.rawValue, "Not run")
+        XCTAssertEqual(MinimalSyncTestStatus.waitingForCloudKit.rawValue, "Waiting for CloudKit")
+        XCTAssertEqual(MinimalSyncTestStatus.exportSucceeded.rawValue, "CloudKit export succeeded")
+        XCTAssertNotEqual(MinimalSyncTestStatus.localSaveSucceeded, MinimalSyncTestStatus.exportSucceeded)
     }
 
     func testModelAuditListsCloudKitModelsAndDoesNotMutateSchema() {

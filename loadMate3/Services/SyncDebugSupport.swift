@@ -30,6 +30,7 @@ struct SyncDebugSnapshot {
     let lastSuccessfulExportAt: Date?
     let lastDetailedCloudKitFailure: String?
     let lastMinimalSyncTestResult: String
+    let cloudKitIsolationTestReport: String
     let isRegisteredForRemoteNotifications: Bool
     let pushRegistrationDetail: String
     let cloudKitSchemaDetail: String
@@ -125,6 +126,9 @@ final class SyncDebugLogger: ObservableObject {
             "Last successful import: \(SyncDebugFormatting.string(for: snapshot.lastSuccessfulImportAt))",
             "Last successful export: \(SyncDebugFormatting.string(for: snapshot.lastSuccessfulExportAt))",
             "Minimal sync test: \(snapshot.lastMinimalSyncTestResult)",
+            "",
+            snapshot.cloudKitIsolationTestReport,
+            "",
             "Push registered: \(snapshot.isRegisteredForRemoteNotifications ? "Yes" : "No")",
             "Push detail: \(snapshot.pushRegistrationDetail)",
             "CloudKit schema: \(snapshot.cloudKitSchemaDetail)",
