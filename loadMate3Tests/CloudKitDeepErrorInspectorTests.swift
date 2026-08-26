@@ -289,6 +289,142 @@ final class CloudKitDeepErrorInspectorTests: XCTestCase {
         XCTAssertTrue(text.contains("EXPORT succeeded"))
     }
 
+    func testChecklistGroupLoadedAndLibraryIsolationStoresAreSeparate() {
+        XCTAssertTrue(LoadMateModelContainer.checklistGroupIsolationStoreURL.path.contains("ChecklistGroup"))
+        XCTAssertTrue(LoadMateModelContainer.loadedItemIsolationStoreURL.path.contains("LoadedItem"))
+        XCTAssertTrue(LoadMateModelContainer.libraryItemIsolationStoreURL.path.contains("LibraryItem"))
+        XCTAssertNotEqual(
+            LoadMateModelContainer.checklistGroupIsolationStoreURL,
+            LoadMateModelContainer.checklistIsolationStoreURL
+        )
+        XCTAssertNotEqual(
+            LoadMateModelContainer.loadedItemIsolationStoreURL,
+            LoadMateModelContainer.libraryItemIsolationStoreURL
+        )
+
+        let groupNames = Set(LoadMateModelContainer.checklistGroupIsolationSchema.entities.map(\.name))
+        XCTAssertTrue(groupNames.isSuperset(of: ["ChecklistSection", "ChecklistGroup", "ChecklistItem"]))
+        XCTAssertFalse(groupNames.contains("AccidentRecord"))
+
+        let loadedNames = Set(LoadMateModelContainer.loadedItemIsolationSchema.entities.map(\.name))
+        XCTAssertTrue(loadedNames.isSuperset(of: ["LoadedItem", "LibraryItem", "Trip", "VehicleProfile"]))
+        XCTAssertFalse(loadedNames.contains("ChecklistItem"))
+
+        let libraryNames = Set(LoadMateModelContainer.libraryItemIsolationSchema.entities.map(\.name))
+        XCTAssertTrue(libraryNames.isSuperset(of: ["LibraryItem", "AppState", "VehicleProfile"]))
+        XCTAssertFalse(libraryNames.contains("ChecklistSection"))
+    }
+
+    func testIsolationReportDescribesChecklistGroupOutcome() {
+        var report = CloudKitIsolationTestReport()
+        report.scenario = .checklistGroup
+        report.testName = CloudKitIsolationScenario.checklistGroup.testName
+        report.modelContainerLines = CloudKitIsolationScenario.checklistGroup.modelContainerLines
+        report.relationshipLines = CloudKitIsolationScenario.checklistGroup.relationshipLines
+        report.status = .passed
+        report.insertedAppStateCount = 1
+        report.insertedVehicleProfileCount = 1
+        report.insertedTripCount = 1
+        report.insertedChecklistSectionCount = 1
+        report.insertedChecklistGroupCount = 1
+        report.insertedChecklistItemCount = 1
+        report.localSave = "succeeded"
+        report.export = "succeeded"
+        report.conclusion = "CHECKLIST GROUP TEST PASSED"
+
+        let text = report.formatted
+        XCTAssertTrue(text.contains("ChecklistGroup = 1"))
+        XCTAssertTrue(text.contains("ChecklistItem.group -> ChecklistGroup"))
+        XCTAssertTrue(text.contains("Requested:"))
+        XCTAssertTrue(text.contains("CHECKLIST GROUP TEST PASSED"))
+    }
+
+    func testIsolationReportDescribesLoadedItemOutcome() {
+        var report = CloudKitIsolationTestReport()
+        report.scenario = .loadedItem
+        report.testName = CloudKitIsolationScenario.loadedItem.testName
+        report.modelContainerLines = CloudKitIsolationScenario.loadedItem.modelContainerLines
+        report.relationshipLines = CloudKitIsolationScenario.loadedItem.relationshipLines
+        report.status = .passed
+        report.insertedAppStateCount = 1
+        report.insertedVehicleProfileCount = 1
+        report.insertedTripCount = 1
+        report.insertedLibraryItemCount = 1
+        report.insertedLoadedItemCount = 1
+        report.localSave = "succeeded"
+        report.export = "succeeded"
+        report.conclusion = "LOADED ITEM TEST PASSED"
+
+        let text = report.formatted
+        XCTAssertTrue(text.contains("LoadedItem = 1"))
+        XCTAssertTrue(text.contains("LoadedItem.item -> LibraryItem"))
+        XCTAssertTrue(text.contains("LibraryItem was included because LoadedItem.item is required"))
+        XCTAssertTrue(text.contains("LOADED ITEM TEST PASSED"))
+    }
+
+    func testIsolationReportDescribesLibraryItemOutcome() {
+        var report = CloudKitIsolationTestReport()
+        report.scenario = .libraryItem
+        report.testName = CloudKitIsolationScenario.libraryItem.testName
+        report.modelContainerLines = CloudKitIsolationScenario.libraryItem.modelContainerLines
+        report.relationshipLines = CloudKitIsolationScenario.libraryItem.relationshipLines
+        report.status = .passed
+        report.insertedAppStateCount = 1
+        report.insertedVehicleProfileCount = 1
+        report.insertedLibraryItemCount = 1
+        report.localSave = "succeeded"
+        report.export = "succeeded"
+        report.conclusion = "LIBRARY ITEM TEST PASSED"
+
+        let text = report.formatted
+        XCTAssertTrue(text.contains("LibraryItem = 1"))
+        XCTAssertTrue(text.contains("LoadedItem = 0"))
+        XCTAssertTrue(text.contains("LIBRARY ITEM TEST PASSED"))
+        XCTAssertEqual(CloudKitIsolationScenario.restored(from: text), .libraryItem)
+        XCTAssertEqual(
+            CloudKitIsolationScenario.restored(from: CloudKitIsolationScenario.loadedItem.testName),
+            .loadedItem
+        )
+    }
+
+    func testChecklistGroupAndLoadIsolationSchemasCanSaveInMemory() throws {
+        let groupConfig = ModelConfiguration(
+            "ChecklistGroupIsolationInMemory",
+            schema: LoadMateModelContainer.checklistGroupIsolationSchema,
+            isStoredInMemoryOnly: true
+        )
+        let groupContainer = try ModelContainer(
+            for: LoadMateModelContainer.checklistGroupIsolationSchema,
+            configurations: [groupConfig]
+        )
+        let groupContext = ModelContext(groupContainer)
+        let section = ChecklistSection(title: "Section", sortOrder: 0)
+        groupContext.insert(section)
+        let group = ChecklistGroup(title: "Group", sortOrder: 0, section: section)
+        groupContext.insert(group)
+        groupContext.insert(ChecklistItem(title: "Item", group: group))
+        try groupContext.save()
+
+        let loadConfig = ModelConfiguration(
+            "LoadedItemIsolationInMemory",
+            schema: LoadMateModelContainer.loadedItemIsolationSchema,
+            isStoredInMemoryOnly: true
+        )
+        let loadContainer = try ModelContainer(
+            for: LoadMateModelContainer.loadedItemIsolationSchema,
+            configurations: [loadConfig]
+        )
+        let loadContext = ModelContext(loadContainer)
+        let profile = VehicleProfile(name: "Vehicle")
+        loadContext.insert(profile)
+        let trip = Trip(name: "Trip", profile: profile)
+        loadContext.insert(trip)
+        let library = LibraryItem(name: "Item", weightKg: 1)
+        loadContext.insert(library)
+        loadContext.insert(LoadedItem(item: library, trip: trip))
+        try loadContext.save()
+    }
+
     func testMinimalSyncStatusDoesNotTreatLocalProbeAsSuccess() {
         XCTAssertEqual(MinimalSyncTestStatus.notRun.rawValue, "Not run")
         XCTAssertEqual(MinimalSyncTestStatus.waitingForCloudKit.rawValue, "Waiting for CloudKit")
@@ -315,5 +451,102 @@ final class CloudKitDeepErrorInspectorTests: XCTestCase {
         SyncDebugSeedIsolation.overrideForTests = true
         XCTAssertTrue(SyncDebugSeedIsolation.isAutomaticSeedingSuppressed)
         SyncDebugSeedIsolation.overrideForTests = nil
+    }
+
+    func testIsolationWritesStayDisabledAgainstProduction() {
+        XCTAssertFalse(CloudKitEnvironment.isolationWritesEnabled)
+        XCTAssertFalse(CloudKitEnvironment.isDiagnosticContainerConfigured)
+        XCTAssertEqual(CloudKitEnvironment.productionContainerID, "iCloud.com.curleybracketsengineering.loadMate3")
+        XCTAssertTrue(CloudKitEnvironment.productionDisabledMessage.contains("temporarily disabled"))
+    }
+
+    func testDiagnosticMarkersDoNotFlagFactoryVehicleNames() {
+        XCTAssertNotNil(CloudKitDiagnosticMarkers.isClearlyDiagnosticName("CloudKit Test Section"))
+        XCTAssertNotNil(CloudKitDiagnosticMarkers.isClearlyDiagnosticName("CloudKit Test Vehicle"))
+        XCTAssertNil(CloudKitDiagnosticMarkers.isClearlyDiagnosticName("My Caravan"))
+        XCTAssertNil(CloudKitDiagnosticMarkers.isClearlyDiagnosticName("Default"))
+        XCTAssertEqual(CloudKitDiagnosticMarkers.isPossiblyDiagnosticName("Test"), "title Test")
+        XCTAssertNotNil(CloudKitDiagnosticMarkers.probeMarker(in: "checklist-isolation-ABC"))
+    }
+
+    func testCountDeltaDescribesProfileChanges() {
+        var before = SyncDebugEntityCounts()
+        before.profiles = 1
+        var after = before
+        after.profiles = 2
+        after.checklistItems = 69
+        after.checklistSections = 6
+        let delta = after.deltaDescription(from: before)
+        XCTAssertTrue(delta.contains("VehicleProfile: 1 -> 2"))
+        XCTAssertTrue(delta.contains("ChecklistItem: 0 -> 69"))
+        XCTAssertFalse(delta.contains("Trip:"))
+    }
+
+    @MainActor
+    func testDiagnosticAuditClassifiesIsolationSectionAndLeavesFactoryProfile() throws {
+        let schema = Schema([
+            AppState.self,
+            VehicleProfile.self,
+            Trip.self,
+            ChecklistSection.self,
+            ChecklistGroup.self,
+            ChecklistItem.self,
+            LibraryItem.self,
+            LoadedItem.self,
+        ])
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(container)
+        context.insert(VehicleProfile(name: "My Caravan", kind: .caravan, sortOrder: 0))
+        let section = ChecklistSection(title: "CloudKit Test Section", sortOrder: 0)
+        context.insert(section)
+        context.insert(ChecklistItem(title: "CloudKit Test Item", isChecked: false, sortOrder: 0, section: section))
+        context.insert(ChecklistItem(title: "Test", isChecked: false, sortOrder: 1, section: section))
+        try context.save()
+
+        let report = CloudKitDiagnosticAuditor.audit(in: context)
+        let sectionSummary = report.summaries.first { $0.model == "ChecklistSection" }
+        XCTAssertEqual(sectionSummary?.clearlyDiagnostic, 1)
+        let profiles = report.summaries.first { $0.model == "VehicleProfile" }
+        XCTAssertEqual(profiles?.clearlyDiagnostic, 0)
+        let items = report.summaries.first { $0.model == "ChecklistItem" }
+        XCTAssertEqual(items?.clearlyDiagnostic, 1)
+        XCTAssertEqual(items?.possiblyDiagnostic, 1)
+        XCTAssertTrue(report.formatted.contains("Clearly diagnostic: 1"))
+        XCTAssertEqual(report.removalPlan.removable.count, 1)
+        XCTAssertEqual(report.removalPlan.removable.first?.model, "ChecklistItem")
+        XCTAssertTrue(report.removalPlan.skipped.contains { $0.model == "ChecklistSection" })
+        XCTAssertTrue(report.removalPreview.contains("Skipped"))
+    }
+
+    @MainActor
+    func testDiagnosticRemovalDeletesLinkedIsolationSectionWhenAllChildrenAreDiagnostic() throws {
+        let schema = Schema([
+            AppState.self,
+            VehicleProfile.self,
+            Trip.self,
+            ChecklistSection.self,
+            ChecklistGroup.self,
+            ChecklistItem.self,
+            LibraryItem.self,
+            LoadedItem.self,
+        ])
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(container)
+        let section = ChecklistSection(title: "CloudKit Test Section", sortOrder: 0)
+        context.insert(section)
+        context.insert(ChecklistItem(title: "CloudKit Test Item", isChecked: false, sortOrder: 0, section: section))
+        try context.save()
+
+        let preview = CloudKitDiagnosticAuditor.audit(in: context)
+        XCTAssertTrue(preview.removalPlan.removable.contains { $0.model == "ChecklistSection" })
+        XCTAssertTrue(preview.removalPlan.removable.contains { $0.model == "ChecklistItem" })
+
+        _ = try CloudKitDiagnosticAuditor.removeClearlyDiagnosticRecords(in: context)
+        let remainingSections = try context.fetch(FetchDescriptor<ChecklistSection>())
+        let remainingItems = try context.fetch(FetchDescriptor<ChecklistItem>())
+        XCTAssertTrue(remainingSections.isEmpty)
+        XCTAssertTrue(remainingItems.isEmpty)
     }
 }

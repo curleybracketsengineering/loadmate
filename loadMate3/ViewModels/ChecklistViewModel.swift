@@ -37,6 +37,10 @@ final class ChecklistViewModel: ObservableObject {
 
         if didChange {
             save(context)
+            SyncDebugLogger.shared.record(
+                category: "startup",
+                message: "[migration] moved legacy checklist items into a ChecklistGroup"
+            )
         }
     }
 
@@ -45,6 +49,8 @@ final class ChecklistViewModel: ObservableObject {
         existingSections: [ChecklistSection],
         appState: AppState
     ) {
+        StartupCensus.log("checklist before seed/migration", in: context)
+        defer { StartupCensus.log("checklist after seed/migration", in: context) }
         if SyncDebugSeedIsolation.isAutomaticSeedingSuppressed {
             SyncDebugSeedLog.record("[seed] Automatic checklist seed suppressed (developer diagnostic)")
             return
@@ -247,7 +253,7 @@ final class ChecklistViewModel: ObservableObject {
             ),
         ]
 
-        SyncDebugSeedLog.record("[seed] Creating checklist template")
+        SyncDebugSeedLog.record("[seed] created checklist template reason = no sections existed")
         var createdSections = 0
         var createdItems = 0
         for template in templates {

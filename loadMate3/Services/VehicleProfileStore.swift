@@ -39,6 +39,18 @@ enum VehicleProfileStore {
         profiles: [VehicleProfile],
         appState: AppState?
     ) -> (profiles: [VehicleProfile], appState: AppState) {
+        StartupCensus.log("startup profiles/trips before", in: context)
+        let result = ensureInitialDataUnlogged(in: context, profiles: profiles, appState: appState)
+        StartupCensus.log("startup profiles/trips after", in: context)
+        return result
+    }
+
+    @MainActor
+    private static func ensureInitialDataUnlogged(
+        in context: ModelContext,
+        profiles: [VehicleProfile],
+        appState: AppState?
+    ) -> (profiles: [VehicleProfile], appState: AppState) {
         let state: AppState
         if let appState {
             state = appState
@@ -47,9 +59,9 @@ enum VehicleProfileStore {
         }
 
         if SyncDebugSeedIsolation.isAutomaticSeedingSuppressed {
-            SyncDebugSeedLog.record("[seed] Automatic default profile/trip seeding suppressed (developer diagnostic)")
+            SyncDebugSeedLog.record("[profile-seed] skipped: developer suppression flag is on")
         } else if profiles.isEmpty, !state.didSeedDefaultProfiles {
-            SyncDebugSeedLog.record("[seed] Creating default profile")
+            SyncDebugSeedLog.record("[profile-seed] creating default vehicle reason = no profile existed")
             let caravan = VehicleProfile(
                 id: LoadMateSyncIDs.defaultCaravanProfile,
                 name: "My Caravan",
@@ -57,6 +69,7 @@ enum VehicleProfileStore {
                 sortOrder: 0
             )
             context.insert(caravan)
+            SyncDebugSeedLog.record("[seed] created default VehicleProfile id=\(caravan.id.uuidString) reason = no profile existed")
             SyncDebugSeedLog.record("[seed] Creating default trip")
             _ = TripStore.ensureDefaultTrip(
                 for: caravan,
@@ -64,7 +77,7 @@ enum VehicleProfileStore {
                 in: context
             )
 
-            SyncDebugSeedLog.record("[seed] Creating default profile")
+            SyncDebugSeedLog.record("[profile-seed] creating default vehicle reason = paired factory motorhome")
             let motorhome = VehicleProfile(
                 id: LoadMateSyncIDs.defaultMotorhomeProfile,
                 name: "My Motorhome",
@@ -72,6 +85,7 @@ enum VehicleProfileStore {
                 sortOrder: 1
             )
             context.insert(motorhome)
+            SyncDebugSeedLog.record("[seed] created default VehicleProfile id=\(motorhome.id.uuidString) reason = paired factory motorhome")
             SyncDebugSeedLog.record("[seed] Creating default trip")
             _ = TripStore.ensureDefaultTrip(
                 for: motorhome,
@@ -83,9 +97,9 @@ enum VehicleProfileStore {
             setActive(caravan, appState: state, in: context)
             return ([caravan, motorhome], state)
         } else if profiles.isEmpty {
-            SyncDebugSeedLog.record("[seed] Default profile seed skipped — already flagged as seeded")
+            SyncDebugSeedLog.record("[profile-seed] skipped: existing vehicle found flag already seeded")
         } else {
-            SyncDebugSeedLog.record("[seed] Default profile seed skipped — \(profiles.count) profile(s) already exist")
+            SyncDebugSeedLog.record("[profile-seed] skipped: existing vehicle found count=\(profiles.count)")
         }
 
         if state.activeProfileID == nil, let first = sortedProfiles(profiles).first {
@@ -132,6 +146,9 @@ enum VehicleProfileStore {
         let wasActive = appState.activeProfileID == profile.id
         VehiclePlatePhotoStore.deleteFiles(forVehicleID: profile.id)
         context.delete(profile)
+        if let counts = CloudSyncMonitor.shared.currentEntityCounts() {
+            CloudKitDeletionSyncVerifier.shared.noteLocalDeletion(of: profile.id, counts: counts)
+        }
         if wasActive {
             let remaining = profiles.filter { $0.id != profile.id }
             if let next = sortedProfiles(remaining).first {

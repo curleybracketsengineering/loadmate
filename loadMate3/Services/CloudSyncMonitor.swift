@@ -209,7 +209,7 @@ final class CloudSyncMonitor: ObservableObject {
   private let historyEncoder = JSONEncoder()
   private let historyDecoder = JSONDecoder()
   private weak var modelContext: ModelContext?
-  private var inFlightStarts: [CloudSyncEventKind: (date: Date, counts: String)] = [:]
+  private var inFlightStarts: [CloudSyncEventKind: (date: Date, counts: SyncDebugEntityCounts?, profileIDs: Set<UUID>)] = [:]
   private var isolationProductionStoreIDs: Set<String>?
   private var minimalSyncTimeoutTask: Task<Void, Never>?
 
@@ -240,13 +240,39 @@ final class CloudSyncMonitor: ObservableObject {
     Task { await refresh() }
   }
 
+  func waitForNextExport(timeout: TimeInterval = 90) async -> Bool {
+    let baseline = lastSuccessfulExportAt ?? .distantPast
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+      if let last = lastSuccessfulExportAt, last > baseline { return true }
+      if let event = lastSyncEvent,
+         event.kind == .exportToCloud,
+         event.finishedAt > baseline,
+         !event.succeeded {
+        return false
+      }
+      try? await Task.sleep(nanoseconds: 250_000_000)
+    }
+    return false
+  }
+
   func attachModelContext(_ context: ModelContext) {
     modelContext = context
   }
 
-  func currentEntityCountsLine() -> String? {
+  func currentEntityCounts() -> SyncDebugEntityCounts? {
     guard let modelContext else { return nil }
-    return SyncDebugEntityCounts.fetch(from: modelContext).logLine
+    return SyncDebugEntityCounts.fetch(from: modelContext)
+  }
+
+  func currentProfileIDs() -> Set<UUID> {
+    guard let modelContext else { return [] }
+    let profiles = (try? modelContext.fetch(FetchDescriptor<VehicleProfile>())) ?? []
+    return Set(profiles.map(\.id))
+  }
+
+  func currentEntityCountsLine() -> String? {
+    currentEntityCounts()?.logLine
   }
 
   func beginMinimalSyncTest(identifier: String) {
@@ -523,8 +549,10 @@ final class CloudSyncMonitor: ObservableObject {
     let uptime = String(format: "%.3f", ProcessInfo.processInfo.systemUptime)
 
     if started {
-      let counts = currentEntityCountsLine() ?? "unavailable (no model context registered)"
-      inFlightStarts[kind] = (date: event.startDate, counts: counts)
+      let snapshot = currentEntityCounts()
+      let counts = snapshot?.logLine ?? "unavailable (no model context registered)"
+      let profileIDs = currentProfileIDs()
+      inFlightStarts[kind] = (date: event.startDate, counts: snapshot, profileIDs: profileIDs)
       let entry = CloudSyncHistoryEntry.make(
         kind: kind,
         started: true,
@@ -533,9 +561,19 @@ final class CloudSyncMonitor: ObservableObject {
         timestamp: event.startDate
       )
       recordHistory(entry)
+      var startMessage = "\(entry.context) at \(timestampText) (uptime \(uptime)s)\nCounts: \(counts)"
+      if kind == .importFromCloud {
+        startMessage = """
+        IMPORT started
+        duration pending
+        model counts before: \(counts)
+        VehicleProfile IDs before: \(profileIDs.count)
+        at \(timestampText) (uptime \(uptime)s)
+        """
+      }
       SyncDebugLogger.shared.record(
         category: "sync",
-        message: "\(entry.context) at \(timestampText) (uptime \(uptime)s)\nCounts: \(counts)"
+        message: startMessage
       )
       return
     }
@@ -544,7 +582,8 @@ final class CloudSyncMonitor: ObservableObject {
     let startInfo = inFlightStarts.removeValue(forKey: kind)
     let startDate = startInfo?.date ?? event.startDate
     let duration = String(format: "%.1fms", finishedAt.timeIntervalSince(startDate) * 1000)
-    let countsNow = currentEntityCountsLine() ?? "unavailable (no model context registered)"
+    let countsNowSnapshot = currentEntityCounts()
+    let countsNow = countsNowSnapshot?.logLine ?? "unavailable (no model context registered)"
     let errorText = detailedErrorDescription(event.error)
     let summary = CloudSyncEventSummary(
       kind: kind,
@@ -567,19 +606,74 @@ final class CloudSyncMonitor: ObservableObject {
       switch kind {
       case .importFromCloud:
         lastSuccessfulImportAt = finishedAt
+        let before = startInfo?.counts
+        let after = countsNowSnapshot
+        let beforeIDs = startInfo?.profileIDs ?? []
+        let afterIDs = currentProfileIDs()
+        let addedIDs = afterIDs.subtracting(beforeIDs)
+        let removedIDs = beforeIDs.subtracting(afterIDs)
+        var importLines = [
+          "IMPORT succeeded",
+          "duration: \(duration)",
+          "model counts before: \(before?.logLine ?? "unavailable")",
+          "model counts after: \(countsNow)",
+        ]
+        if let before, let after {
+          importLines.append(after.deltaDescription(from: before))
+          if before.profiles != after.profiles {
+            SyncDebugLogger.shared.record(
+              category: "cloudkit-import",
+              message: "[cloudkit-import] VehicleProfile count changed \(before.profiles) -> \(after.profiles)"
+            )
+          }
+        }
+        if !addedIDs.isEmpty {
+          importLines.append("New VehicleProfile IDs:")
+          importLines.append(contentsOf: addedIDs.sorted { $0.uuidString < $1.uuidString }.map { "  \($0.uuidString)" })
+        }
+        if !removedIDs.isEmpty {
+          importLines.append("Removed VehicleProfile IDs:")
+          importLines.append(contentsOf: removedIDs.sorted { $0.uuidString < $1.uuidString }.map { "  \($0.uuidString)" })
+        }
+        SyncDebugLogger.shared.record(
+          category: "sync",
+          message: importLines.joined(separator: "\n")
+        )
+        if let context = modelContext {
+          CloudKitDeletionSyncVerifier.shared.noteImport(in: context)
+        }
       case .exportToCloud:
         lastSuccessfulExportAt = finishedAt
+        CloudKitDeletionSyncVerifier.shared.noteExport(succeeded: true)
         if pendingMinimalSyncTestID != nil {
           completeMinimalSyncTest(status: .exportSucceeded)
         }
+        SyncDebugLogger.shared.record(
+          category: "sync",
+          message: "\(entry.context) at \(timestampText) (uptime \(uptime)s, duration \(duration))\nCounts: \(countsNow)"
+        )
       case .setup, .unknown:
-        break
+        SyncDebugLogger.shared.record(
+          category: "sync",
+          message: "\(entry.context) at \(timestampText) (uptime \(uptime)s, duration \(duration))\nCounts: \(countsNow)"
+        )
       }
+      return
+    }
+
+    if kind == .exportToCloud {
+      CloudKitDeletionSyncVerifier.shared.noteExport(succeeded: false)
+    }
+    if kind == .importFromCloud {
       SyncDebugLogger.shared.record(
         category: "sync",
-        message: "\(entry.context) at \(timestampText) (uptime \(uptime)s, duration \(duration))\nCounts: \(countsNow)"
+        message: """
+        IMPORT failed
+        duration: \(duration)
+        model counts before: \(startInfo?.counts?.logLine ?? "unavailable")
+        model counts after: \(countsNow)
+        """
       )
-      return
     }
 
     lastErrorDescription = errorText ?? "\(entry.context) without an error description."
@@ -599,7 +693,7 @@ final class CloudSyncMonitor: ObservableObject {
         storeIdentifier: event.storeIdentifier,
         notificationKeys: notificationKeys,
         extraNotificationErrors: extraNotificationErrors,
-        countsAtStart: startInfo?.counts,
+        countsAtStart: startInfo?.counts?.logLine,
         countsAtFailure: countsNow,
         duration: duration,
         uptimeSeconds: ProcessInfo.processInfo.systemUptime,

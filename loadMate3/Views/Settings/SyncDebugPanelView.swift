@@ -7,6 +7,7 @@ struct SyncDebugPanelView: View {
 
     @ObservedObject var cloudSync: CloudSyncMonitor
     @ObservedObject private var isolationTester = CloudKitModelIsolationTester.shared
+    @ObservedObject private var deletionVerifier = CloudKitDeletionSyncVerifier.shared
 
     let appState: AppState?
     let activeProfileName: String?
@@ -14,6 +15,10 @@ struct SyncDebugPanelView: View {
     @ObservedObject private var logger = SyncDebugLogger.shared
     @State private var counts = Counts()
     @State private var copyConfirmation = ""
+    @State private var auditReport: CloudKitDiagnosticAuditReport?
+    @State private var healthReport: CloudKitProductionHealthReport?
+    @State private var removalPreview = ""
+    @State private var removalResult = ""
     #if DEBUG
     @State private var suppressAutomaticSeeding = SyncDebugSeedIsolation.isAutomaticSeedingSuppressed
     #endif
@@ -29,8 +34,12 @@ struct SyncDebugPanelView: View {
                     )
 
                     statusSection()
+                    cloudKitEnvironmentSection()
                     lastDetailedFailureSection()
                     isolationTestSection()
+                    diagnosticAuditSection()
+                    productionHealthSection()
+                    deletionVerificationSection()
                     syncHistorySection()
                     probeSection()
                     countsSection()
@@ -104,29 +113,40 @@ struct SyncDebugPanelView: View {
     }
 
     @ViewBuilder
+    private func cloudKitEnvironmentSection() -> some View {
+        AppSettingsSection(
+            "CloudKit Environment",
+            caption: "Production and diagnostic CloudKit containers are separate. Isolation tests must not write to production."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                statusRow("Production container", value: CloudKitEnvironment.productionContainerID)
+                statusRow("Diagnostic container", value: CloudKitEnvironment.diagnosticContainerStatusLine)
+                statusRow("Isolation tests", value: CloudKitEnvironment.isolationStatusLine)
+                Text(CloudKitEnvironment.diagnosticContainerSetupSteps)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(Color.primary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder
     private func isolationTestSection() -> some View {
         AppSettingsSection(
             "CloudKit Model Isolation Test",
-            caption: "Each test uses its own local diagnostic store. The normal app store is never deleted or migrated. Run one test at a time."
+            caption: "Isolation writes to the production CloudKit container are disabled."
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                statusRow("Test", value: isolationTester.report.testName)
-                statusRow("Status", value: isolationTester.report.status.rawValue)
-                statusRow(
-                    "Started",
-                    value: isolationTester.report.startedAt.map { SyncDebugFormatting.logDateFormatter.string(from: $0) } ?? "—"
-                )
-                statusRow(
-                    "Finished",
-                    value: isolationTester.report.finishedAt.map { SyncDebugFormatting.logDateFormatter.string(from: $0) } ?? "—"
-                )
-                statusRow("Duration", value: isolationTester.report.duration ?? "—")
-                statusRow("Local save", value: isolationTester.report.localSave)
-                statusRow("CloudKit setup", value: isolationTester.report.setup)
-                statusRow("CloudKit import", value: isolationTester.report.importResult)
-                statusRow("CloudKit export", value: isolationTester.report.export)
-                statusRow("Error", value: isolationTester.report.errorSummary ?? "None")
-
+                Text(CloudKitEnvironment.productionDisabledMessage)
+                    .font(.caption)
+                    .foregroundStyle(Color.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(CloudKitEnvironment.historicalIsolationFindings)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(Color.primary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(isolationTester.lastFormattedReport)
                     .font(.caption.monospaced())
                     .foregroundStyle(Color.primary)
@@ -134,25 +154,129 @@ struct SyncDebugPanelView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 AppSecondaryButton("Run AppState-Only CloudKit Test") {
-                    Task {
-                        await isolationTester.runAppStateOnlyTest()
-                    }
+                    Task { await isolationTester.runAppStateOnlyTest() }
                 }
-                .disabled(isolationTester.isRunning)
+                .disabled(true)
 
                 AppSecondaryButton("Run Core Vehicle CloudKit Test") {
-                    Task {
-                        await isolationTester.runCoreVehicleTest()
-                    }
+                    Task { await isolationTester.runCoreVehicleTest() }
                 }
-                .disabled(isolationTester.isRunning)
+                .disabled(true)
 
                 AppSecondaryButton("Run Checklist Model CloudKit Test") {
-                    Task {
-                        await isolationTester.runChecklistTest()
+                    Task { await isolationTester.runChecklistTest() }
+                }
+                .disabled(true)
+
+                AppSecondaryButton("Run ChecklistGroup CloudKit Test") {
+                    Task { await isolationTester.runChecklistGroupTest() }
+                }
+                .disabled(true)
+
+                AppSecondaryButton("Run LoadedItem CloudKit Test") {
+                    Task { await isolationTester.runLoadedItemTest() }
+                }
+                .disabled(true)
+
+                AppSecondaryButton("Run LibraryItem CloudKit Test") {
+                    Task { await isolationTester.runLibraryItemTest() }
+                }
+                .disabled(true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func diagnosticAuditSection() -> some View {
+        AppSettingsSection(
+            "Diagnostic Data Audit",
+            caption: "Scans the live store. Does not delete anything until you confirm Remove Clearly Diagnostic Records."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                AppSecondaryButton("Run Diagnostic Data Audit") {
+                    let report = CloudKitDiagnosticAuditor.audit(in: modelContext)
+                    auditReport = report
+                    removalPreview = report.removalPreview
+                    logger.record(category: "audit", message: report.formatted)
+                }
+                if let auditReport {
+                    Text(auditReport.formatted)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Color.primary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !removalPreview.isEmpty {
+                    Text(removalPreview)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Color.primary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                AppSecondaryButton("Remove Clearly Diagnostic Records") {
+                    Task { await removeClearlyDiagnosticRecords() }
+                }
+                .disabled(auditReport?.removalPlan.removable.isEmpty != false)
+                if !removalResult.isEmpty {
+                    Text(removalResult)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Color.primary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func productionHealthSection() -> some View {
+        AppSettingsSection(
+            "Production Sync Health Check",
+            caption: "Non-destructive. Does not create records."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                AppSecondaryButton("Run Production Sync Health Check") {
+                    healthReport = CloudKitProductionHealth.report(monitor: cloudSync, context: modelContext)
+                    if let healthReport {
+                        logger.record(category: "health", message: healthReport.formatted)
                     }
                 }
-                .disabled(isolationTester.isRunning)
+                if let healthReport {
+                    Text(healthReport.formatted)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Color.primary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func deletionVerificationSection() -> some View {
+        AppSettingsSection(
+            "Deletion Sync Verification",
+            caption: "Does not delete anything. Watch a vehicle, delete it in Settings, then this screen reports whether CloudKit re-imports it."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                let profiles = (try? modelContext.fetch(FetchDescriptor<VehicleProfile>())) ?? []
+                ForEach(profiles, id: \.id) { profile in
+                    AppSecondaryButton("Watch \(profile.id.uuidString.prefix(8))…") {
+                        deletionVerifier.startWatching(
+                            profile: profile,
+                            counts: SyncDebugEntityCounts.fetch(from: modelContext)
+                        )
+                    }
+                }
+                AppSecondaryButton("Check whether watched vehicle reappeared") {
+                    deletionVerifier.checkReimport(in: modelContext)
+                }
+                .disabled(deletionVerifier.watchedID == nil)
+                Text(deletionVerifier.formattedStatus())
+                    .font(.caption.monospaced())
+                    .foregroundStyle(Color.primary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -372,6 +496,28 @@ struct SyncDebugPanelView: View {
             checklistItems: fetchCount(FetchDescriptor<ChecklistItem>()),
             appStates: fetchCount(FetchDescriptor<AppState>())
         )
+    }
+
+    @MainActor
+    private func removeClearlyDiagnosticRecords() async {
+        guard let auditReport, !auditReport.removalPlan.removable.isEmpty else { return }
+        do {
+            let removed = try CloudKitDiagnosticAuditor.removeClearlyDiagnosticRecords(in: modelContext)
+            let saved = SyncDebugSaveHelper.save(modelContext, source: "SyncDebugPanel.removeDiagnostic")
+            logger.record(category: "audit", message: removed)
+            logger.record(category: "audit", message: saved ? "Local save succeeded" : "Local save failed")
+            let exported = await cloudSync.waitForNextExport()
+            removalResult = """
+            \(removed)
+            Local save: \(saved ? "succeeded" : "failed")
+            CloudKit export after cleanup: \(exported ? "succeeded" : "not seen / failed")
+            """
+            self.auditReport = CloudKitDiagnosticAuditor.audit(in: modelContext)
+            removalPreview = self.auditReport?.removalPreview ?? ""
+            refreshCounts()
+        } catch {
+            removalResult = "Remove failed: \(error.localizedDescription)"
+        }
     }
 
     private func fetchCount<Model: PersistentModel>(_ descriptor: FetchDescriptor<Model>) -> Int {

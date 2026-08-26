@@ -14,6 +14,21 @@ struct SyncDebugEntityCounts: Equatable {
         "profiles=\(profiles), trips=\(trips), loadedItems=\(loadedItems), libraryItems=\(libraryItems), checklistSections=\(checklistSections), checklistItems=\(checklistItems), appStates=\(appStates)"
     }
 
+    func deltaDescription(from earlier: SyncDebugEntityCounts) -> String {
+        let pairs: [(String, Int, Int)] = [
+            ("VehicleProfile", earlier.profiles, profiles),
+            ("Trip", earlier.trips, trips),
+            ("LoadedItem", earlier.loadedItems, loadedItems),
+            ("LibraryItem", earlier.libraryItems, libraryItems),
+            ("ChecklistSection", earlier.checklistSections, checklistSections),
+            ("ChecklistItem", earlier.checklistItems, checklistItems),
+            ("AppState", earlier.appStates, appStates),
+        ]
+        let changed = pairs.filter { $0.1 != $0.2 }
+        if changed.isEmpty { return "no count changes" }
+        return changed.map { "\($0.0): \($0.1) -> \($0.2)" }.joined(separator: "\n")
+    }
+
     static func fetch(from context: ModelContext) -> SyncDebugEntityCounts {
         SyncDebugEntityCounts(
             profiles: fetchCount(FetchDescriptor<VehicleProfile>(), from: context),

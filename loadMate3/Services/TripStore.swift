@@ -46,6 +46,7 @@ enum TripStore {
                 profile.activeTripID = trip.id
                 defaultTrip = trip
                 didChange = true
+                SyncDebugSeedLog.record("[migration] created trip reason = profile had no trips id=\(trip.id.uuidString)")
             } else {
                 defaultTrip = sortedTrips(for: profile).first!
                 if profile.activeTripID == nil {

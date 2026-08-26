@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 enum LoadMateModelContainer {
-  static let cloudKitContainerID = "iCloud.com.curleybracketsengineering.loadMate3"
+  static let cloudKitContainerID = CloudKitEnvironment.productionContainerID
 
   static var schema: Schema {
     Schema([
@@ -71,6 +71,18 @@ enum LoadMateModelContainer {
     isolationStoreURL(named: "ChecklistModel")
   }
 
+  static var checklistGroupIsolationStoreURL: URL {
+    isolationStoreURL(named: "ChecklistGroup")
+  }
+
+  static var loadedItemIsolationStoreURL: URL {
+    isolationStoreURL(named: "LoadedItem")
+  }
+
+  static var libraryItemIsolationStoreURL: URL {
+    isolationStoreURL(named: "LibraryItem")
+  }
+
   static var appStateOnlyIsolationSchema: Schema {
     Schema([AppState.self])
   }
@@ -89,6 +101,47 @@ enum LoadMateModelContainer {
       ChecklistSection.self,
       ChecklistItem.self,
     ])
+  }
+
+  static var checklistGroupIsolationSchema: Schema {
+    Schema([
+      AppState.self,
+      VehicleProfile.self,
+      Trip.self,
+      ChecklistSection.self,
+      ChecklistGroup.self,
+      ChecklistItem.self,
+    ])
+  }
+
+  static var loadedItemIsolationSchema: Schema {
+    Schema([
+      AppState.self,
+      VehicleProfile.self,
+      Trip.self,
+      LibraryItem.self,
+      LoadedItem.self,
+    ])
+  }
+
+  static var libraryItemIsolationSchema: Schema {
+    Schema([
+      AppState.self,
+      VehicleProfile.self,
+      LibraryItem.self,
+    ])
+  }
+
+  static func requestedAndRegisteredModelLines(requested: [String], schema: Schema) -> [String] {
+    let registered = Set(schema.entities.compactMap(\.name))
+    let extra = registered.subtracting(requested).sorted()
+    var lines = ["  Requested: \(requested.joined(separator: ", "))"]
+    if extra.isEmpty {
+      lines.append("  Also registered: none")
+    } else {
+      lines.append("  Also registered: \(extra.joined(separator: ", "))")
+    }
+    return lines
   }
 
   /// Removes only the named diagnostic store. Does not touch the production store or CloudKit.
@@ -111,6 +164,18 @@ enum LoadMateModelContainer {
     try removeIsolationStoreIfPresent(named: "ChecklistModel")
   }
 
+  static func removeChecklistGroupIsolationStoreIfPresent() throws {
+    try removeIsolationStoreIfPresent(named: "ChecklistGroup")
+  }
+
+  static func removeLoadedItemIsolationStoreIfPresent() throws {
+    try removeIsolationStoreIfPresent(named: "LoadedItem")
+  }
+
+  static func removeLibraryItemIsolationStoreIfPresent() throws {
+    try removeIsolationStoreIfPresent(named: "LibraryItem")
+  }
+
   static func makeIsolationContainer(named name: String, schema: Schema) throws -> ModelContainer {
     let directory = isolationStoreDirectory(named: name)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -118,7 +183,7 @@ enum LoadMateModelContainer {
       name,
       schema: schema,
       url: isolationStoreURL(named: name),
-      cloudKitDatabase: .private(cloudKitContainerID)
+      cloudKitDatabase: .private(CloudKitEnvironment.diagnosticContainerID)
     )
     return try ModelContainer(for: schema, configurations: [configuration])
   }
@@ -136,5 +201,17 @@ enum LoadMateModelContainer {
   /// CloudKit-backed container for checklist isolation. Separate local store from production and core vehicle.
   static func makeChecklistIsolationContainer() throws -> ModelContainer {
     try makeIsolationContainer(named: "ChecklistModel", schema: checklistIsolationSchema)
+  }
+
+  static func makeChecklistGroupIsolationContainer() throws -> ModelContainer {
+    try makeIsolationContainer(named: "ChecklistGroup", schema: checklistGroupIsolationSchema)
+  }
+
+  static func makeLoadedItemIsolationContainer() throws -> ModelContainer {
+    try makeIsolationContainer(named: "LoadedItem", schema: loadedItemIsolationSchema)
+  }
+
+  static func makeLibraryItemIsolationContainer() throws -> ModelContainer {
+    try makeIsolationContainer(named: "LibraryItem", schema: libraryItemIsolationSchema)
   }
 }

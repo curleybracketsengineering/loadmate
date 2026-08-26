@@ -27,6 +27,10 @@ enum VehicleProfileSyncReconciliation {
             guard let winner = sorted.first else { continue }
 
             for loser in sorted.dropFirst() {
+                SyncDebugLogger.shared.record(
+                    category: "startup",
+                    message: "[migration] merged duplicate VehicleProfile \(loser.id.uuidString) into \(winner.id.uuidString) (local merge, not a CloudKit import)"
+                )
                 mergeProfile(loser, into: winner, appState: appState, in: context)
                 VehiclePlatePhotoStore.deleteFiles(forVehicleID: loser.id)
                 context.delete(loser)

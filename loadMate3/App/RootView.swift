@@ -30,10 +30,18 @@ struct RootView: View {
         }
         .task(id: "\(appStates.count)-\(profileListToken)") {
             CloudSyncMonitor.shared.attachModelContext(modelContext)
+            StartupCensus.log("app launch before startup logic", in: modelContext)
             let state = AppStateStore.resolve(in: modelContext, existing: appStates)
             PhotoSyncMigration.migrateLocalFilesIfNeeded(in: modelContext)
-            _ = VehicleProfileSyncReconciliation.reconcile(in: modelContext, appState: state)
+            let didReconcile = VehicleProfileSyncReconciliation.reconcile(in: modelContext, appState: state)
+            if didReconcile {
+                SyncDebugLogger.shared.record(
+                    category: "startup",
+                    message: "[migration] VehicleProfileSyncReconciliation changed local profiles"
+                )
+            }
             resolvedState = disclaimerVM.ensureAppState(in: modelContext, existing: state)
+            StartupCensus.log("app launch after startup logic", in: modelContext)
         }
     }
 }
