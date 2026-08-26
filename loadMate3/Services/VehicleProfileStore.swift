@@ -58,7 +58,9 @@ enum VehicleProfileStore {
             state = AppStateStore.resolve(in: context)
         }
 
-        if SyncDebugSeedIsolation.isAutomaticSeedingSuppressed {
+        if !LoadMateSeedPolicy.automaticVehicleAndChecklistSeedEnabled {
+            SyncDebugSeedLog.record("[profile-seed] skipped: automatic vehicle seed disabled")
+        } else if SyncDebugSeedIsolation.isAutomaticSeedingSuppressed {
             SyncDebugSeedLog.record("[profile-seed] skipped: developer suppression flag is on")
         } else if profiles.isEmpty, !state.didSeedDefaultProfiles {
             SyncDebugSeedLog.record("[profile-seed] creating default vehicle reason = no profile existed")

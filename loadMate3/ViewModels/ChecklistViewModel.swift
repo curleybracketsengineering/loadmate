@@ -51,6 +51,10 @@ final class ChecklistViewModel: ObservableObject {
     ) {
         StartupCensus.log("checklist before seed/migration", in: context)
         defer { StartupCensus.log("checklist after seed/migration", in: context) }
+        if !LoadMateSeedPolicy.automaticVehicleAndChecklistSeedEnabled {
+            SyncDebugSeedLog.record("[seed] Checklist template seed skipped — automatic checklist seed disabled")
+            return
+        }
         if SyncDebugSeedIsolation.isAutomaticSeedingSuppressed {
             SyncDebugSeedLog.record("[seed] Automatic checklist seed suppressed (developer diagnostic)")
             return

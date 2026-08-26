@@ -67,11 +67,18 @@ struct ChecklistView: View {
     private var checklistMain: some View {
         Group {
             if sections.isEmpty {
-                ContentUnavailableView(
-                    "No checklist sections",
-                    systemImage: "checklist",
-                    description: Text("Add a section to build your towing and pitching checklists. Each section can contain subgroups and checklist items.")
-                )
+                VStack(spacing: AppScreenMetrics.sectionSpacing) {
+                    ContentUnavailableView(
+                        "No checklist sections",
+                        systemImage: "checklist",
+                        description: Text("Add a section to build your towing and pitching checklists. Each section can contain subgroups and checklist items. Nothing is created automatically.")
+                    )
+                    AppPrimaryButton("Add section", systemImage: "folder.badge.plus") {
+                        showAddSection = true
+                        newSectionTitle = ""
+                    }
+                    .padding(.horizontal, AppScreenMetrics.horizontalPadding)
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if usePadLayout {
                 ChecklistPadLayout(

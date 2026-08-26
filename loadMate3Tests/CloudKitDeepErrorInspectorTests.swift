@@ -453,6 +453,45 @@ final class CloudKitDeepErrorInspectorTests: XCTestCase {
         SyncDebugSeedIsolation.overrideForTests = nil
     }
 
+    func testAutomaticSeedPolicyIsDisabledForCleanStartBuild() {
+        XCTAssertFalse(LoadMateSeedPolicy.automaticVehicleAndChecklistSeedEnabled)
+        XCTAssertTrue(LoadMateSeedPolicy.statusLine.contains("DISABLED"))
+    }
+
+    @MainActor
+    func testEnsureInitialDataDoesNotCreateFactoryVehiclesWhenSeedDisabled() throws {
+        let schema = Schema([AppState.self, VehicleProfile.self, Trip.self])
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(container)
+
+        let result = VehicleProfileStore.ensureInitialData(in: context, profiles: [], appState: nil)
+        XCTAssertTrue(result.profiles.isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<VehicleProfile>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<Trip>()).isEmpty)
+    }
+
+    @MainActor
+    func testChecklistEnsureSeedDataDoesNotInsertTemplateWhenSeedDisabled() throws {
+        let schema = Schema([
+            AppState.self,
+            ChecklistSection.self,
+            ChecklistGroup.self,
+            ChecklistItem.self,
+        ])
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(container)
+        let state = AppState()
+        context.insert(state)
+
+        ChecklistViewModel().ensureSeedData(in: context, existingSections: [], appState: state)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<ChecklistSection>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<ChecklistGroup>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<ChecklistItem>()).isEmpty)
+        XCTAssertFalse(state.didSeedDefaultChecklist)
+    }
+
     func testIsolationWritesStayDisabledAgainstProduction() {
         XCTAssertFalse(CloudKitEnvironment.isolationWritesEnabled)
         XCTAssertFalse(CloudKitEnvironment.isDiagnosticContainerConfigured)

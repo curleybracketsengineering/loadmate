@@ -31,6 +31,7 @@ struct SettingsView: View {
     @State private var showSetupIncompleteAlert = false
     @State private var setupIncompleteAlertMessage = ""
     @State private var showSyncDebugPanel = false
+    @State private var didCompleteBootstrap = false
     @State private var showPlateSourcePicker = false
     @State private var showPlateCamera = false
     @State private var showPlateLibraryPicker = false
@@ -66,7 +67,10 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let profile = editingProfile {
+                if !didCompleteBootstrap {
+                    ProgressView("Loading...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let profile = editingProfile {
                     ScrollView {
                         VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
                             vehicleProfilesSection(editing: profile)
@@ -115,8 +119,7 @@ struct SettingsView: View {
                     }
                     .scrollDismissesKeyboard(.interactively)
                 } else {
-                    ProgressView("Loading...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    emptyVehiclesScroll
                 }
             }
             .appScreenBackground()
@@ -140,6 +143,7 @@ struct SettingsView: View {
             } else {
                 editingProfile = VehicleProfileStore.activeProfile(profiles: boot.profiles, appState: boot.appState)
             }
+            didCompleteBootstrap = true
         }
         .task {
             await cloudSync.refresh()
@@ -510,6 +514,28 @@ struct SettingsView: View {
     }
 
     // MARK: - Profiles
+
+    private var emptyVehiclesScroll: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
+                AppSettingsSection(
+                    "My vehicles",
+                    caption: "No vehicles yet. Add a caravan or motorhome to start. Nothing is created automatically."
+                ) {
+                    AppPrimaryButton("Add vehicle", systemImage: "plus.circle.fill") {
+                        showAddVehicle = true
+                    }
+                }
+
+                aboutSection()
+                iCloudSyncSection()
+            }
+            .padding(.horizontal, usePadLayout ? 0 : AppScreenMetrics.horizontalPadding)
+            .padding(.top, AppScreenMetrics.verticalScreenPadding)
+            .padding(.bottom, AppScreenMetrics.bottomScrollPadding)
+            .padReadableContent(maxWidth: PadContentLayout.settingsMaxWidth)
+        }
+    }
 
     @ViewBuilder
     private func vehicleProfilesSection(editing: VehicleProfile) -> some View {

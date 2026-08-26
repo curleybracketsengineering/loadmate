@@ -122,6 +122,7 @@ struct SyncDebugPanelView: View {
                 statusRow("Production container", value: CloudKitEnvironment.productionContainerID)
                 statusRow("Diagnostic container", value: CloudKitEnvironment.diagnosticContainerStatusLine)
                 statusRow("Isolation tests", value: CloudKitEnvironment.isolationStatusLine)
+                statusRow("Automatic seed", value: LoadMateSeedPolicy.statusLine)
                 Text(CloudKitEnvironment.diagnosticContainerSetupSteps)
                     .font(.caption.monospaced())
                     .foregroundStyle(Color.primary)
@@ -259,13 +260,24 @@ struct SyncDebugPanelView: View {
             caption: "Does not delete anything. Watch a vehicle, delete it in Settings, then this screen reports whether CloudKit re-imports it."
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                let profiles = (try? modelContext.fetch(FetchDescriptor<VehicleProfile>())) ?? []
+                let profiles = VehicleProfileStore.uniqueSortedProfiles(
+                    (try? modelContext.fetch(FetchDescriptor<VehicleProfile>())) ?? []
+                )
                 ForEach(profiles, id: \.id) { profile in
-                    AppSecondaryButton("Watch \(profile.id.uuidString.prefix(8))…") {
-                        deletionVerifier.startWatching(
-                            profile: profile,
-                            counts: SyncDebugEntityCounts.fetch(from: modelContext)
-                        )
+                    VStack(alignment: .leading, spacing: 4) {
+                        AppSecondaryButton(
+                            "Watch \(profile.kind.displayName) …\(profile.id.uuidString.suffix(4))"
+                        ) {
+                            deletionVerifier.startWatching(
+                                profile: profile,
+                                counts: SyncDebugEntityCounts.fetch(from: modelContext)
+                            )
+                        }
+                        Text(profile.id.uuidString)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(AppColors.textSupporting)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 AppSecondaryButton("Check whether watched vehicle reappeared") {
@@ -386,7 +398,7 @@ struct SyncDebugPanelView: View {
                     .onChange(of: suppressAutomaticSeeding) { _, newValue in
                         SyncDebugSeedIsolation.setAutomaticSeedingSuppressed(newValue)
                     }
-                Text("Leave this OFF for this diagnostic run. It only skips default profile/checklist seeding in DEBUG builds and does not delete data.")
+                Text("Automatic factory seed is already disabled for this build. This DEBUG toggle only matters if that policy is turned back on.")
                     .font(.caption)
                     .foregroundStyle(AppColors.textSupporting)
                     .fixedSize(horizontal: false, vertical: true)
