@@ -1,4 +1,5 @@
 import CloudKit
+import SwiftData
 import XCTest
 @testable import loadMate3
 
@@ -173,6 +174,39 @@ final class CloudKitDeepErrorInspectorTests: XCTestCase {
         XCTAssertNotEqual(isolationURL, coreURL)
     }
 
+    func testChecklistIsolationStoreIsSeparateAndOmitsUnrelatedModels() {
+        let checklistURL = LoadMateModelContainer.checklistIsolationStoreURL
+        XCTAssertTrue(checklistURL.path.contains("LoadMateCloudKitIsolation"))
+        XCTAssertTrue(checklistURL.path.contains("ChecklistModel"))
+        XCTAssertNotEqual(checklistURL, LoadMateModelContainer.coreVehicleIsolationStoreURL)
+        XCTAssertNotEqual(checklistURL, LoadMateModelContainer.appStateOnlyIsolationStoreURL)
+
+        let names = Set(LoadMateModelContainer.checklistIsolationSchema.entities.map(\.name))
+        XCTAssertTrue(names.isSuperset(of: ["AppState", "VehicleProfile", "Trip", "ChecklistSection", "ChecklistItem"]))
+        XCTAssertTrue(names.contains("ChecklistGroup"), "SwiftData registers ChecklistGroup as a relationship destination")
+        XCTAssertFalse(names.contains("AccidentRecord"))
+        XCTAssertFalse(names.contains("TyreRecord"))
+        XCTAssertLessThan(names.count, LoadMateModelContainer.schema.entities.count)
+    }
+
+    func testChecklistIsolationSchemaCanSaveMinimalRecordsInMemory() throws {
+        let schema = LoadMateModelContainer.checklistIsolationSchema
+        let configuration = ModelConfiguration(
+            "ChecklistIsolationInMemory",
+            schema: schema,
+            isStoredInMemoryOnly: true
+        )
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(container)
+        let section = ChecklistSection(title: "CloudKit Test Section", sortOrder: 0)
+        context.insert(section)
+        let item = ChecklistItem(title: "CloudKit Test Item", isChecked: false, sortOrder: 0, section: section)
+        context.insert(item)
+        try context.save()
+        XCTAssertEqual((try context.fetch(FetchDescriptor<ChecklistSection>())).count, 1)
+        XCTAssertEqual((try context.fetch(FetchDescriptor<ChecklistItem>())).count, 1)
+    }
+
     func testIsolationReportDescribesAppStateOnlyOutcome() {
         var report = CloudKitIsolationTestReport()
         report.status = .passed
@@ -222,6 +256,37 @@ final class CloudKitDeepErrorInspectorTests: XCTestCase {
         XCTAssertTrue(text.contains("VehicleProfile.trips -> Trip"))
         XCTAssertTrue(text.contains("CORE VEHICLE TEST FAILED"))
         XCTAssertTrue(text.contains("EXPORT failed"))
+    }
+
+    func testIsolationReportDescribesChecklistOutcome() {
+        var report = CloudKitIsolationTestReport()
+        report.scenario = .checklist
+        report.testName = CloudKitIsolationScenario.checklist.testName
+        report.modelContainerLines = CloudKitIsolationScenario.checklist.modelContainerLines
+        report.relationshipLines = CloudKitIsolationScenario.checklist.relationshipLines
+        report.status = .passed
+        report.localStoreCreated = true
+        report.localSave = "succeeded"
+        report.insertedAppStateCount = 1
+        report.insertedVehicleProfileCount = 1
+        report.insertedTripCount = 1
+        report.insertedChecklistSectionCount = 1
+        report.insertedChecklistItemCount = 1
+        report.setup = "succeeded"
+        report.export = "succeeded"
+        report.probeValue = "checklist-isolation-test"
+        report.conclusion = "CHECKLIST MODEL TEST PASSED"
+
+        let text = report.formatted
+        XCTAssertTrue(text.contains("Test: AppState + VehicleProfile + Trip + ChecklistSection + ChecklistItem"))
+        XCTAssertTrue(text.contains("Status: PASSED"))
+        XCTAssertTrue(text.contains("ChecklistSection = 1"))
+        XCTAssertTrue(text.contains("ChecklistItem = 1"))
+        XCTAssertTrue(text.contains("ChecklistSection.items -> ChecklistItem"))
+        XCTAssertTrue(text.contains("ChecklistItem.section -> ChecklistSection"))
+        XCTAssertTrue(text.contains("no relationship to AppState, VehicleProfile, or Trip"))
+        XCTAssertTrue(text.contains("CHECKLIST MODEL TEST PASSED"))
+        XCTAssertTrue(text.contains("EXPORT succeeded"))
     }
 
     func testMinimalSyncStatusDoesNotTreatLocalProbeAsSuccess() {

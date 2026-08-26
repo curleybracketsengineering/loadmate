@@ -67,12 +67,28 @@ enum LoadMateModelContainer {
     isolationStoreURL(named: "CoreVehicle")
   }
 
+  static var checklistIsolationStoreURL: URL {
+    isolationStoreURL(named: "ChecklistModel")
+  }
+
   static var appStateOnlyIsolationSchema: Schema {
     Schema([AppState.self])
   }
 
   static var coreVehicleIsolationSchema: Schema {
     Schema([AppState.self, VehicleProfile.self, Trip.self])
+  }
+
+  /// Diagnostic schema for checklist isolation. Declares the requested models only;
+  /// SwiftData still registers relationship destinations such as `ChecklistGroup`.
+  static var checklistIsolationSchema: Schema {
+    Schema([
+      AppState.self,
+      VehicleProfile.self,
+      Trip.self,
+      ChecklistSection.self,
+      ChecklistItem.self,
+    ])
   }
 
   /// Removes only the named diagnostic store. Does not touch the production store or CloudKit.
@@ -89,6 +105,10 @@ enum LoadMateModelContainer {
 
   static func removeCoreVehicleIsolationStoreIfPresent() throws {
     try removeIsolationStoreIfPresent(named: "CoreVehicle")
+  }
+
+  static func removeChecklistIsolationStoreIfPresent() throws {
+    try removeIsolationStoreIfPresent(named: "ChecklistModel")
   }
 
   static func makeIsolationContainer(named name: String, schema: Schema) throws -> ModelContainer {
@@ -111,5 +131,10 @@ enum LoadMateModelContainer {
   /// CloudKit-backed container containing only AppState, VehicleProfile, and Trip.
   static func makeCoreVehicleIsolationContainer() throws -> ModelContainer {
     try makeIsolationContainer(named: "CoreVehicle", schema: coreVehicleIsolationSchema)
+  }
+
+  /// CloudKit-backed container for checklist isolation. Separate local store from production and core vehicle.
+  static func makeChecklistIsolationContainer() throws -> ModelContainer {
+    try makeIsolationContainer(named: "ChecklistModel", schema: checklistIsolationSchema)
   }
 }

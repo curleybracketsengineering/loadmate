@@ -107,7 +107,7 @@ struct SyncDebugPanelView: View {
     private func isolationTestSection() -> some View {
         AppSettingsSection(
             "CloudKit Model Isolation Test",
-            caption: "Each test uses its own local diagnostic store. The normal app store is never deleted or migrated."
+            caption: "Each test uses its own local diagnostic store. The normal app store is never deleted or migrated. Run one test at a time."
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
                 statusRow("Test", value: isolationTester.report.testName)
@@ -143,6 +143,13 @@ struct SyncDebugPanelView: View {
                 AppSecondaryButton("Run Core Vehicle CloudKit Test") {
                     Task {
                         await isolationTester.runCoreVehicleTest()
+                    }
+                }
+                .disabled(isolationTester.isRunning)
+
+                AppSecondaryButton("Run Checklist Model CloudKit Test") {
+                    Task {
+                        await isolationTester.runChecklistTest()
                     }
                 }
                 .disabled(isolationTester.isRunning)

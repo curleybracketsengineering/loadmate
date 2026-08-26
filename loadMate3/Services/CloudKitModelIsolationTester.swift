@@ -7,11 +7,13 @@ import SwiftData
 enum CloudKitIsolationScenario: String, Equatable {
     case appStateOnly
     case coreVehicle
+    case checklist
 
     var testName: String {
         switch self {
         case .appStateOnly: return "AppState only"
         case .coreVehicle: return "AppState + VehicleProfile + Trip"
+        case .checklist: return "AppState + VehicleProfile + Trip + ChecklistSection + ChecklistItem"
         }
     }
 
@@ -19,6 +21,7 @@ enum CloudKitIsolationScenario: String, Equatable {
         switch self {
         case .appStateOnly: return "AppStateOnly"
         case .coreVehicle: return "CoreVehicle"
+        case .checklist: return "ChecklistModel"
         }
     }
 
@@ -26,6 +29,7 @@ enum CloudKitIsolationScenario: String, Equatable {
         switch self {
         case .appStateOnly: return LoadMateModelContainer.appStateOnlyIsolationSchema
         case .coreVehicle: return LoadMateModelContainer.coreVehicleIsolationSchema
+        case .checklist: return LoadMateModelContainer.checklistIsolationSchema
         }
     }
 
@@ -35,6 +39,11 @@ enum CloudKitIsolationScenario: String, Equatable {
             return ["  AppState"]
         case .coreVehicle:
             return ["  AppState", "  VehicleProfile", "  Trip"]
+        case .checklist:
+            return [
+                "  Requested: AppState, VehicleProfile, Trip, ChecklistSection, ChecklistItem",
+                "  Also registered by SwiftData as relationship destinations (0 records inserted): ChecklistGroup, LoadedItem, LibraryItem",
+            ]
         }
     }
 
@@ -47,7 +56,25 @@ enum CloudKitIsolationScenario: String, Equatable {
                 "  Trip.profile -> VehicleProfile",
                 "  VehicleProfile.trips -> Trip",
             ]
+        case .checklist:
+            return [
+                "  Trip.profile -> VehicleProfile",
+                "  VehicleProfile.trips -> Trip",
+                "  ChecklistSection.items -> ChecklistItem",
+                "  ChecklistItem.section -> ChecklistSection",
+                "  ChecklistItem.group -> ChecklistGroup (not populated; 0 ChecklistGroup records)",
+                "  ChecklistSection.groups -> ChecklistGroup (not populated; 0 ChecklistGroup records)",
+                "  ChecklistSection / ChecklistItem have no relationship to AppState, VehicleProfile, or Trip",
+            ]
         }
+    }
+
+    var includesCoreVehicleModels: Bool {
+        self == .coreVehicle || self == .checklist
+    }
+
+    var includesChecklistModels: Bool {
+        self == .checklist
     }
 }
 
@@ -71,6 +98,8 @@ struct CloudKitIsolationTestReport: Equatable {
     var insertedAppStateCount = 0
     var insertedVehicleProfileCount = 0
     var insertedTripCount = 0
+    var insertedChecklistSectionCount = 0
+    var insertedChecklistItemCount = 0
     var modelContainerLines: [String] = ["  AppState"]
     var relationshipLines: [String] = ["  none"]
     var probeValue = ""
@@ -85,11 +114,18 @@ struct CloudKitIsolationTestReport: Equatable {
         var inserted = [
             "  AppState = \(insertedAppStateCount)",
         ]
-        if scenario == .coreVehicle {
+        switch scenario {
+        case .appStateOnly:
+            inserted.append("  All other model types = not present in this ModelContainer")
+        case .coreVehicle:
             inserted.append("  VehicleProfile = \(insertedVehicleProfileCount)")
             inserted.append("  Trip = \(insertedTripCount)")
-        } else {
-            inserted.append("  All other model types = not present in this ModelContainer")
+        case .checklist:
+            inserted.append("  VehicleProfile = \(insertedVehicleProfileCount)")
+            inserted.append("  Trip = \(insertedTripCount)")
+            inserted.append("  ChecklistSection = \(insertedChecklistSectionCount)")
+            inserted.append("  ChecklistItem = \(insertedChecklistItemCount)")
+            inserted.append("  ChecklistGroup = 0 (relationship destination only)")
         }
 
         var lines = [
@@ -171,7 +207,10 @@ final class CloudKitModelIsolationTester: ObservableObject {
                 : stored.contains("Status: FAILED") ? .failed
                 : stored.contains("Status: TIMED OUT") ? .timedOut
                 : .notRun
-            if stored.contains("AppState + VehicleProfile + Trip") {
+            if stored.contains("ChecklistSection + ChecklistItem") {
+                report.scenario = .checklist
+                report.testName = CloudKitIsolationScenario.checklist.testName
+            } else if stored.contains("AppState + VehicleProfile + Trip") {
                 report.scenario = .coreVehicle
                 report.testName = CloudKitIsolationScenario.coreVehicle.testName
             }
@@ -184,6 +223,10 @@ final class CloudKitModelIsolationTester: ObservableObject {
 
     func runCoreVehicleTest() async {
         await run(.coreVehicle)
+    }
+
+    func runChecklistTest() async {
+        await run(.checklist)
     }
 
     private func run(_ scenario: CloudKitIsolationScenario) async {
@@ -218,11 +261,12 @@ final class CloudKitModelIsolationTester: ObservableObject {
             next.localStoreCreated = true
             report = next
         } catch {
+            next.errorSummary = "Failed to create isolation store: \(error.localizedDescription)"
             finish(
                 next,
                 status: .failed,
-                errorSummary: "Failed to create isolation store: \(error.localizedDescription)",
-                conclusion: failedConclusion(for: scenario)
+                errorSummary: next.errorSummary,
+                conclusion: failedConclusion(for: scenario, report: next)
             )
             return
         }
@@ -234,6 +278,8 @@ final class CloudKitModelIsolationTester: ObservableObject {
             probeValue = "appstate-isolation-\(probeUUID.uuidString)"
         case .coreVehicle:
             probeValue = "core-vehicle-isolation-\(probeUUID.uuidString)"
+        case .checklist:
+            probeValue = "checklist-isolation-\(probeUUID.uuidString)"
         }
 
         let context = ModelContext(isolationContainer!)
@@ -244,9 +290,13 @@ final class CloudKitModelIsolationTester: ObservableObject {
             latest.localSave = "succeeded"
             latest.probeValue = probeValue
             latest.insertedAppStateCount = 1
-            if scenario == .coreVehicle {
+            if scenario.includesCoreVehicleModels {
                 latest.insertedVehicleProfileCount = 1
                 latest.insertedTripCount = 1
+            }
+            if scenario.includesChecklistModels {
+                latest.insertedChecklistSectionCount = 1
+                latest.insertedChecklistItemCount = 1
             }
             latest.localStoreCreated = true
             report = latest
@@ -257,15 +307,19 @@ final class CloudKitModelIsolationTester: ObservableObject {
             latest.localSave = "failed — \(error.localizedDescription)"
             latest.probeValue = probeValue
             latest.insertedAppStateCount = 1
-            if scenario == .coreVehicle {
+            if scenario.includesCoreVehicleModels {
                 latest.insertedVehicleProfileCount = 1
                 latest.insertedTripCount = 1
+            }
+            if scenario.includesChecklistModels {
+                latest.insertedChecklistSectionCount = 1
+                latest.insertedChecklistItemCount = 1
             }
             finish(
                 latest,
                 status: .failed,
                 errorSummary: "Local save failed: \(error.localizedDescription)",
-                conclusion: failedConclusion(for: scenario)
+                conclusion: failedConclusion(for: scenario, report: latest)
             )
             return
         }
@@ -286,7 +340,7 @@ final class CloudKitModelIsolationTester: ObservableObject {
                     timedOut,
                     status: .failed,
                     errorSummary: timedOut.errorSummary ?? "SETUP failed",
-                    conclusion: failedConclusion(for: scenario)
+                    conclusion: failedConclusion(for: scenario, report: timedOut)
                 )
             } else if timedOut.export == "succeeded" {
                 finish(timedOut, status: .passed, errorSummary: nil, conclusion: passedConclusion(for: scenario))
@@ -295,7 +349,7 @@ final class CloudKitModelIsolationTester: ObservableObject {
                     timedOut,
                     status: .failed,
                     errorSummary: timedOut.errorSummary ?? "EXPORT failed",
-                    conclusion: failedConclusion(for: scenario)
+                    conclusion: failedConclusion(for: scenario, report: timedOut)
                 )
             } else {
                 timedOut.errorSummary = "Timed out after \(Int(Self.timeoutSeconds))s waiting for CloudKit export (SETUP \(timedOut.setup), EXPORT \(timedOut.export))"
@@ -319,6 +373,7 @@ final class CloudKitModelIsolationTester: ObservableObject {
         switch scenario {
         case .appStateOnly: updatedBy = "AppState isolation test"
         case .coreVehicle: updatedBy = "Core vehicle isolation test"
+        case .checklist: updatedBy = "Checklist model isolation test"
         }
         let state = AppState(
             id: probeUUID,
@@ -330,7 +385,7 @@ final class CloudKitModelIsolationTester: ObservableObject {
         context.insert(state)
         SyncDebugLogger.shared.record(category: "isolation", message: "AppState inserted")
 
-        guard scenario == .coreVehicle else { return }
+        guard scenario.includesCoreVehicleModels else { return }
 
         let profile = VehicleProfile(
             name: "CloudKit Test Vehicle",
@@ -352,6 +407,24 @@ final class CloudKitModelIsolationTester: ObservableObject {
             category: "isolation",
             message: "Profile/Trip relationship established"
         )
+
+        guard scenario.includesChecklistModels else { return }
+
+        let section = ChecklistSection(title: "CloudKit Test Section", sortOrder: 0)
+        context.insert(section)
+        let item = ChecklistItem(
+            title: "CloudKit Test Item",
+            isChecked: false,
+            sortOrder: 0,
+            section: section
+        )
+        context.insert(item)
+        SyncDebugLogger.shared.record(category: "isolation", message: "ChecklistSection inserted")
+        SyncDebugLogger.shared.record(category: "isolation", message: "ChecklistItem inserted")
+        SyncDebugLogger.shared.record(
+            category: "isolation",
+            message: "ChecklistSection.items / ChecklistItem.section relationship established"
+        )
     }
 
     private func logStart(_ scenario: CloudKitIsolationScenario) {
@@ -360,6 +433,8 @@ final class CloudKitModelIsolationTester: ObservableObject {
             SyncDebugLogger.shared.record(category: "isolation", message: "Starting AppState-only CloudKit isolation test.")
         case .coreVehicle:
             SyncDebugLogger.shared.record(category: "isolation", message: "Core vehicle isolation test started")
+        case .checklist:
+            SyncDebugLogger.shared.record(category: "isolation", message: "Checklist model isolation test started")
         }
     }
 
@@ -453,7 +528,7 @@ final class CloudKitModelIsolationTester: ObservableObject {
                     next,
                     status: .failed,
                     errorSummary: next.errorSummary,
-                    conclusion: failedConclusion(for: currentScenario)
+                    conclusion: failedConclusion(for: currentScenario, report: next)
                 )
                 return
             }
@@ -468,6 +543,8 @@ final class CloudKitModelIsolationTester: ObservableObject {
             return "AppState=1 (isolation store)"
         case .coreVehicle:
             return "AppState=1, VehicleProfile=1, Trip=1 (isolation store)"
+        case .checklist:
+            return "AppState=1, VehicleProfile=1, Trip=1, ChecklistSection=1, ChecklistItem=1 (isolation store)"
         }
     }
 
@@ -551,10 +628,25 @@ final class CloudKitModelIsolationTester: ObservableObject {
 
             The failure in the full application likely lies in another model group.
             """
+        case .checklist:
+            return """
+            CHECKLIST MODEL TEST PASSED
+
+            AppState + VehicleProfile + Trip + ChecklistSection + ChecklistItem exported successfully.
+
+            This suggests that:
+            - ChecklistSection is CloudKit-compatible
+            - ChecklistItem is CloudKit-compatible
+            - their tested relationship(s) are CloudKit-compatible
+
+            SwiftData also registered ChecklistGroup, LoadedItem, and LibraryItem as relationship destinations; this test inserted 0 of those records.
+
+            This does not prove that the normal 5-section / 68-item production seed is safe. It proves only that the model structure and the tested minimal records can export.
+            """
         }
     }
 
-    private func failedConclusion(for scenario: CloudKitIsolationScenario) -> String {
+    private func failedConclusion(for scenario: CloudKitIsolationScenario, report current: CloudKitIsolationTestReport) -> String {
         switch scenario {
         case .appStateOnly:
             return """
@@ -580,6 +672,26 @@ final class CloudKitModelIsolationTester: ObservableObject {
 
             Do not add more model groups yet.
             """
+        case .checklist:
+            let exportBegan = current.export != "not seen"
+            return """
+            CHECKLIST MODEL TEST FAILED
+
+            Core vehicle previously passed, but AppState + VehicleProfile + Trip + ChecklistSection + ChecklistItem failed.
+
+            Local save: \(current.localSave)
+            CloudKit setup: \(current.setup)
+            Export began: \(exportBegan ? "yes (\(current.export))" : "no")
+            CloudKit export: \(current.export)
+            Error: \(current.errorSummary ?? "None")
+            Model counts: AppState=\(current.insertedAppStateCount), VehicleProfile=\(current.insertedVehicleProfileCount), Trip=\(current.insertedTripCount), ChecklistSection=\(current.insertedChecklistSectionCount), ChecklistItem=\(current.insertedChecklistItemCount)
+            Relationships used:
+            \(current.relationshipLines.joined(separator: "\n"))
+
+            The likely fault is now narrowed to ChecklistSection, ChecklistItem, empty ChecklistGroup as a schema destination, their tested relationship(s), or their CloudKit schema representation.
+
+            Do not change production models in this step.
+            """
         }
     }
 
@@ -598,6 +710,14 @@ final class CloudKitModelIsolationTester: ObservableObject {
             No definitive CloudKit export result was observed within \(Int(Self.timeoutSeconds)) seconds.
 
             Do not add more model groups yet.
+            """
+        case .checklist:
+            return """
+            CHECKLIST MODEL TEST TIMED OUT
+
+            No definitive CloudKit export result was observed within \(Int(Self.timeoutSeconds)) seconds.
+
+            Local save is not CloudKit success. Do not change production models in this step.
             """
         }
     }
