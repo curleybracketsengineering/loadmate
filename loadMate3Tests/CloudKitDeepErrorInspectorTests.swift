@@ -155,10 +155,22 @@ final class CloudKitDeepErrorInspectorTests: XCTestCase {
     func testIsolationStoreIsSeparateFromProductionAndAppStateOnly() {
         let isolationURL = LoadMateModelContainer.appStateOnlyIsolationStoreURL
         XCTAssertTrue(isolationURL.path.contains("LoadMateCloudKitIsolation"))
-        XCTAssertTrue(isolationURL.lastPathComponent.contains("AppStateOnly"))
+        XCTAssertTrue(isolationURL.path.contains("AppStateOnly"))
         XCTAssertEqual(LoadMateModelContainer.appStateOnlyIsolationSchema.entities.count, 1)
         XCTAssertEqual(LoadMateModelContainer.appStateOnlyIsolationSchema.entities.first?.name, "AppState")
         XCTAssertGreaterThan(LoadMateModelContainer.schema.entities.count, 1)
+
+        let coreURL = LoadMateModelContainer.coreVehicleIsolationStoreURL
+        XCTAssertTrue(coreURL.path.contains("LoadMateCloudKitIsolation"))
+        XCTAssertTrue(coreURL.path.contains("CoreVehicle"))
+        XCTAssertFalse(coreURL.path.contains("default.store"))
+        let coreNames = Set(LoadMateModelContainer.coreVehicleIsolationSchema.entities.map(\.name))
+        XCTAssertTrue(coreNames.contains("AppState"))
+        XCTAssertTrue(coreNames.contains("VehicleProfile"))
+        XCTAssertTrue(coreNames.contains("Trip"))
+        XCTAssertFalse(coreNames.contains("ChecklistItem"))
+        XCTAssertLessThan(coreNames.count, LoadMateModelContainer.schema.entities.count)
+        XCTAssertNotEqual(isolationURL, coreURL)
     }
 
     func testIsolationReportDescribesAppStateOnlyOutcome() {
@@ -182,6 +194,34 @@ final class CloudKitDeepErrorInspectorTests: XCTestCase {
         XCTAssertTrue(text.contains("SETUP succeeded"))
         XCTAssertTrue(text.contains("EXPORT succeeded"))
         XCTAssertTrue(text.contains("APPSTATE-ONLY TEST PASSED"))
+    }
+
+    func testIsolationReportDescribesCoreVehicleOutcome() {
+        var report = CloudKitIsolationTestReport()
+        report.scenario = .coreVehicle
+        report.testName = CloudKitIsolationScenario.coreVehicle.testName
+        report.modelContainerLines = CloudKitIsolationScenario.coreVehicle.modelContainerLines
+        report.relationshipLines = CloudKitIsolationScenario.coreVehicle.relationshipLines
+        report.status = .failed
+        report.localStoreCreated = true
+        report.localSave = "succeeded"
+        report.insertedAppStateCount = 1
+        report.insertedVehicleProfileCount = 1
+        report.insertedTripCount = 1
+        report.setup = "succeeded"
+        report.export = "failed"
+        report.probeValue = "core-vehicle-isolation-test"
+        report.conclusion = "CORE VEHICLE TEST FAILED"
+
+        let text = report.formatted
+        XCTAssertTrue(text.contains("Test: AppState + VehicleProfile + Trip"))
+        XCTAssertTrue(text.contains("Status: FAILED"))
+        XCTAssertTrue(text.contains("VehicleProfile = 1"))
+        XCTAssertTrue(text.contains("Trip = 1"))
+        XCTAssertTrue(text.contains("Trip.profile -> VehicleProfile"))
+        XCTAssertTrue(text.contains("VehicleProfile.trips -> Trip"))
+        XCTAssertTrue(text.contains("CORE VEHICLE TEST FAILED"))
+        XCTAssertTrue(text.contains("EXPORT failed"))
     }
 
     func testMinimalSyncStatusDoesNotTreatLocalProbeAsSuccess() {

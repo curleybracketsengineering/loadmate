@@ -107,9 +107,10 @@ struct SyncDebugPanelView: View {
     private func isolationTestSection() -> some View {
         AppSettingsSection(
             "CloudKit Model Isolation Test",
-            caption: "Uses a separate local store containing only AppState. Does not migrate or delete the normal app store."
+            caption: "Each test uses its own local diagnostic store. The normal app store is never deleted or migrated."
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                statusRow("Test", value: isolationTester.report.testName)
                 statusRow("Status", value: isolationTester.report.status.rawValue)
                 statusRow(
                     "Started",
@@ -122,6 +123,7 @@ struct SyncDebugPanelView: View {
                 statusRow("Duration", value: isolationTester.report.duration ?? "—")
                 statusRow("Local save", value: isolationTester.report.localSave)
                 statusRow("CloudKit setup", value: isolationTester.report.setup)
+                statusRow("CloudKit import", value: isolationTester.report.importResult)
                 statusRow("CloudKit export", value: isolationTester.report.export)
                 statusRow("Error", value: isolationTester.report.errorSummary ?? "None")
 
@@ -134,6 +136,13 @@ struct SyncDebugPanelView: View {
                 AppSecondaryButton("Run AppState-Only CloudKit Test") {
                     Task {
                         await isolationTester.runAppStateOnlyTest()
+                    }
+                }
+                .disabled(isolationTester.isRunning)
+
+                AppSecondaryButton("Run Core Vehicle CloudKit Test") {
+                    Task {
+                        await isolationTester.runCoreVehicleTest()
                     }
                 }
                 .disabled(isolationTester.isRunning)

@@ -51,35 +51,65 @@ enum LoadMateModelContainer {
     return appSupport.appendingPathComponent("LoadMateCloudKitIsolation", isDirectory: true)
   }
 
+  static func isolationStoreDirectory(named name: String) -> URL {
+    cloudKitIsolationDirectory.appendingPathComponent(name, isDirectory: true)
+  }
+
+  static func isolationStoreURL(named name: String) -> URL {
+    isolationStoreDirectory(named: name).appendingPathComponent("\(name).store")
+  }
+
   static var appStateOnlyIsolationStoreURL: URL {
-    cloudKitIsolationDirectory.appendingPathComponent("AppStateOnly.store")
+    isolationStoreURL(named: "AppStateOnly")
+  }
+
+  static var coreVehicleIsolationStoreURL: URL {
+    isolationStoreURL(named: "CoreVehicle")
   }
 
   static var appStateOnlyIsolationSchema: Schema {
     Schema([AppState.self])
   }
 
-  /// Removes only the diagnostic isolation store files. Does not touch the production store or CloudKit.
-  static func removeAppStateOnlyIsolationStoreIfPresent() throws {
-    let directory = cloudKitIsolationDirectory
+  static var coreVehicleIsolationSchema: Schema {
+    Schema([AppState.self, VehicleProfile.self, Trip.self])
+  }
+
+  /// Removes only the named diagnostic store. Does not touch the production store or CloudKit.
+  static func removeIsolationStoreIfPresent(named name: String) throws {
+    let directory = isolationStoreDirectory(named: name)
     if FileManager.default.fileExists(atPath: directory.path) {
       try FileManager.default.removeItem(at: directory)
     }
   }
 
-  /// CloudKit-backed container containing only `AppState`, in a separate local store file.
-  static func makeAppStateOnlyIsolationContainer() throws -> ModelContainer {
-    let schema = appStateOnlyIsolationSchema
-    try FileManager.default.createDirectory(
-      at: cloudKitIsolationDirectory,
-      withIntermediateDirectories: true
-    )
+  static func removeAppStateOnlyIsolationStoreIfPresent() throws {
+    try removeIsolationStoreIfPresent(named: "AppStateOnly")
+  }
+
+  static func removeCoreVehicleIsolationStoreIfPresent() throws {
+    try removeIsolationStoreIfPresent(named: "CoreVehicle")
+  }
+
+  static func makeIsolationContainer(named name: String, schema: Schema) throws -> ModelContainer {
+    let directory = isolationStoreDirectory(named: name)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let configuration = ModelConfiguration(
-      "AppStateIsolation",
+      name,
       schema: schema,
-      url: appStateOnlyIsolationStoreURL,
+      url: isolationStoreURL(named: name),
       cloudKitDatabase: .private(cloudKitContainerID)
     )
     return try ModelContainer(for: schema, configurations: [configuration])
+  }
+
+  /// CloudKit-backed container containing only `AppState`, in a separate local store file.
+  static func makeAppStateOnlyIsolationContainer() throws -> ModelContainer {
+    try makeIsolationContainer(named: "AppStateOnly", schema: appStateOnlyIsolationSchema)
+  }
+
+  /// CloudKit-backed container containing only AppState, VehicleProfile, and Trip.
+  static func makeCoreVehicleIsolationContainer() throws -> ModelContainer {
+    try makeIsolationContainer(named: "CoreVehicle", schema: coreVehicleIsolationSchema)
   }
 }
