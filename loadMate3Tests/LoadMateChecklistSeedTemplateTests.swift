@@ -18,12 +18,29 @@ final class LoadMateChecklistSeedTemplateTests: XCTestCase {
         let titles = LoadMateChecklistSeedTemplate.sections(for: .motorhome).map(\.title)
         XCTAssertEqual(titles, [
             "Before leaving home",
+            "On site",
             "Departure",
             "EU / Overseas travel checklist",
         ])
         XCTAssertFalse(titles.contains("Towing setup"))
         XCTAssertFalse(titles.contains("Pitching"))
-        XCTAssertEqual(LoadMateChecklistSeedTemplate.motorhomeItemCount, 14 + 12 + 23)
+        XCTAssertEqual(LoadMateChecklistSeedTemplate.motorhomeItemCount, 19 + 8 + 10 + 23)
+    }
+
+    func testMotorhomeTemplateUsesVehicleChecksInsteadOfTrailerGear() {
+        let items = LoadMateChecklistSeedTemplate.itemTitles(for: .motorhome)
+        XCTAssertTrue(items.contains("Engine oil level"))
+        XCTAssertTrue(items.contains("Coolant level"))
+        XCTAssertTrue(items.contains("Tyre pressures checked"))
+        XCTAssertTrue(items.contains("Fuel and AdBlue levels"))
+        XCTAssertFalse(items.contains("Jockey wheel raised and clamped"))
+        XCTAssertFalse(items.contains("Corner steadies fully raised"))
+        XCTAssertFalse(items.contains("Engage motor mover"))
+        XCTAssertFalse(items.contains("Hitch security checks complete"))
+
+        let caravanItems = LoadMateChecklistSeedTemplate.itemTitles(for: .caravan)
+        XCTAssertTrue(caravanItems.contains("Jockey wheel raised and clamped"))
+        XCTAssertFalse(caravanItems.contains("Engine oil level"))
     }
 
     func testInsertSectionCreatesGroupBackedItemsAndSkipsDuplicatesOnThatVehicle() throws {
@@ -99,7 +116,7 @@ final class LoadMateChecklistSeedTemplateTests: XCTestCase {
         XCTAssertTrue((try context.fetch(FetchDescriptor<ChecklistItem>())).allSatisfy { $0.group != nil })
     }
 
-    func testAddMotorhomeProfileSeedsThreeSections() throws {
+    func testAddMotorhomeProfileSeedsFourSections() throws {
         let context = try makeContext()
         let state = AppState()
         context.insert(state)
@@ -113,14 +130,52 @@ final class LoadMateChecklistSeedTemplateTests: XCTestCase {
         )
 
         let titles = Set(profile.checklistSectionsList.map(\.title))
-        XCTAssertEqual(profile.checklistSectionsList.count, 3)
+        XCTAssertEqual(profile.checklistSectionsList.count, 4)
         XCTAssertEqual(titles, [
             "Before leaving home",
+            "On site",
             "Departure",
             "EU / Overseas travel checklist",
         ])
         XCTAssertFalse(titles.contains("Towing setup"))
         XCTAssertFalse(titles.contains("Pitching"))
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ChecklistItem>()).count, 60)
+        XCTAssertTrue((try context.fetch(FetchDescriptor<ChecklistItem>())).contains { $0.title == "Engine oil level" })
+        XCTAssertFalse((try context.fetch(FetchDescriptor<ChecklistItem>())).contains { $0.title == "Jockey wheel raised and clamped" })
+    }
+
+    func testPatchRemovesTrailerItemsAndAddsVehicleChecksOnExistingMotorhome() throws {
+        let context = try makeContext()
+        let motorhome = VehicleProfile(name: "My Motorhome", kind: .motorhome, sortOrder: 0)
+        let caravan = VehicleProfile(name: "My Caravan", kind: .caravan, sortOrder: 1)
+        context.insert(motorhome)
+        context.insert(caravan)
+
+        let section = ChecklistSection(title: "Before leaving home", sortOrder: 0, profile: motorhome)
+        context.insert(section)
+        let exterior = ChecklistGroup(title: "Exterior & chassis", sortOrder: 0, section: section)
+        context.insert(exterior)
+        context.insert(ChecklistItem(title: "Jockey wheel raised and clamped", isChecked: true, sortOrder: 0, group: exterior))
+        context.insert(ChecklistItem(title: "Steps folded and secured", isChecked: false, sortOrder: 1, group: exterior))
+
+        let caravanSection = ChecklistSection(title: "Before leaving home", sortOrder: 0, profile: caravan)
+        context.insert(caravanSection)
+        let caravanExterior = ChecklistGroup(title: "Exterior & chassis", sortOrder: 0, section: caravanSection)
+        context.insert(caravanExterior)
+        context.insert(ChecklistItem(title: "Jockey wheel raised and clamped", isChecked: false, sortOrder: 0, group: caravanExterior))
+
+        ChecklistVehicleMigration.patchMotorhomeFactoryItemsIfNeeded(in: context, profiles: [motorhome, caravan])
+
+        let motorhomeTitles = Set(motorhome.checklistSectionsList.flatMap(\.groupsList).flatMap(\.itemsList).map(\.title))
+        XCTAssertFalse(motorhomeTitles.contains("Jockey wheel raised and clamped"))
+        XCTAssertTrue(motorhomeTitles.contains("Steps folded and secured"))
+        XCTAssertTrue(motorhomeTitles.contains("Engine oil level"))
+        XCTAssertTrue(motorhomeTitles.contains("Coolant level"))
+
+        let caravanTitles = Set(caravan.checklistSectionsList.flatMap(\.groupsList).flatMap(\.itemsList).map(\.title))
+        XCTAssertEqual(caravanTitles, ["Jockey wheel raised and clamped"])
+
+        XCTAssertFalse(ChecklistVehicleMigration.patchMotorhomeFactoryItems(on: motorhome, in: context))
     }
 
     func testDeleteProfileRemovesOnlyThatVehicleChecklist() throws {

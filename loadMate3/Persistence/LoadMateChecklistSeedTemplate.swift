@@ -55,36 +55,135 @@ enum LoadMateChecklistSeedTemplate {
         }
     }
 
+    private static let waterAndWasteGroup = Group(
+        title: "Water & waste",
+        items: [
+            "Fresh water filler cap closed",
+            "Grey waste valve closed",
+            "Toilet cassette emptied if needed",
+        ]
+    )
+
+    private static let interiorTravelGroup = Group(
+        title: "Interior",
+        items: [
+            "Cupboards and lockers latched",
+            "Loose items stowed or secured",
+            "Fridge door locked",
+            "TV and shelves secured",
+        ]
+    )
+
+    private static let gasAndElectricGroup = Group(
+        title: "Gas & electric",
+        items: [
+            "Gas isolated at cylinder(s)",
+            "Mains hookup cable stowed",
+            "12V systems set for travel",
+        ]
+    )
+
+    private static let departureInteriorGroup = Group(
+        title: "Interior",
+        items: [
+            "Cupboards latched",
+            "Loose items packed",
+            "Roof vents positioned for travel",
+        ]
+    )
+
+    private static let onSiteServicesGroup = Group(
+        title: "Services",
+        items: [
+            "Electric hookup connected",
+            "Fresh water connected",
+            "Waste outlet positioned",
+        ]
+    )
+
+    static let motorhomeVehicleGroup = Group(
+        title: "Vehicle",
+        items: [
+            "Engine oil level",
+            "Coolant level",
+            "Screenwash topped up",
+            "Tyre pressures checked",
+            "Fuel and AdBlue levels",
+            "Lights and wipers working",
+        ]
+    )
+
+    /// Trailer-only factory rows that should not appear on a motorhome.
+    static let motorhomeExcludedItemTitles: Set<String> = [
+        "Jockey wheel raised and clamped",
+        "Corner steadies fully raised",
+        "Corner steadies raised",
+        "Corner steadies lowered",
+        "Engage motor mover",
+        "Disconnect motor mover",
+        "Hitch security checks complete",
+        "Coupling locked on tow ball",
+        "Breakaway cable attached",
+        "Secondary coupling / chains attached",
+        "Check connection, by winding up",
+        "Lights plug connected and latched",
+        "Tow mirrors fitted and adjusted",
+    ]
+
+    private static let euTravelGroups: [Group] = [
+        Group(
+            title: "Legal requirements",
+            items: [
+                "Passport validity checked",
+                "Travel insurance",
+                "GHIC / EHIC card",
+                "UK sticker / identifier",
+                "Reflective jackets",
+                "Warning triangle",
+                "Breathalyser kit (France optional; some still carry)",
+                "Headlight beam deflectors",
+                "Spare bulbs",
+                "Fire extinguisher",
+                "First aid kit",
+            ]
+        ),
+        Group(
+            title: "Vehicle compliance",
+            items: [
+                "European breakdown cover",
+                "Green card insurance if needed",
+                "Crit'Air sticker (France if required)",
+                "Emission zone registration",
+                "Toll tags / apps configured",
+            ]
+        ),
+        Group(
+            title: "Navigation & payments",
+            items: [
+                "Offline maps downloaded",
+                "Mobile roaming enabled",
+                "EU charging apps installed",
+                "Currency / cards prepared",
+            ]
+        ),
+        Group(
+            title: "Ferry / tunnel",
+            items: [
+                "Gas turned off before boarding",
+                "Height / length details available",
+                "Passport ready at border",
+            ]
+        ),
+    ]
+
     static let caravanSections: [Section] = [
         Section(
             title: "Before leaving home",
             templateOrder: 0,
             groups: [
-                Group(
-                    title: "Water & waste",
-                    items: [
-                        "Fresh water filler cap closed",
-                        "Grey waste valve closed",
-                        "Toilet cassette emptied if needed",
-                    ]
-                ),
-                Group(
-                    title: "Interior",
-                    items: [
-                        "Cupboards and lockers latched",
-                        "Loose items stowed or secured",
-                        "Fridge door locked",
-                        "TV and shelves secured",
-                    ]
-                ),
-                Group(
-                    title: "Gas & electric",
-                    items: [
-                        "Gas isolated at cylinder(s)",
-                        "Mains hookup cable stowed",
-                        "12V systems set for travel",
-                    ]
-                ),
+                waterAndWasteGroup,
+                interiorTravelGroup,
+                gasAndElectricGroup,
                 Group(
                     title: "Exterior & chassis",
                     items: [
@@ -134,14 +233,7 @@ enum LoadMateChecklistSeedTemplate {
                         "Unit levelled side-to-side and fore-aft",
                     ]
                 ),
-                Group(
-                    title: "Services",
-                    items: [
-                        "Electric hookup connected",
-                        "Fresh water connected",
-                        "Waste outlet positioned",
-                    ]
-                ),
+                onSiteServicesGroup,
                 Group(
                     title: "Stability",
                     items: [
@@ -156,14 +248,7 @@ enum LoadMateChecklistSeedTemplate {
             title: "Departure",
             templateOrder: 3,
             groups: [
-                Group(
-                    title: "Interior",
-                    items: [
-                        "Cupboards latched",
-                        "Loose items packed",
-                        "Roof vents positioned for travel",
-                    ]
-                ),
+                departureInteriorGroup,
                 Group(
                     title: "Exterior & hitch",
                     items: [
@@ -188,72 +273,92 @@ enum LoadMateChecklistSeedTemplate {
         Section(
             title: "EU / Overseas travel checklist",
             templateOrder: 4,
+            groups: euTravelGroups
+        ),
+    ]
+
+    static let motorhomeSections: [Section] = [
+        Section(
+            title: "Before leaving home",
+            templateOrder: 0,
+            groups: [
+                waterAndWasteGroup,
+                interiorTravelGroup,
+                gasAndElectricGroup,
+                Group(
+                    title: "Exterior",
+                    items: [
+                        "Steps folded and secured",
+                        "Windows and roof vents set for travel",
+                        "External lockers locked",
+                    ]
+                ),
+                motorhomeVehicleGroup,
+            ]
+        ),
+        Section(
+            title: "On site",
+            templateOrder: 1,
             groups: [
                 Group(
-                    title: "Legal requirements",
+                    title: "Arrival",
                     items: [
-                        "Passport validity checked",
-                        "Travel insurance",
-                        "GHIC / EHIC card",
-                        "UK sticker / identifier",
-                        "Reflective jackets",
-                        "Warning triangle",
-                        "Breathalyser kit (France optional; some still carry)",
-                        "Headlight beam deflectors",
-                        "Spare bulbs",
-                        "Fire extinguisher",
-                        "First aid kit",
+                        "Parked and level",
+                        "Handbrake applied",
+                        "Engine off",
                     ]
                 ),
+                onSiteServicesGroup,
                 Group(
-                    title: "Vehicle compliance",
+                    title: "Habitation",
                     items: [
-                        "European breakdown cover",
-                        "Green card insurance if needed",
-                        "Crit'Air sticker (France if required)",
-                        "Emission zone registration",
-                        "Toll tags / apps configured",
-                    ]
-                ),
-                Group(
-                    title: "Navigation & payments",
-                    items: [
-                        "Offline maps downloaded",
-                        "Mobile roaming enabled",
-                        "EU charging apps installed",
-                        "Currency / cards prepared",
-                    ]
-                ),
-                Group(
-                    title: "Ferry / tunnel",
-                    items: [
-                        "Gas turned off before boarding",
-                        "Height / length details available",
-                        "Passport ready at border",
+                        "Steps deployed safely",
+                        "12V systems set for site use",
                     ]
                 ),
             ]
         ),
+        Section(
+            title: "Departure",
+            templateOrder: 2,
+            groups: [
+                departureInteriorGroup,
+                Group(
+                    title: "Exterior",
+                    items: [
+                        "Steps stored",
+                        "All services disconnected and stowed",
+                        "Awning and aerial retracted",
+                    ]
+                ),
+                Group(
+                    title: "Final checks",
+                    items: [
+                        "Wheel nuts visual check",
+                        "Lights check",
+                        "Mirrors adjusted",
+                        "Last walk-around",
+                    ]
+                ),
+            ]
+        ),
+        Section(
+            title: "EU / Overseas travel checklist",
+            templateOrder: 3,
+            groups: euTravelGroups
+        ),
     ]
-
-    static var motorhomeSections: [Section] {
-        let keep: Set<String> = [
-            "Before leaving home",
-            "Departure",
-            "EU / Overseas travel checklist",
-        ]
-        return caravanSections
-            .filter { keep.contains($0.title) }
-            .enumerated()
-            .map { index, section in
-                Section(title: section.title, templateOrder: index, groups: section.groups)
-            }
-    }
 
     static func sections(for kind: VehicleKind) -> [Section] {
         switch kind {
         case .caravan: return caravanSections
         case .motorhome: return motorhomeSections
+        }
+    }
+
+    static func itemTitles(for kind: VehicleKind) -> [String] {
+        sections(for: kind).flatMap { section in
+            section.groups.flatMap(\.items)
         }
     }
 

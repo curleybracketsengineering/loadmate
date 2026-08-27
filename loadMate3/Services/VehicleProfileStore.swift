@@ -115,6 +115,7 @@ enum VehicleProfileStore {
 
         TripStore.ensureTripsMigrated(in: context, profiles: currentProfiles)
         ChecklistVehicleMigration.migrateIfNeeded(in: context, appState: state, profiles: currentProfiles)
+        ChecklistVehicleMigration.patchMotorhomeFactoryItemsIfNeeded(in: context, profiles: currentProfiles)
 
         return (sortedProfiles(currentProfiles), state)
     }
