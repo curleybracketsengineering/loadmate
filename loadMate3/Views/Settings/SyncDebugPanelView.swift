@@ -19,6 +19,7 @@ struct SyncDebugPanelView: View {
     @State private var healthReport: CloudKitProductionHealthReport?
     @State private var removalPreview = ""
     @State private var removalResult = ""
+    @State private var incrementalSeedResult = ""
     #if DEBUG
     @State private var suppressAutomaticSeeding = SyncDebugSeedIsolation.isAutomaticSeedingSuppressed
     #endif
@@ -39,6 +40,7 @@ struct SyncDebugPanelView: View {
                     isolationTestSection()
                     diagnosticAuditSection()
                     productionHealthSection()
+                    incrementalChecklistSeedSection()
                     deletionVerificationSection()
                     syncHistorySection()
                     probeSection()
@@ -244,6 +246,31 @@ struct SyncDebugPanelView: View {
                 }
                 if let healthReport {
                     Text(healthReport.formatted)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Color.primary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func incrementalChecklistSeedSection() -> some View {
+        AppSettingsSection(
+            "Incremental Checklist Seed",
+            caption: "Inserts one factory checklist section at a time from the same template as automatic seed. Does not turn seed on. Skips a title that already exists. Wait for Export OK before the next section."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
+                ForEach(Array(LoadMateChecklistSeedTemplate.sections.enumerated()), id: \.element.templateOrder) { index, section in
+                    AppSecondaryButton(section.debugButtonTitle) {
+                        let result = LoadMateChecklistSeedTemplate.insertSection(at: index, in: modelContext)
+                        incrementalSeedResult = result.userMessage
+                        refreshCounts()
+                    }
+                }
+                if !incrementalSeedResult.isEmpty {
+                    Text(incrementalSeedResult)
                         .font(.caption.monospaced())
                         .foregroundStyle(Color.primary)
                         .textSelection(.enabled)
