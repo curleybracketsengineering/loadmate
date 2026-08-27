@@ -78,6 +78,7 @@ enum VehicleProfileStore {
                 preferredID: LoadMateSyncIDs.defaultCaravanTrip,
                 in: context
             )
+            _ = LoadMateChecklistSeedTemplate.insertAll(onto: caravan, in: context)
 
             SyncDebugSeedLog.record("[profile-seed] creating default vehicle reason = paired factory motorhome")
             let motorhome = VehicleProfile(
@@ -94,6 +95,7 @@ enum VehicleProfileStore {
                 preferredID: LoadMateSyncIDs.defaultMotorhomeTrip,
                 in: context
             )
+            _ = LoadMateChecklistSeedTemplate.insertAll(onto: motorhome, in: context)
 
             state.didSeedDefaultProfiles = true
             setActive(caravan, appState: state, in: context)
@@ -112,6 +114,7 @@ enum VehicleProfileStore {
         let currentProfiles = (try? context.fetch(FetchDescriptor<VehicleProfile>())) ?? profiles
 
         TripStore.ensureTripsMigrated(in: context, profiles: currentProfiles)
+        ChecklistVehicleMigration.migrateIfNeeded(in: context, appState: state, profiles: currentProfiles)
 
         return (sortedProfiles(currentProfiles), state)
     }
@@ -133,6 +136,7 @@ enum VehicleProfileStore {
         )
         context.insert(profile)
         _ = TripStore.ensureDefaultTrip(for: profile, in: context)
+        _ = LoadMateChecklistSeedTemplate.insertAll(onto: profile, in: context)
         setActive(profile, appState: appState, in: context)
         return profile
     }

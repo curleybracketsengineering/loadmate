@@ -85,6 +85,7 @@ enum AppStateStore {
 
     target.didSeedDefaultProfiles = target.didSeedDefaultProfiles || source.didSeedDefaultProfiles
     target.didSeedDefaultChecklist = target.didSeedDefaultChecklist || source.didSeedDefaultChecklist
+    target.didMigrateChecklistsToVehicles = target.didMigrateChecklistsToVehicles || source.didMigrateChecklistsToVehicles
 
     let sourceProbeDate = source.syncProbeUpdatedAt ?? .distantPast
     let targetProbeDate = target.syncProbeUpdatedAt ?? .distantPast

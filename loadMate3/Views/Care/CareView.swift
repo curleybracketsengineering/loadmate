@@ -70,7 +70,7 @@ struct CareView: View {
     }
 
     private var checklistCounts: (completed: Int, total: Int) {
-        ChecklistProgress.overall(in: checklistSections)
+        ChecklistProgress.overall(in: ChecklistStore.sections(for: activeProfile, from: checklistSections))
     }
 
     var body: some View {

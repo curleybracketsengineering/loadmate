@@ -218,6 +218,9 @@ final class VehicleProfile {
     @Relationship(deleteRule: .cascade, inverse: \Trip.profile)
     var trips: [Trip]?
 
+    @Relationship(deleteRule: .cascade, inverse: \ChecklistSection.profile)
+    var checklistSections: [ChecklistSection]?
+
     /// Legacy loaded-item links kept for migration from pre-trip stores.
     @Relationship(deleteRule: .nullify, inverse: \LoadedItem.profile)
     var legacyLoadedItems: [LoadedItem]?
@@ -744,6 +747,8 @@ final class AppState {
     var didSeedDefaultProfiles: Bool = false
     /// Prevents duplicate built-in checklist templates across devices.
     var didSeedDefaultChecklist: Bool = false
+    /// Copies the former shared checklist onto every vehicle once, then deletes unscoped rows.
+    var didMigrateChecklistsToVehicles: Bool = false
     /// Hidden developer probe for confirming CloudKit export/import on real devices.
     var syncProbeSequence: Int = 0
     var syncProbeValue: String = ""
@@ -757,6 +762,7 @@ final class AppState {
         activeProfileID: UUID? = nil,
         didSeedDefaultProfiles: Bool = false,
         didSeedDefaultChecklist: Bool = false,
+        didMigrateChecklistsToVehicles: Bool = false,
         syncProbeSequence: Int = 0,
         syncProbeValue: String = "",
         syncProbeUpdatedAt: Date? = nil,
@@ -768,6 +774,7 @@ final class AppState {
         self.activeProfileID = activeProfileID
         self.didSeedDefaultProfiles = didSeedDefaultProfiles
         self.didSeedDefaultChecklist = didSeedDefaultChecklist
+        self.didMigrateChecklistsToVehicles = didMigrateChecklistsToVehicles
         self.syncProbeSequence = syncProbeSequence
         self.syncProbeValue = syncProbeValue
         self.syncProbeUpdatedAt = syncProbeUpdatedAt
@@ -780,6 +787,7 @@ final class ChecklistSection {
     var id: UUID = UUID()
     var title: String = ""
     var sortOrder: Int = 0
+    var profile: VehicleProfile? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.section)
     var items: [ChecklistItem]?
@@ -787,10 +795,11 @@ final class ChecklistSection {
     @Relationship(deleteRule: .cascade, inverse: \ChecklistGroup.section)
     var groups: [ChecklistGroup]?
 
-    init(id: UUID = UUID(), title: String, sortOrder: Int = 0) {
+    init(id: UUID = UUID(), title: String, sortOrder: Int = 0, profile: VehicleProfile? = nil) {
         self.id = id
         self.title = title
         self.sortOrder = sortOrder
+        self.profile = profile
     }
 }
 
@@ -842,6 +851,7 @@ final class ChecklistItem {
 
 extension VehicleProfile {
     var tripsList: [Trip] { trips ?? [] }
+    var checklistSectionsList: [ChecklistSection] { checklistSections ?? [] }
 }
 
 extension Trip {

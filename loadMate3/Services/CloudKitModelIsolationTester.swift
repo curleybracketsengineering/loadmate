@@ -83,27 +83,30 @@ enum CloudKitIsolationScenario: String, Equatable {
             return [
                 "  Trip.profile -> VehicleProfile",
                 "  VehicleProfile.trips -> Trip",
+                "  VehicleProfile.checklistSections -> ChecklistSection",
             ]
         case .checklist:
             return [
                 "  Trip.profile -> VehicleProfile",
                 "  VehicleProfile.trips -> Trip",
+                "  VehicleProfile.checklistSections -> ChecklistSection",
+                "  ChecklistSection.profile -> VehicleProfile",
                 "  ChecklistSection.items -> ChecklistItem",
                 "  ChecklistItem.section -> ChecklistSection",
                 "  ChecklistItem.group -> ChecklistGroup (not populated; 0 ChecklistGroup records)",
                 "  ChecklistSection.groups -> ChecklistGroup (not populated; 0 ChecklistGroup records)",
-                "  ChecklistSection / ChecklistItem have no relationship to AppState, VehicleProfile, or Trip",
             ]
         case .checklistGroup:
             return [
                 "  Trip.profile -> VehicleProfile",
                 "  VehicleProfile.trips -> Trip",
+                "  VehicleProfile.checklistSections -> ChecklistSection",
+                "  ChecklistSection.profile -> VehicleProfile",
                 "  ChecklistSection.groups -> ChecklistGroup",
                 "  ChecklistGroup.section -> ChecklistSection",
                 "  ChecklistItem.group -> ChecklistGroup",
                 "  ChecklistGroup.items -> ChecklistItem",
                 "  ChecklistItem.section not populated (matches production seed: item lives on the group)",
-                "  Checklist models have no relationship to AppState, VehicleProfile, or Trip",
             ]
         case .loadedItem:
             return [

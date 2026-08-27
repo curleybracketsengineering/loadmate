@@ -42,7 +42,7 @@ struct HomeDashboardPadView: View {
             profile: activeProfile,
             caravanSummary: viewModel.caravanSummary,
             motorhomeSummary: viewModel.motorhomeSummary,
-            checklistSections: checklistSections,
+            checklistSections: ChecklistStore.sections(for: activeProfile, from: checklistSections),
             tyreRecords: []
         )
     }

@@ -59,7 +59,7 @@ struct SafetyView: View {
             profile: activeProfile,
             caravanSummary: summaryVM.caravanSummary,
             motorhomeSummary: summaryVM.motorhomeSummary,
-            checklistSections: checklistSections,
+            checklistSections: ChecklistStore.sections(for: activeProfile, from: checklistSections),
             tyreRecords: activeTyreRecords
         )
     }

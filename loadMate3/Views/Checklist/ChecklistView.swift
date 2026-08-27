@@ -8,6 +8,7 @@ struct ChecklistView: View {
     @Environment(\.isPresented) private var isPresented
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \ChecklistSection.sortOrder) private var sections: [ChecklistSection]
+    @Query private var profiles: [VehicleProfile]
     @Query private var appStates: [AppState]
 
     @StateObject private var viewModel = ChecklistViewModel()
@@ -36,10 +37,19 @@ struct ChecklistView: View {
     /// Section IDs that are expanded; omitted sections render collapsed (default for new sessions).
     @State private var expandedSectionIDs: Set<UUID> = []
 
+    private var activeProfile: VehicleProfile? {
+        VehicleProfileStore.activeProfile(profiles: profiles, appState: AppStateStore.canonical(from: appStates))
+    }
+
+    private var scopedSections: [ChecklistSection] {
+        ChecklistStore.sections(for: activeProfile, from: sections)
+    }
+
     var body: some View {
         checklistMain
             .modifier(ChecklistDialogsModifier(
-                sections: sections,
+                sections: scopedSections,
+                profile: activeProfile,
                 modelContext: modelContext,
                 viewModel: viewModel,
                 showAddSection: $showAddSection,
@@ -56,22 +66,22 @@ struct ChecklistView: View {
                 itemRenameField: $itemRenameField,
                 showResetAllConfirm: $showResetAllConfirm
             ))
-            .task(id: sections.count) {
+            .task(id: "\(activeProfile?.id.uuidString ?? "none")-\(scopedSections.count)") {
                 let appState = AppStateStore.resolve(in: modelContext, existing: appStates)
                 viewModel.migrateLegacyChecklistIfNeeded(in: modelContext)
-                viewModel.ensureSeedData(in: modelContext, existingSections: sections, appState: appState)
+                viewModel.ensureSeedData(in: modelContext, existingSections: scopedSections, appState: appState)
             }
     }
 
     @ViewBuilder
     private var checklistMain: some View {
         Group {
-            if sections.isEmpty {
+            if scopedSections.isEmpty {
                 VStack(spacing: AppScreenMetrics.sectionSpacing) {
                     ContentUnavailableView(
                         "No checklist sections",
                         systemImage: "checklist",
-                        description: Text("Add a section to build your towing and pitching checklists. Each section can contain subgroups and checklist items. Nothing is created automatically.")
+                        description: Text("This vehicle has no checklist sections. Add a section to build a towing or pitching list. New vehicles get a starter checklist for their type.")
                     )
                     AppPrimaryButton("Add section", systemImage: "folder.badge.plus") {
                         showAddSection = true
@@ -82,7 +92,7 @@ struct ChecklistView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if usePadLayout {
                 ChecklistPadLayout(
-                    sections: sections,
+                    sections: scopedSections,
                     viewModel: viewModel,
                     showAddSection: $showAddSection,
                     sectionPendingRename: $sectionPendingRename,
@@ -132,7 +142,7 @@ struct ChecklistView: View {
                             Label("Add section", systemImage: "folder.badge.plus")
                         }
 
-                        if !sections.isEmpty {
+                        if !scopedSections.isEmpty {
                             Button(role: .destructive) {
                                 showResetAllConfirm = true
                             } label: {
@@ -162,7 +172,7 @@ struct ChecklistView: View {
     private var checklistSectionsList: some View {
         // VStack: few sections, stable heights — LazyVStack + collapsing cards can confuse scroll layout.
         VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
-            ForEach(sections) { section in
+            ForEach(scopedSections) { section in
                 checklistSectionCard(section)
             }
         }
@@ -468,6 +478,7 @@ private struct ChecklistNavigationTitleModifier: ViewModifier {
 
 private struct ChecklistDialogsModifier: ViewModifier {
     let sections: [ChecklistSection]
+    let profile: VehicleProfile?
     let modelContext: ModelContext
     let viewModel: ChecklistViewModel
 
@@ -490,7 +501,7 @@ private struct ChecklistDialogsModifier: ViewModifier {
             .alert("Add section", isPresented: $showAddSection) {
                 TextField("Section name", text: $newSectionTitle)
                 Button("Add") {
-                    viewModel.addSection(title: newSectionTitle, in: modelContext, sections: sections)
+                    viewModel.addSection(title: newSectionTitle, in: modelContext, sections: sections, profile: profile)
                     newSectionTitle = ""
                 }
                 Button("Cancel", role: .cancel) {}

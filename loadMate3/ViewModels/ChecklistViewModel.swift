@@ -52,7 +52,7 @@ final class ChecklistViewModel: ObservableObject {
         StartupCensus.log("checklist before seed/migration", in: context)
         defer { StartupCensus.log("checklist after seed/migration", in: context) }
         if !LoadMateSeedPolicy.automaticVehicleAndChecklistSeedEnabled {
-            SyncDebugSeedLog.record("[seed] Checklist template seed skipped — automatic checklist seed disabled")
+            SyncDebugSeedLog.record("[seed] Checklist template seed skipped — automatic checklist seed disabled; new vehicles get a kind-specific checklist when created")
             return
         }
         if SyncDebugSeedIsolation.isAutomaticSeedingSuppressed {
@@ -76,17 +76,21 @@ final class ChecklistViewModel: ObservableObject {
         }
 
         SyncDebugSeedLog.record("[seed] created checklist template reason = no sections existed")
-        let created = LoadMateChecklistSeedTemplate.insertAll(in: context)
+        SyncDebugSeedLog.record("[seed] Checklist seed skipped — vehicle create is the only seed path")
         appState.didSeedDefaultChecklist = true
-        SyncDebugSeedLog.record("[seed] Created \(created.sections) checklist sections / \(created.items) checklist items")
         save(context)
     }
 
-    func addSection(title: String, in context: ModelContext, sections: [ChecklistSection]) {
+    func addSection(
+        title: String,
+        in context: ModelContext,
+        sections: [ChecklistSection],
+        profile: VehicleProfile?
+    ) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         let nextOrder = (sections.map(\.sortOrder).max() ?? -1) + 1
-        let section = ChecklistSection(title: trimmed, sortOrder: nextOrder)
+        let section = ChecklistSection(title: trimmed, sortOrder: nextOrder, profile: profile)
         context.insert(section)
         save(context)
     }

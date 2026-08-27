@@ -259,12 +259,19 @@ struct SyncDebugPanelView: View {
     private func incrementalChecklistSeedSection() -> some View {
         AppSettingsSection(
             "Incremental Checklist Seed",
-            caption: "Inserts one factory checklist section at a time from the same template as automatic seed. Does not turn seed on. Skips a title that already exists. Wait for Export OK before the next section."
+            caption: "Inserts one factory section for the active vehicle’s kind (caravan or motorhome). Skips a title that already exists on that vehicle. Wait for Export OK before the next section."
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.controlSpacing) {
-                ForEach(Array(LoadMateChecklistSeedTemplate.sections.enumerated()), id: \.element.templateOrder) { index, section in
+                ForEach(
+                    Array(LoadMateChecklistSeedTemplate.sections(for: incrementalSeedTargetProfile?.kind ?? .caravan).enumerated()),
+                    id: \.element.templateOrder
+                ) { index, section in
                     AppSecondaryButton(section.debugButtonTitle) {
-                        let result = LoadMateChecklistSeedTemplate.insertSection(at: index, in: modelContext)
+                        let result = LoadMateChecklistSeedTemplate.insertSection(
+                            at: index,
+                            onto: incrementalSeedTargetProfile,
+                            in: modelContext
+                        )
                         incrementalSeedResult = result.userMessage
                         refreshCounts()
                     }
@@ -595,6 +602,11 @@ struct SyncDebugPanelView: View {
             syncProbeUpdatedAt: appState?.syncProbeUpdatedAt,
             syncProbeUpdatedBy: appState?.syncProbeUpdatedBy ?? ""
         )
+    }
+
+    private var incrementalSeedTargetProfile: VehicleProfile? {
+        let profiles = (try? modelContext.fetch(FetchDescriptor<VehicleProfile>())) ?? []
+        return VehicleProfileStore.activeProfile(profiles: profiles, appState: appState)
     }
 
     private var lastSyncEventText: String {

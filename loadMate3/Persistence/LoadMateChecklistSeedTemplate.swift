@@ -25,6 +25,7 @@ enum LoadMateChecklistSeedTemplate {
     enum InsertResult: Equatable {
         case inserted(title: String, groups: Int, items: Int)
         case skippedAlreadyExists(title: String)
+        case skippedNoVehicle
         case invalidIndex
 
         var logLine: String {
@@ -33,6 +34,8 @@ enum LoadMateChecklistSeedTemplate {
                 return "[seed] inserted incremental section \(title) groups=\(groups) items=\(items)"
             case .skippedAlreadyExists(let title):
                 return "[seed] skipped incremental section — \(title) already exists"
+            case .skippedNoVehicle:
+                return "[seed] skipped incremental section — no active vehicle"
             case .invalidIndex:
                 return "[seed] skipped incremental section — invalid index"
             }
@@ -43,14 +46,16 @@ enum LoadMateChecklistSeedTemplate {
             case .inserted(let title, let groups, let items):
                 return "Inserted \(title) — \(groups) groups, \(items) items. Wait for Export OK on this device and Import OK on the other before adding the next section."
             case .skippedAlreadyExists(let title):
-                return "Skipped — \(title) already exists."
+                return "Skipped — \(title) already exists on this vehicle."
+            case .skippedNoVehicle:
+                return "Skipped — add or select a vehicle first."
             case .invalidIndex:
                 return "Skipped — invalid section index."
             }
         }
     }
 
-    static let sections: [Section] = [
+    static let caravanSections: [Section] = [
         Section(
             title: "Before leaving home",
             templateOrder: 0,
@@ -231,38 +236,79 @@ enum LoadMateChecklistSeedTemplate {
         ),
     ]
 
-    static var totalItemCount: Int {
-        sections.reduce(0) { $0 + $1.itemCount }
+    static var motorhomeSections: [Section] {
+        let keep: Set<String> = [
+            "Before leaving home",
+            "Departure",
+            "EU / Overseas travel checklist",
+        ]
+        return caravanSections
+            .filter { keep.contains($0.title) }
+            .enumerated()
+            .map { index, section in
+                Section(title: section.title, templateOrder: index, groups: section.groups)
+            }
     }
 
-    /// Inserts every factory section using template sort order. Caller saves.
-    @MainActor
-    @discardableResult
-    static func insertAll(in context: ModelContext) -> (sections: Int, items: Int) {
-        var createdItems = 0
-        for template in sections {
-            createdItems += materialize(template, sortOrder: template.templateOrder, in: context).items
+    static func sections(for kind: VehicleKind) -> [Section] {
+        switch kind {
+        case .caravan: return caravanSections
+        case .motorhome: return motorhomeSections
         }
-        return (sections.count, createdItems)
     }
 
-    /// Inserts one factory section after existing rows. Does not set `didSeedDefaultChecklist`.
+    static var totalItemCount: Int {
+        caravanSections.reduce(0) { $0 + $1.itemCount }
+    }
+
+    static var motorhomeItemCount: Int {
+        motorhomeSections.reduce(0) { $0 + $1.itemCount }
+    }
+
+    /// Inserts every factory section for this vehicle's kind. Caller saves.
     @MainActor
     @discardableResult
-    static func insertSection(at index: Int, in context: ModelContext) -> InsertResult {
-        guard sections.indices.contains(index) else {
+    static func insertAll(onto profile: VehicleProfile, in context: ModelContext) -> (sections: Int, items: Int) {
+        let templates = sections(for: profile.kind)
+        var createdItems = 0
+        for template in templates {
+            createdItems += materialize(
+                template,
+                sortOrder: template.templateOrder,
+                onto: profile,
+                in: context
+            ).items
+        }
+        return (templates.count, createdItems)
+    }
+
+    /// Inserts one factory section for the vehicle's kind. Skips a title that already exists on that vehicle.
+    @MainActor
+    @discardableResult
+    static func insertSection(
+        at index: Int,
+        onto profile: VehicleProfile?,
+        in context: ModelContext
+    ) -> InsertResult {
+        guard let profile else {
+            let result = InsertResult.skippedNoVehicle
+            record(result.logLine)
+            return result
+        }
+        let templates = sections(for: profile.kind)
+        guard templates.indices.contains(index) else {
             record(InsertResult.invalidIndex.logLine)
             return .invalidIndex
         }
-        let template = sections[index]
-        let existing = (try? context.fetch(FetchDescriptor<ChecklistSection>())) ?? []
+        let template = templates[index]
+        let existing = profile.checklistSectionsList
         if existing.contains(where: { $0.title.caseInsensitiveCompare(template.title) == .orderedSame }) {
             let result = InsertResult.skippedAlreadyExists(title: template.title)
             record(result.logLine)
             return result
         }
         let nextOrder = (existing.map(\.sortOrder).max() ?? -1) + 1
-        let created = materialize(template, sortOrder: nextOrder, in: context)
+        let created = materialize(template, sortOrder: nextOrder, onto: profile, in: context)
         _ = SyncDebugSaveHelper.save(context, source: "LoadMateChecklistSeedTemplate.insertSection")
         let result = InsertResult.inserted(
             title: template.title,
@@ -277,9 +323,10 @@ enum LoadMateChecklistSeedTemplate {
     private static func materialize(
         _ template: Section,
         sortOrder: Int,
+        onto profile: VehicleProfile,
         in context: ModelContext
     ) -> (groups: Int, items: Int) {
-        let section = ChecklistSection(title: template.title, sortOrder: sortOrder)
+        let section = ChecklistSection(title: template.title, sortOrder: sortOrder, profile: profile)
         context.insert(section)
         var itemCount = 0
         for (groupIndex, groupSeed) in template.groups.enumerated() {
