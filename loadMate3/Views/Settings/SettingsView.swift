@@ -432,10 +432,17 @@ struct SettingsView: View {
         return "\(name) · \(makeModel)"
     }
 
+    private static let requiredFieldsLegend = "Fields marked * are required for Summary and Load."
+
+    private func captionWithRequiredLegend(_ caption: String) -> String {
+        "\(caption) \(Self.requiredFieldsLegend)"
+    }
+
     private func vehicleSectionCaption(for profile: VehicleProfile, fallback: String) -> String {
         let identity = profileSubtitle(profile)
-        if identity.isEmpty { return fallback }
-        return "\(identity). \(fallback)"
+        let withRequired = captionWithRequiredLegend(fallback)
+        if identity.isEmpty { return withRequired }
+        return "\(identity). \(withRequired)"
     }
 
     private static let developerEmail = "smatheson6@icloude.com"
@@ -661,6 +668,7 @@ struct SettingsView: View {
                             missingLabel: "MTPLM (kg)",
                             on: profile
                         ),
+                        isRequired: true,
                         value: binding(for: \.mtplmKg, on: profile),
                         fractionDigitsUpperBound: 0
                     ),
@@ -671,6 +679,7 @@ struct SettingsView: View {
                             missingLabel: "MIRO (kg) or weighbridge weight (kg)",
                             on: profile
                         ),
+                        isRequired: true,
                         value: binding(for: \.baseWeightKg, on: profile),
                         fractionDigitsUpperBound: 0
                     )
@@ -703,6 +712,7 @@ struct SettingsView: View {
                         missingLabel: "MTPLM (kg)",
                         on: profile
                     ),
+                    isRequired: true,
                     value: binding(for: \.mtplmKg, on: profile),
                     fractionDigitsUpperBound: 0
                 )
@@ -713,6 +723,7 @@ struct SettingsView: View {
                         missingLabel: "MIRO (kg) or weighbridge weight (kg)",
                         on: profile
                     ),
+                    isRequired: true,
                     value: binding(for: \.baseWeightKg, on: profile),
                     fractionDigitsUpperBound: 0
                 )
@@ -748,6 +759,7 @@ struct SettingsView: View {
                             missingLabel: "MAM (kg)",
                             on: profile
                         ),
+                        isRequired: true,
                         value: binding(for: \.mtplmKg, on: profile),
                         fractionDigitsUpperBound: 0
                     ),
@@ -765,6 +777,7 @@ struct SettingsView: View {
                         missingLabel: "MRO (kg) or weighbridge weight",
                         on: profile
                     ),
+                    isRequired: true,
                     value: binding(for: \.baseWeightKg, on: profile),
                     fractionDigitsUpperBound: 0
                 )
@@ -788,6 +801,7 @@ struct SettingsView: View {
                         missingLabel: "MAM (kg)",
                         on: profile
                     ),
+                    isRequired: true,
                     value: binding(for: \.mtplmKg, on: profile),
                     fractionDigitsUpperBound: 0
                 )
@@ -804,6 +818,7 @@ struct SettingsView: View {
                         missingLabel: "MRO (kg) or weighbridge weight",
                         on: profile
                     ),
+                    isRequired: true,
                     value: binding(for: \.baseWeightKg, on: profile),
                     fractionDigitsUpperBound: 0
                 )
@@ -821,36 +836,82 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
+    private func caravanIdentityFields(_ profile: VehicleProfile) -> some View {
+        AppLabeledTextField(
+            "Manufacturer",
+            caption: "Brand from the manufacturer plate when shown",
+            placeholder: "e.g. Swift",
+            text: stringBinding(for: \.manufacturer, on: profile)
+        )
+        AppLabeledTextField(
+            "Model",
+            caption: "Model or range from the plate when shown",
+            placeholder: "e.g. Conqueror 645",
+            text: stringBinding(for: \.modelName, on: profile)
+        )
+        AppLabeledTextField(
+            "VIN / chassis",
+            caption: "From the manufacturer plate, CRiS documents or VIN Chip sticker",
+            placeholder: "e.g. SGA…",
+            text: stringBinding(for: \.vinChassisNumber, on: profile)
+        )
+        vinChipScanControls(for: profile)
+    }
+
+    @ViewBuilder
+    private func motorhomeIdentityFields(_ profile: VehicleProfile) -> some View {
+        AppLabeledTextField(
+            "Registration",
+            caption: "UK number plate for this motorhome",
+            placeholder: "e.g. AB12 CDE",
+            text: stringBinding(for: \.registrationMark, on: profile),
+            keyboard: .asciiCapable
+        )
+        vehicleLookupControls(for: profile)
+        AppLabeledTextField(
+            "Manufacturer",
+            caption: "Brand from the manufacturer plate when shown",
+            placeholder: "e.g. Bailey",
+            text: stringBinding(for: \.manufacturer, on: profile)
+        )
+        AppLabeledTextField(
+            "Model",
+            caption: "Model or range from the plate when shown",
+            placeholder: "e.g. Autograph 79-4F",
+            text: stringBinding(for: \.modelName, on: profile)
+        )
+        AppLabeledTextField(
+            "VIN / chassis",
+            caption: "From the manufacturer plate, V5C or VIN Chip sticker",
+            placeholder: "e.g. WX1…",
+            text: stringBinding(for: \.vinChassisNumber, on: profile)
+        )
+        AppLabeledTextField(
+            "Body / cell number",
+            caption: "Converter serial on some EU plates (e.g. Rapido N° de cellule)",
+            placeholder: "e.g. 16-0792-1592616",
+            text: stringBinding(for: \.bodyCellNumber, on: profile)
+        )
+    }
+
     // MARK: - Caravan
 
     @ViewBuilder
     private func caravanSettings(_ profile: VehicleProfile) -> some View {
-        AppSettingsSection("Caravan", caption: vehicleSectionCaption(for: profile, fallback: "Weights from your caravan plate or handbook.")) {
+        AppSettingsSection(
+            "Caravan",
+            caption: vehicleSectionCaption(
+                for: profile,
+                fallback: "Scan the manufacturer plate first to fill MTPLM, MIRO and hitch limit."
+            )
+        ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 if !profile.isConfiguredForWeightCalculations {
                     AppWarningBanner(message: profile.weightCalculationSetupSummaryMessage)
                 }
-                caravanPlateFields(profile)
                 plateScanControls(for: profile)
-                AppLabeledTextField(
-                    "Manufacturer",
-                    caption: "Brand from the manufacturer plate when shown",
-                    placeholder: "e.g. Swift",
-                    text: stringBinding(for: \.manufacturer, on: profile)
-                )
-                AppLabeledTextField(
-                    "Model",
-                    caption: "Model or range from the plate when shown",
-                    placeholder: "e.g. Conqueror 645",
-                    text: stringBinding(for: \.modelName, on: profile)
-                )
-                AppLabeledTextField(
-                    "VIN / chassis",
-                    caption: "From the manufacturer plate, CRiS documents or VIN Chip sticker",
-                    placeholder: "e.g. SGA…",
-                    text: stringBinding(for: \.vinChassisNumber, on: profile)
-                )
-                vinChipScanControls(for: profile)
+                caravanPlateFields(profile)
                 Toggle(isOn: boolBinding(for: \.hasBikeRack, on: profile)) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Bike rack fitted")
@@ -866,7 +927,16 @@ struct SettingsView: View {
             }
         }
 
-        AppSettingsSection("Vehicle", caption: "Your car’s towing specification.") {
+        AppSettingsSection(
+            "Caravan details",
+            caption: "Make, model and VIN. A plate scan fills these when the photo includes them."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                caravanIdentityFields(profile)
+            }
+        }
+
+        AppSettingsSection("Vehicle", caption: captionWithRequiredLegend("Your car’s towing specification.")) {
             let baselineSummary = WeightCalculator.summary(profile: profile, loadedItems: [])
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 AppLabeledNumberField(
@@ -876,6 +946,7 @@ struct SettingsView: View {
                         missingLabel: "Car tow ball limit (kg)",
                         on: profile
                     ),
+                    isRequired: true,
                     value: binding(for: \.carMaxTowBallKg, on: profile),
                     fractionDigitsUpperBound: 0
                 )
@@ -988,51 +1059,34 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func motorhomeSettings(_ profile: VehicleProfile) -> some View {
-        AppSettingsSection("Motorhome", caption: vehicleSectionCaption(for: profile, fallback: "Limits from your vehicle plate (MAM, GTW and axle weights).")) {
+        AppSettingsSection(
+            "Motorhome",
+            caption: vehicleSectionCaption(
+                for: profile,
+                fallback: "Scan the manufacturer plate first to fill MAM, GTW and axle limits."
+            )
+        ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 if !profile.isConfiguredForWeightCalculations {
                     AppWarningBanner(message: profile.weightCalculationSetupSummaryMessage)
                 }
-                motorhomePlateFields(profile)
                 plateScanControls(for: profile)
-                AppLabeledTextField(
-                    "Registration",
-                    caption: "UK number plate for this motorhome",
-                    placeholder: "e.g. AB12 CDE",
-                    text: stringBinding(for: \.registrationMark, on: profile),
-                    keyboard: .asciiCapable
-                )
-                vehicleLookupControls(for: profile)
-                AppLabeledTextField(
-                    "Manufacturer",
-                    caption: "Brand from the manufacturer plate when shown",
-                    placeholder: "e.g. Bailey",
-                    text: stringBinding(for: \.manufacturer, on: profile)
-                )
-                AppLabeledTextField(
-                    "Model",
-                    caption: "Model or range from the plate when shown",
-                    placeholder: "e.g. Autograph 79-4F",
-                    text: stringBinding(for: \.modelName, on: profile)
-                )
-                AppLabeledTextField(
-                    "VIN / chassis",
-                    caption: "From the manufacturer plate, V5C or VIN Chip sticker",
-                    placeholder: "e.g. WX1…",
-                    text: stringBinding(for: \.vinChassisNumber, on: profile)
-                )
-                AppLabeledTextField(
-                    "Body / cell number",
-                    caption: "Converter serial on some EU plates (e.g. Rapido N° de cellule)",
-                    placeholder: "e.g. 16-0792-1592616",
-                    text: stringBinding(for: \.bodyCellNumber, on: profile)
-                )
+                motorhomePlateFields(profile)
+            }
+        }
+
+        AppSettingsSection(
+            "Motorhome details",
+            caption: "Registration, make and model. A plate scan fills manufacturer, VIN and body number when the photo includes them."
+        ) {
+            VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
+                motorhomeIdentityFields(profile)
             }
         }
 
         AppSettingsSection(
             "Axle weighbridge",
-            caption: "For best accuracy, enter front and rear axle weights from your weighbridge ticket. Front plus rear should match weighbridge gross on the same ticket."
+            caption: captionWithRequiredLegend("For best accuracy, enter front and rear axle weights from your weighbridge ticket. Front plus rear should match weighbridge gross on the same ticket.")
         ) {
             VStack(alignment: .leading, spacing: AppScreenMetrics.fieldSpacing) {
                 motorhomeAxleWeighbridgeFields(profile)
@@ -1168,6 +1222,7 @@ struct SettingsView: View {
                             missingLabel: "Max front axle (kg)",
                             on: profile
                         ),
+                        isRequired: true,
                         value: binding(for: \.maxFrontAxleKg, on: profile),
                         fractionDigitsUpperBound: 0
                     ),
@@ -1178,6 +1233,7 @@ struct SettingsView: View {
                             missingLabel: "Max rear axle (kg)",
                             on: profile
                         ),
+                        isRequired: true,
                         value: binding(for: \.maxRearAxleKg, on: profile),
                         fractionDigitsUpperBound: 0
                     )
@@ -1211,6 +1267,7 @@ struct SettingsView: View {
                             missingLabel: "Max front axle (kg)",
                             on: profile
                         ),
+                        isRequired: true,
                         value: binding(for: \.maxFrontAxleKg, on: profile),
                         fractionDigitsUpperBound: 0
                     )
@@ -1237,6 +1294,7 @@ struct SettingsView: View {
                             missingLabel: "Max rear axle (kg)",
                             on: profile
                         ),
+                        isRequired: true,
                         value: binding(for: \.maxRearAxleKg, on: profile),
                         fractionDigitsUpperBound: 0
                     )

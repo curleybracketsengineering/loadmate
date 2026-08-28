@@ -561,26 +561,40 @@ struct AppBoundedNumberField: View {
 struct AppLabeledNumberField: View {
     let title: String
     let caption: String?
+    let isRequired: Bool
     @Binding var value: Double
     var fractionDigitsUpperBound: Int
 
     init(
         _ title: String,
         caption: String? = nil,
+        isRequired: Bool = false,
         value: Binding<Double>,
         fractionDigitsUpperBound: Int = 2
     ) {
         self.title = title
         self.caption = caption
+        self.isRequired = isRequired
         self._value = value
         self.fractionDigitsUpperBound = fractionDigitsUpperBound
     }
 
     var labelBlock: some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.tinySpacing) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(Color.primary)
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(Color.primary)
+                if isRequired {
+                    Text("*")
+                        .font(.headline)
+                        .foregroundStyle(LyneqoTheme.primaryTeal)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(isRequired ? "\(title), required" : title)
+
             if let caption, !caption.isEmpty {
                 Text(caption)
                     .font(.caption)
