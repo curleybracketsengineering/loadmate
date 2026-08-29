@@ -37,11 +37,11 @@ struct HomeTripSelectorBar: View {
                 Button {
                     showAddTrip = true
                 } label: {
-                    Label("New trip", systemImage: "plus")
+                    Label("New Loading Configuration", systemImage: "plus")
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Text(activeTrip?.name ?? "Select trip")
+                    Text(activeTrip?.name ?? "Select loading configuration")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.primary)
                     Image(systemName: "chevron.down")
@@ -53,7 +53,7 @@ struct HomeTripSelectorBar: View {
 
             Spacer(minLength: 0)
 
-            Button("Change Trip") {
+            Button("Rename") {
                 if let trip = activeTrip {
                     tripPendingRename = trip
                     tripRenameField = trip.name
@@ -331,7 +331,7 @@ struct LoadWorkflowMetricsStrip: View {
 
     var body: some View {
         HStack(spacing: AppScreenMetrics.smallSpacing) {
-            stripMetric(title: "Total Trip Load", value: Formatters.kg(totalLoadKg), caption: limitKg > 0 ? "of \(Formatters.kg(limitKg))" : nil)
+            stripMetric(title: "Total Load", value: Formatters.kg(totalLoadKg), caption: limitKg > 0 ? "of \(Formatters.kg(limitKg))" : nil)
             stripMetric(title: "Payload Left", value: Formatters.kg(payloadLeftKg), caption: "remaining")
             stripMetric(title: profile.kind == .caravan ? "Est. Nose Weight" : "Tow Ball Load", value: Formatters.kg(noseKg), caption: noseCaption)
         }

@@ -6,6 +6,7 @@ enum PadTab: Hashable {
     case safety
     case maintenance
     case checklist
+    case trips
     case settings
 }
 
@@ -24,10 +25,11 @@ struct PadTabBar: View {
     private var tabs: [TabDescriptor] {
         [
             TabDescriptor(tab: .summary, title: "Summary", systemImage: "plus.forwardslash.minus"),
-            TabDescriptor(tab: .load, title: "Load & placement", systemImage: "shippingbox"),
+            TabDescriptor(tab: .load, title: "Load", systemImage: "shippingbox"),
             TabDescriptor(tab: .safety, title: "Safety", systemImage: "shield"),
             TabDescriptor(tab: .maintenance, title: "Maintenance", systemImage: "wrench.and.screwdriver"),
             TabDescriptor(tab: .checklist, title: "Checklist", systemImage: "checklist"),
+            TabDescriptor(tab: .trips, title: "Trips", systemImage: "suitcase"),
             TabDescriptor(tab: .settings, title: "Settings", systemImage: "gearshape"),
         ]
     }

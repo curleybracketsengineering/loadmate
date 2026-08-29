@@ -49,8 +49,8 @@ struct TripNotesToolbarButton: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Trip notes for \(trip.name)")
-        .pointerHelp("Trip notes")
+        .accessibilityLabel("Loading notes for \(trip.name)")
+        .pointerHelp("Loading notes")
     }
 }
 
@@ -80,7 +80,7 @@ struct TripLoadingNotesSheet: View {
         NavigationStack {
             compactSheetBody
             .appScreenBackground()
-            .navigationTitle("Trip notes")
+            .navigationTitle("Loading notes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -205,7 +205,7 @@ struct TripLoadingNotesSheet: View {
 
             tripNotesEditor(
                 title: "Notes",
-                caption: "Record anything useful for this trip setup — handling, water levels, levelling, or last-minute changes.",
+                caption: "Record anything useful for this loading configuration — handling, water levels, levelling, or last-minute changes.",
                 minHeight: 80
             )
         }

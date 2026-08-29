@@ -106,12 +106,12 @@ struct MotorhomeSummaryPadLayout: View {
                             .foregroundStyle(Color.secondary)
 
                         Button(action: onRenameTrip) {
-                            Label("Rename trip", systemImage: "pencil")
+                            Label("Rename Loading Configuration", systemImage: "pencil")
                                 .font(.caption.weight(.semibold))
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .accessibilityLabel("Rename trip \(trip.name)")
+                        .accessibilityLabel("Rename loading configuration \(trip.name)")
                     }
                 }
             }

@@ -20,7 +20,7 @@ struct TripPickerBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppScreenMetrics.smallSpacing) {
             HStack(alignment: .firstTextBaseline, spacing: AppScreenMetrics.smallSpacing) {
-                AppSectionHeading("Trip")
+                AppSectionHeading("Loading Configuration")
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if let trip = activeTrip, let onOpenTripNotes {
@@ -33,7 +33,7 @@ struct TripPickerBar: View {
                     Button {
                         showAddTrip = true
                     } label: {
-                        Label("New trip", systemImage: "plus.circle")
+                        Label("New Loading Configuration", systemImage: "plus.circle")
                     }
                 } label: {
                     Image(systemName: "plus.circle")
@@ -42,8 +42,8 @@ struct TripPickerBar: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .accessibilityLabel("Add trip")
-                .pointerHelp("New trip")
+                .accessibilityLabel("Add Loading Configuration")
+                .pointerHelp("New Loading Configuration")
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -95,7 +95,7 @@ struct TripPickerBar: View {
                 Button {
                     onOpenTripNotes(trip)
                 } label: {
-                    Label("Trip notes", systemImage: "note.text")
+                    Label("Loading notes", systemImage: "note.text")
                 }
             }
 
@@ -104,20 +104,20 @@ struct TripPickerBar: View {
                     tripPendingRename = trip
                     tripRenameField = trip.name
                 } label: {
-                    Label("Rename trip", systemImage: "pencil")
+                    Label("Rename Loading Configuration", systemImage: "pencil")
                 }
 
                 if canDeleteActiveTrip {
                     Button(role: .destructive) {
                         TripStore.deleteTrip(trip, from: profile, in: modelContext)
                     } label: {
-                        Label("Delete trip", systemImage: "trash")
+                        Label("Delete Loading Configuration", systemImage: "trash")
                     }
                 }
             }
         }
         .accessibilityLabel("\(trip.name)\(isActive ? ", selected" : "")")
-        .accessibilityHint(isActive ? "Long press for rename or delete" : "Double tap to switch to this trip")
+        .accessibilityHint(isActive ? "Long press for rename or delete" : "Double tap to switch to this loading configuration")
     }
 }
 
@@ -134,12 +134,12 @@ struct AddTripSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppScreenMetrics.sectionSpacing) {
                     AppLabeledTextField(
-                        "Trip name",
+                        "Loading configuration name",
                         placeholder: "e.g., Beach, Grandkids, Europe",
                         text: $name
                     )
 
-                    AppPrimaryButton("Create trip") {
+                    AppPrimaryButton("Create Loading Configuration") {
                         onAdd()
                     }
                     .padding(.top, AppScreenMetrics.tinySpacing)
@@ -150,7 +150,7 @@ struct AddTripSheet: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .appScreenBackground()
-            .navigationTitle("New trip")
+            .navigationTitle("New Loading Configuration")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

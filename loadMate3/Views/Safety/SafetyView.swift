@@ -143,11 +143,11 @@ struct SafetyView: View {
                     showAddTrip = false
                 }
             }
-            .alert("Rename trip", isPresented: Binding(
+            .alert("Rename Loading Configuration", isPresented: Binding(
                 get: { tripPendingRename != nil },
                 set: { if !$0 { tripPendingRename = nil } }
             )) {
-                TextField("Trip name", text: $tripRenameField)
+                TextField("Loading configuration name", text: $tripRenameField)
                 Button("Save") {
                     if let trip = tripPendingRename {
                         TripStore.renameTrip(trip, name: tripRenameField, in: modelContext)

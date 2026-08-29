@@ -78,7 +78,7 @@ enum MotorhomeSummaryContent {
                     .font(.headline)
                     .foregroundStyle(Color.primary)
 
-                Text("Entered on the Load tab for this trip. Included in rear axle and gross weight; not estimated from item positions.")
+                Text("Entered on the Load tab for this loading configuration. Included in rear axle and gross weight; not estimated from item positions.")
                     .font(.caption)
                     .foregroundStyle(AppColors.textSupporting)
                     .fixedSize(horizontal: false, vertical: true)
@@ -205,9 +205,9 @@ enum MotorhomeSummaryContent {
 
     private static func garageLimitCaption(profile: VehicleProfile) -> String {
         if profile.garageLimitIncludesBikeRack {
-            return "Trip items in the Garage and Bike Rack zones, versus your combined rear limit. Also included in rear axle estimate."
+            return "Loaded items in the Garage and Bike Rack zones, versus your combined rear limit. Also included in rear axle estimate."
         }
-        return "Trip items in the Garage zone only. Bike rack items are not included in this limit. Also included in rear axle estimate."
+        return "Loaded items in the Garage zone only. Bike rack items are not included in this limit. Also included in rear axle estimate."
     }
 
     private static func garageLimitEmptyHint(profile: VehicleProfile) -> String {

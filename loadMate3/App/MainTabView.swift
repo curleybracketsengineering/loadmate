@@ -96,6 +96,10 @@ struct MainTabView: View {
             MaintenancePadView()
         case .checklist:
             ChecklistView()
+        case .trips:
+            NavigationStack {
+                TripRecordsListView()
+            }
         case .settings:
             SettingsView(onNavigateToSummary: { selectedPadTab = .summary })
         }
@@ -107,10 +111,6 @@ struct MainTabView: View {
         TabView(selection: $selectedTab) {
             HomeView(
                 onNavigateToLoad: { selectedTab = .load },
-                onNavigateToLocations: {
-                    selectedTab = .load
-                    loadWorkflowStep = .locations
-                },
                 onNavigateToSummary: {
                     selectedTab = .load
                     loadWorkflowStep = .summary
@@ -120,7 +120,8 @@ struct MainTabView: View {
                 onNavigateToMaintenance: { navigateToPhoneMaintenance() },
                 onNavigateToTyreSafety: { navigateToPhoneTyreSafety() },
                 onNavigateToWarranty: { navigateToPhoneWarranty() },
-                onNavigateToIncidents: { navigateToPhoneIncidents() }
+                onNavigateToIncidents: { navigateToPhoneIncidents() },
+                onNavigateToTrips: { navigateToPhoneTrips() }
             )
             .tag(AppTab.home)
             .tabItem { Label("Home", systemImage: "house") }
@@ -187,6 +188,11 @@ struct MainTabView: View {
     private func navigateToPhoneIncidents() {
         selectedTab = .care
         pendingCareDestination = .incidents
+    }
+
+    private func navigateToPhoneTrips() {
+        selectedTab = .care
+        pendingCareDestination = .tripRecords
     }
 }
 

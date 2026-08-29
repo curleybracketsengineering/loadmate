@@ -130,7 +130,7 @@ struct MotorhomeSummaryHeaderView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Trip \(trip.name). Rename trip.")
+                .accessibilityLabel("Loading configuration \(trip.name). Rename loading configuration.")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

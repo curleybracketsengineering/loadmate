@@ -172,6 +172,7 @@ final class CloudKitDeepErrorInspectorTests: XCTestCase {
         XCTAssertTrue(coreNames.contains("ChecklistSection"), "SwiftData registers ChecklistSection as a VehicleProfile relationship destination")
         XCTAssertTrue(coreNames.contains("ChecklistItem"))
         XCTAssertFalse(coreNames.contains("AccidentRecord"))
+        XCTAssertFalse(coreNames.contains("TripRecord"))
         XCTAssertLessThan(coreNames.count, LoadMateModelContainer.schema.entities.count)
         XCTAssertNotEqual(isolationURL, coreURL)
     }
@@ -187,6 +188,7 @@ final class CloudKitDeepErrorInspectorTests: XCTestCase {
         XCTAssertTrue(names.isSuperset(of: ["AppState", "VehicleProfile", "Trip", "ChecklistSection", "ChecklistItem"]))
         XCTAssertTrue(names.contains("ChecklistGroup"), "SwiftData registers ChecklistGroup as a relationship destination")
         XCTAssertFalse(names.contains("AccidentRecord"))
+        XCTAssertFalse(names.contains("TripRecord"))
         XCTAssertFalse(names.contains("TyreRecord"))
         XCTAssertLessThan(names.count, LoadMateModelContainer.schema.entities.count)
     }
@@ -307,16 +309,19 @@ final class CloudKitDeepErrorInspectorTests: XCTestCase {
         let groupNames = Set(LoadMateModelContainer.checklistGroupIsolationSchema.entities.map(\.name))
         XCTAssertTrue(groupNames.isSuperset(of: ["ChecklistSection", "ChecklistGroup", "ChecklistItem"]))
         XCTAssertFalse(groupNames.contains("AccidentRecord"))
+        XCTAssertFalse(groupNames.contains("TripRecord"))
 
         let loadedNames = Set(LoadMateModelContainer.loadedItemIsolationSchema.entities.map(\.name))
         XCTAssertTrue(loadedNames.isSuperset(of: ["LoadedItem", "LibraryItem", "Trip", "VehicleProfile"]))
         XCTAssertTrue(loadedNames.contains("ChecklistItem"), "SwiftData registers checklist models via VehicleProfile")
         XCTAssertFalse(loadedNames.contains("AccidentRecord"))
+        XCTAssertFalse(loadedNames.contains("TripRecord"))
 
         let libraryNames = Set(LoadMateModelContainer.libraryItemIsolationSchema.entities.map(\.name))
         XCTAssertTrue(libraryNames.isSuperset(of: ["LibraryItem", "AppState", "VehicleProfile"]))
         XCTAssertTrue(libraryNames.contains("ChecklistSection"), "SwiftData registers checklist models via VehicleProfile")
         XCTAssertFalse(libraryNames.contains("AccidentRecord"))
+        XCTAssertFalse(libraryNames.contains("TripRecord"))
     }
 
     func testIsolationReportDescribesChecklistGroupOutcome() {

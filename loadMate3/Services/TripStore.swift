@@ -76,7 +76,7 @@ enum TripStore {
         let nextOrder = (profile.tripsList.map(\.sortOrder).max() ?? -1) + 1
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trip = Trip(
-            name: trimmed.isEmpty ? "New trip" : trimmed,
+            name: trimmed.isEmpty ? "New Loading Configuration" : trimmed,
             sortOrder: nextOrder,
             profile: profile
         )

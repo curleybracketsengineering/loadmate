@@ -118,7 +118,7 @@ struct LoadTabContent: View {
     }
 
     private var starterKitAlertMessage: String {
-        "Adds typical \(starterKitVehicleLabel) items to your library and loads any that are not on this trip yet. "
+        "Adds typical \(starterKitVehicleLabel) items to your library and loads any that are not on this loading configuration yet. "
             + "Your existing items and weights are kept."
     }
 
@@ -146,11 +146,11 @@ struct LoadTabContent: View {
                 showAddTrip = false
             }
         }
-        .alert("Rename trip", isPresented: Binding(
+        .alert("Rename Loading Configuration", isPresented: Binding(
             get: { tripPendingRename != nil },
             set: { if !$0 { tripPendingRename = nil } }
         )) {
-            TextField("Trip name", text: $tripRenameField)
+            TextField("Loading configuration name", text: $tripRenameField)
             Button("Save") {
                 if let trip = tripPendingRename {
                     TripStore.renameTrip(trip, name: tripRenameField, in: modelContext)

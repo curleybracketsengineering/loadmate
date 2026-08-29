@@ -58,7 +58,7 @@ struct CaravanSummaryPadLayout: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Rename trip \(trip.name)")
+                    .accessibilityLabel("Rename loading configuration \(trip.name)")
                 }
             }
 

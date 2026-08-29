@@ -3,7 +3,6 @@ import SwiftData
 
 struct HomeView: View {
     var onNavigateToLoad: (() -> Void)?
-    var onNavigateToLocations: (() -> Void)?
     var onNavigateToSummary: (() -> Void)?
     var onNavigateToSafety: (() -> Void)?
     var onNavigateToCare: (() -> Void)?
@@ -11,6 +10,7 @@ struct HomeView: View {
     var onNavigateToTyreSafety: (() -> Void)?
     var onNavigateToWarranty: (() -> Void)?
     var onNavigateToIncidents: (() -> Void)?
+    var onNavigateToTrips: (() -> Void)?
 
     @Environment(\.usePadLayout) private var usePadLayout
     @Environment(\.modelContext) private var modelContext
@@ -111,7 +111,7 @@ struct HomeView: View {
                             .font(.title2)
                             .symbolRenderingMode(.hierarchical)
                     }
-                    .accessibilityLabel("Add trip")
+                    .accessibilityLabel("Add Loading Configuration")
                 }
             }
             .task(id: refreshToken) {
@@ -130,11 +130,11 @@ struct HomeView: View {
                     showAddTrip = false
                 }
             }
-            .alert("Rename trip", isPresented: Binding(
+            .alert("Rename Loading Configuration", isPresented: Binding(
                 get: { tripPendingRename != nil },
                 set: { if !$0 { tripPendingRename = nil } }
             )) {
-                TextField("Trip name", text: $tripRenameField)
+                TextField("Loading configuration name", text: $tripRenameField)
                 Button("Save") {
                     if let trip = tripPendingRename {
                         TripStore.renameTrip(trip, name: tripRenameField, in: modelContext)
@@ -171,18 +171,15 @@ struct HomeView: View {
             Text("Quick Actions")
                 .font(.headline.weight(.semibold))
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: AppScreenMetrics.controlSpacing), count: 4), spacing: AppScreenMetrics.controlSpacing) {
-                HomeQuickActionButton(title: "Add Item", systemImage: "shippingbox.fill", tint: AppColors.blue) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: AppScreenMetrics.controlSpacing), count: 3), spacing: AppScreenMetrics.controlSpacing) {
+                HomeQuickActionButton(title: "Loading", systemImage: "slider.horizontal.3", tint: AppColors.orange) {
                     onNavigateToLoad?()
                 }
-                HomeQuickActionButton(title: "Locations", systemImage: "mappin.and.ellipse", tint: AppColors.purple) {
-                    onNavigateToLocations?()
+                HomeQuickActionButton(title: "Trips", systemImage: "suitcase.fill", tint: AppColors.teal) {
+                    onNavigateToTrips?()
                 }
-                HomeQuickActionButton(title: "Summary", systemImage: "scalemass.fill", tint: AppColors.green) {
-                    onNavigateToSummary?()
-                }
-                HomeQuickActionButton(title: "Trip Settings", systemImage: "slider.horizontal.3", tint: AppColors.orange) {
-                    onNavigateToLoad?()
+                HomeQuickActionButton(title: "Incidents", systemImage: "exclamationmark.triangle.fill", tint: AppColors.red) {
+                    onNavigateToIncidents?()
                 }
             }
         }
@@ -220,15 +217,6 @@ struct HomeView: View {
                 tint: AppColors.green
             ) {
                 onNavigateToTyreSafety?()
-            }
-
-            moreHubGroup(
-                title: "Incidents",
-                subtitle: "Accident records and insurer packs",
-                systemImage: "exclamationmark.triangle.fill",
-                tint: AppColors.red
-            ) {
-                onNavigateToIncidents?()
             }
         }
     }

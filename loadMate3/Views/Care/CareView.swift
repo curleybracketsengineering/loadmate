@@ -7,6 +7,7 @@ enum CareDestination: Hashable {
     case warranty
     case documents
     case checklist
+    case tripRecords
     case history
     case incidents
 }
@@ -22,6 +23,7 @@ struct CareView: View {
     @Query private var warrantyPlans: [WarrantyPlan]
     @Query(sort: \ChecklistSection.sortOrder) private var checklistSections: [ChecklistSection]
     @Query private var accidentRecords: [AccidentRecord]
+    @Query private var tripRecords: [TripRecord]
 
     @Binding var pendingDestination: CareDestination?
     @State private var destination: CareDestination?
@@ -123,6 +125,13 @@ struct CareView: View {
                     ) { destination = .checklist }
 
                     careHubCard(
+                        title: "Trips",
+                        subtitle: tripsSubtitle,
+                        systemImage: "suitcase.fill",
+                        tint: AppColors.teal
+                    ) { destination = .tripRecords }
+
+                    careHubCard(
                         title: "History",
                         subtitle: historySubtitle,
                         systemImage: "clock.arrow.circlepath",
@@ -161,6 +170,8 @@ struct CareView: View {
                     DocumentsView()
                 case .checklist:
                     ChecklistView()
+                case .tripRecords:
+                    TripRecordsListView()
                 case .history:
                     VehicleHistoryView()
                 case .incidents:
@@ -217,6 +228,18 @@ struct CareView: View {
         }
         let noun = count == 1 ? "incident" : "incidents"
         return "\(count) \(noun). Open, continue or share a pack."
+    }
+
+    private var tripsSubtitle: String {
+        guard let profile = activeProfile else {
+            return "Dates, destinations, mileage and costs."
+        }
+        let count = tripRecords.filter { $0.vehicleProfileID == profile.id }.count
+        if count == 0 {
+            return "Record journeys, stops, mileage and costs."
+        }
+        let noun = count == 1 ? "trip" : "trips"
+        return "\(count) \(noun). Open, continue or add another."
     }
 
     private var historySubtitle: String {

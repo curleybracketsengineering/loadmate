@@ -616,6 +616,8 @@ enum TowingExperience: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// Loading configuration (named load setup for a vehicle).
+/// User-facing name is "Loading Configuration"; the SwiftData type remains `Trip`.
 @Model
 final class Trip {
     var id: UUID = UUID()

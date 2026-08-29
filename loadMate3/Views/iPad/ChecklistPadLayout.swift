@@ -124,7 +124,7 @@ struct ChecklistPadLayout: View {
                     Image(systemName: "calendar")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppColors.blue)
-                    Text("Trip: \(activeTrip?.name ?? "None")")
+                    Text("Loading: \(activeTrip?.name ?? "None")")
                         .font(.subheadline)
                         .foregroundStyle(Color.primary)
                     Spacer(minLength: 0)
@@ -138,8 +138,8 @@ struct ChecklistPadLayout: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Trip, \(activeTrip?.name ?? "None")")
-            .accessibilityHint("Shows trips for this vehicle")
+            .accessibilityLabel("Loading configuration, \(activeTrip?.name ?? "None")")
+            .accessibilityHint("Shows loading configurations for this vehicle")
         }
     }
 

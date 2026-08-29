@@ -27,6 +27,10 @@ enum LoadMateModelContainer {
       ChecklistSection.self,
       ChecklistGroup.self,
       ChecklistItem.self,
+      TripRecord.self,
+      TripStop.self,
+      TripLeg.self,
+      TripExpense.self,
     ])
   }
 
