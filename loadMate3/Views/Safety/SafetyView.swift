@@ -402,7 +402,10 @@ struct SafetyView: View {
             quickChecklistRow(title: "Departure checklist", systemImage: "list.clipboard.fill") {
                 showDepartureChecklist = true
             }
-            quickChecklistRow(title: "Arrival / pitching checklist", systemImage: "tent.fill") {
+            quickChecklistRow(
+                title: activeProfile?.kind == .motorhome ? "Arrival checklist" : "Arrival / pitching checklist",
+                systemImage: "tent.fill"
+            ) {
                 showArrivalChecklist = true
             }
             quickChecklistRow(title: "Storage checklist", systemImage: "archivebox.fill") {

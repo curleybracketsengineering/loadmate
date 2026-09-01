@@ -854,7 +854,7 @@ final class CloudKitModelIsolationTester: ObservableObject {
 
             SwiftData also registered ChecklistGroup, LoadedItem, and LibraryItem as relationship destinations; this test inserted 0 of those records.
 
-            This does not prove that the normal 5-section / 68-item production seed is safe. It proves only that the model structure and the tested minimal records can export.
+            This does not prove that the normal 5-section / 75-item production seed is safe. It proves only that the model structure and the tested minimal records can export.
             """
         case .checklistGroup:
             return """
@@ -864,7 +864,7 @@ final class CloudKitModelIsolationTester: ObservableObject {
 
             This suggests that ChecklistGroup and its populated production relationships are CloudKit-compatible for this minimal graph.
 
-            Do not conclude that the production 5-section / 68-item seed is safe.
+            Do not conclude that the production 5-section / 75-item seed is safe.
             """
         case .loadedItem:
             return """

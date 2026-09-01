@@ -111,8 +111,8 @@ enum SafetySupport {
         case .motorhome:
             let lightsOK = ChecklistProgress.isGroupComplete(
                 in: checklistSections,
-                sectionTitle: "Departure",
-                groupTitle: "Final checks"
+                sectionTitle: "Before leaving home",
+                groupTitle: "Vehicle"
             )
             items.append(SafetyCheckItem(
                 id: "lights",
@@ -123,7 +123,7 @@ enum SafetySupport {
             let doorsOK = ChecklistProgress.isGroupComplete(
                 in: checklistSections,
                 sectionTitle: "Before leaving home",
-                groupTitle: "Exterior & chassis"
+                groupTitle: "Exterior"
             )
             items.append(SafetyCheckItem(
                 id: "doors",

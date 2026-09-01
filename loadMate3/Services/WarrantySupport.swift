@@ -368,20 +368,37 @@ enum WarrantySupport {
         .warranty, .batteryWarranty, .dampReport, .serviceHistory, .purchaseInvoice, .habitationCertificate
     ]
 
+    /// Vehicle identity records captured in Settings — not warranty paperwork for a service event.
+    static let vehicleIdentityDocumentCategories: Set<DocumentCategory> = [
+        .vinChassisInformation, .crisRegistration
+    ]
+
     static let warrantyMaintenanceCategories: Set<MaintenanceCategory> = [
         .warrantyRepair, .dampInspection, .annualHabitationService
     ]
+
+    /// Paperwork that can be attached to a service event. CRiS VIN Chip and CRiS
+    /// registration stay in Settings / Documents unless they are already linked.
+    static func linkableDocuments(
+        from documents: [DocumentRecord],
+        alreadyLinkedIDs: [UUID] = []
+    ) -> [DocumentRecord] {
+        let linkedIDs = Set(alreadyLinkedIDs)
+        return documents.filter { document in
+            if linkedIDs.contains(document.id) { return true }
+            if vehicleIdentityDocumentCategories.contains(document.category) { return false }
+            return document.isWarrantyRelated || warrantyDocumentCategories.contains(document.category)
+        }
+    }
 
     static func warrantyDocuments(
         from documents: [DocumentRecord],
         events: [WarrantyEvent]
     ) -> [DocumentRecord] {
-        let linkedIDs = Set(events.flatMap(\.linkedDocumentIDs))
-        return documents.filter {
-            $0.isWarrantyRelated
-                || warrantyDocumentCategories.contains($0.category)
-                || linkedIDs.contains($0.id)
-        }
+        linkableDocuments(
+            from: documents,
+            alreadyLinkedIDs: events.flatMap(\.linkedDocumentIDs)
+        )
     }
 
     /// Documents on Care/Maintenance that are not yet included in warranty evidence.

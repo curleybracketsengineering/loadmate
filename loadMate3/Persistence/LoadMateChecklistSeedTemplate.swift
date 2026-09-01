@@ -101,17 +101,31 @@ enum LoadMateChecklistSeedTemplate {
         ]
     )
 
+    static let poweredVehicleCheckItems: [String] = [
+        "Engine oil level",
+        "Coolant / water level",
+        "Brake fluid level",
+        "Screenwash topped up",
+        "Tyre pressures checked",
+        "Fuel and AdBlue levels",
+        "Lights, horn and wipers working",
+    ]
+
     static let motorhomeVehicleGroup = Group(
         title: "Vehicle",
-        items: [
-            "Engine oil level",
-            "Coolant level",
-            "Screenwash topped up",
-            "Tyre pressures checked",
-            "Fuel and AdBlue levels",
-            "Lights and wipers working",
-        ]
+        items: poweredVehicleCheckItems
     )
+
+    static let caravanTowCarGroup = Group(
+        title: "Tow car",
+        items: poweredVehicleCheckItems
+    )
+
+    /// Older factory titles kept so existing motorhomes can be renamed in place.
+    static let motorhomeItemTitleRemaps: [String: String] = [
+        "Coolant level": "Coolant / water level",
+        "Lights and wipers working": "Lights, horn and wipers working",
+    ]
 
     /// Trailer-only factory rows that should not appear on a motorhome.
     static let motorhomeExcludedItemTitles: Set<String> = [
@@ -128,6 +142,21 @@ enum LoadMateChecklistSeedTemplate {
         "Check connection, by winding up",
         "Lights plug connected and latched",
         "Tow mirrors fitted and adjusted",
+    ]
+
+    /// Caravan-only factory sections that should not remain on a motorhome.
+    static let motorhomeExcludedSectionTitles: Set<String> = [
+        "Towing setup",
+    ]
+
+    /// Motorhome-only factory rows that should not appear on a caravan.
+    static let caravanExcludedItemTitles: Set<String> = [
+        "External lockers locked",
+        "Awning and aerial retracted",
+        "Engine off",
+        "Parked and level",
+        "12V systems set for site use",
+        "Mirrors adjusted",
     ]
 
     private static let euTravelGroups: [Group] = [
@@ -193,6 +222,7 @@ enum LoadMateChecklistSeedTemplate {
                         "Jockey wheel raised and clamped",
                     ]
                 ),
+                caravanTowCarGroup,
             ]
         ),
         Section(
@@ -305,6 +335,7 @@ enum LoadMateChecklistSeedTemplate {
                     items: [
                         "Parked and level",
                         "Handbrake applied",
+                        "Wheels chocked",
                         "Engine off",
                     ]
                 ),

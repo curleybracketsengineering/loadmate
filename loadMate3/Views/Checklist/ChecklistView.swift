@@ -81,7 +81,7 @@ struct ChecklistView: View {
                     ContentUnavailableView(
                         "No checklist sections",
                         systemImage: "checklist",
-                        description: Text("This vehicle has no checklist sections. Add a section to build a towing or pitching list. New vehicles get a starter checklist for their type.")
+                        description: Text("This vehicle has no checklist sections. Add a section to build a departure or arrival list. New vehicles get a starter checklist for their type.")
                     )
                     AppPrimaryButton("Add section", systemImage: "folder.badge.plus") {
                         showAddSection = true

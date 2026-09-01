@@ -1374,6 +1374,13 @@ struct WarrantyEventEditorSheet: View {
         return "Adds matching events each year from this due date through \(Formatters.date(end)) (\(count) in total, skipping any that already exist)."
     }
 
+    private var linkableDocuments: [DocumentRecord] {
+        WarrantySupport.linkableDocuments(
+            from: documents,
+            alreadyLinkedIDs: event?.linkedDocumentIDs ?? []
+        )
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -1453,10 +1460,10 @@ struct WarrantyEventEditorSheet: View {
                         )
                     }
 
-                    if !documents.isEmpty, !isCostItem {
+                    if !linkableDocuments.isEmpty, !isCostItem {
                         AppSettingsSection("Linked documents", caption: "Attach existing warranty paperwork to this event.") {
                             VStack(alignment: .leading, spacing: 8) {
-                                ForEach(documents) { doc in
+                                ForEach(linkableDocuments) { doc in
                                     Toggle(isOn: Binding(
                                         get: { linkedDocumentIDs.contains(doc.id) },
                                         set: { isOn in

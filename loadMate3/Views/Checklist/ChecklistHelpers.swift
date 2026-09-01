@@ -92,6 +92,12 @@ enum ChecklistPresentation {
                 tint: AppColors.blue,
                 summary: "Ensure a safe, level and comfortable setup."
             )
+        case "On site":
+            return SectionStyle(
+                systemImage: "mappin.and.ellipse",
+                tint: AppColors.blue,
+                summary: "Park, level and connect services."
+            )
         case "Departure":
             return SectionStyle(
                 systemImage: "tow.hitch.fill",
@@ -125,6 +131,16 @@ enum ChecklistPresentation {
             return ("bolt.fill", "Power and gas settings for travel.")
         case "Exterior & chassis":
             return ("wrench.and.screwdriver.fill", "Outside hardware secured.")
+        case "Exterior":
+            return ("wrench.and.screwdriver.fill", "Outside hardware secured.")
+        case "Vehicle":
+            return ("oilcan.fill", "Engine, fluids and walk-around checks.")
+        case "Tow car":
+            return ("oilcan.fill", "Tow-car fluids, tyres and walk-around checks.")
+        case "Arrival":
+            return ("mappin.and.ellipse", "Park, level and secure the vehicle.")
+        case "Habitation":
+            return ("sofa.fill", "Living area ready for site use.")
         case "Hitch & safety":
             return ("link", "Coupling and safety cable checks.")
         case "Moving off checks":

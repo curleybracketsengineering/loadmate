@@ -226,6 +226,41 @@ final class WarrantySupportTests: XCTestCase {
         XCTAssertEqual(Set(repairs.map(\.id)), Set([repair.id, damp.id]))
     }
 
+    func testLinkableDocumentsExcludeCRiSAndOtherIdentityRecords() {
+        let vehicleID = UUID()
+
+        let warrantyDoc = DocumentRecord(vehicleID: vehicleID)
+        warrantyDoc.category = .warranty
+        warrantyDoc.title = "Manufacturer warranty"
+
+        let flaggedOther = DocumentRecord(vehicleID: vehicleID)
+        flaggedOther.category = .other
+        flaggedOther.isWarrantyRelated = true
+
+        let crisChip = DocumentRecord(vehicleID: vehicleID)
+        crisChip.category = .vinChassisInformation
+        crisChip.title = "CRiS VIN Chip"
+
+        let crisRegistration = DocumentRecord(vehicleID: vehicleID)
+        crisRegistration.category = .crisRegistration
+
+        let insurance = DocumentRecord(vehicleID: vehicleID)
+        insurance.category = .insurance
+
+        let alreadyLinkedCRiS = DocumentRecord(vehicleID: vehicleID)
+        alreadyLinkedCRiS.category = .vinChassisInformation
+        alreadyLinkedCRiS.title = "CRiS VIN Chip (linked)"
+
+        let docs = WarrantySupport.linkableDocuments(
+            from: [warrantyDoc, flaggedOther, crisChip, crisRegistration, insurance, alreadyLinkedCRiS],
+            alreadyLinkedIDs: [alreadyLinkedCRiS.id]
+        )
+        XCTAssertEqual(
+            Set(docs.map(\.id)),
+            Set([warrantyDoc.id, flaggedOther.id, alreadyLinkedCRiS.id])
+        )
+    }
+
     func testCoverageStatusUsesDurationWhenNoExplicitExpiry() throws {
         let plan = WarrantyPlan(vehicleID: UUID())
         plan.isUnderWarranty = true
